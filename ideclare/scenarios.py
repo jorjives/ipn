@@ -178,7 +178,12 @@ class Run:
     # --- lifecycle ------------------------------------------------------------
 
     def expect_status(self, step, rest):
-        on = date.fromisoformat(rest[2]) if rest[1:2] == ["on"] else self.last_date or date.today()
+        if rest[1:2] == ["on"]:
+            on = date.fromisoformat(rest[2])
+        elif self.last_date is not None:
+            on = self.last_date
+        else:
+            raise ValueError("say 'expect status X on YYYY-MM-DD' before any event has happened")
         self.check(step, "status", rest[0], self.policy.status(on))
 
     def expect_expiry(self, step, rest):
