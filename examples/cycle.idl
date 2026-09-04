@@ -52,6 +52,18 @@ rating
   fee "Admin fee" 10
   round to 0.01
 
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata, fee 25
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference, fee 10
+  lapse when unpaid after 30 days
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+    decline when claims in term >= 2 because "Two or more claims in the year"
+    decline when rider_age > 80 because "Rider is over the age limit"
+
 # --- Eligibility ---------------------------------------------------------
 
 scenario "Standard rider is eligible"
@@ -120,3 +132,83 @@ scenario "Racing cover adds a flat amount before the minimum and tax"
   expect net 191.30
   expect tax IPT 22.96
   expect premium 224.26
+
+# --- Lifecycle -----------------------------------------------------------
+# Baseline risk below: net 74.97, IPT 9.00, fee 10.00, total 93.97.
+# The earning part (net + IPT) is 83.97; the fee is earned on day one.
+
+scenario "Policy is bound, goes live and expires"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-03-01
+  expect status bound on 2026-02-20
+  expect status live on 2026-03-01
+  expect expiry 2027-03-01
+  expect status expired on 2027-03-01
+
+scenario "Cancelling within cooling off refunds everything"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-01-10
+  expect refund 93.97
+  expect status cancelled
+
+scenario "Customer cancels mid term: pro rata less the fee"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-04-11
+  # 265 of 365 days unused: 83.97 x 265/365 = 60.96, less 25 fee
+  expect refund 35.96
+  expect status live on 2026-04-10
+  expect status cancelled on 2026-04-11
+
+scenario "Insurer cancels mid term: pro rata, no fee"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when cancelled by insurer on 2026-04-11
+  expect refund 60.96
+
+scenario "Unpaid policy lapses after 30 days unless paid"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01 unpaid
+  expect status live on 2026-01-31
+  expect status lapsed on 2026-02-01
+  when paid on 2026-02-05
+  expect status live on 2026-02-06
+
+scenario "Mid term adjustment charges the pro rata difference plus a fee"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when adjusted on 2026-04-11 with bike_value 3000
+  # new net 112.46 + IPT 13.50 = 125.96; difference 42.00 x 265/365 = 30.49, plus 10 fee
+  expect additional premium 40.49
+  expect premium 135.96
+
+scenario "Adjusting down returns premium"
+  given bike_value 3000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when adjusted on 2026-04-11 with bike_value 2000
+  # -42.00 x 265/365 = -30.49, plus 10 fee
+  expect return premium 20.49
+
+scenario "Renewal is invited 21 days before expiry at the same price"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  expect renewal invite 2026-12-11
+  expect renewal premium 93.97
+  when renewed on 2027-01-01
+  expect status renewed on 2026-06-01
+  expect status live on 2027-06-01
+  expect expiry 2028-01-01
+
+scenario "Renewal increase is capped at 20%"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when adjusted on 2026-12-01 with bike_value 4000
+  # full price would be 177.95; cap is 93.97 x 1.20
+  expect renewal premium 112.76
+
+scenario "Renewal declined on age"
+  given bike_value 2000, rider_age 79, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when adjusted on 2026-06-01 with rider_age 81
+  expect renewal declined "Rider is over the age limit"

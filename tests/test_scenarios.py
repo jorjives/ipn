@@ -88,3 +88,76 @@ scenario "wrong"
   expect premium 99.99
 ''')
         self.assertIn("expected premium 99.99, got 77.20", res["wrong"][0])
+
+
+from tests.test_parser import LIFECYCLE
+
+
+def lived(extra):
+    return {r.scenario.name: r.failures for r in run_all(parse(LIFECYCLE + extra))}
+
+
+class LifecycleSteps(unittest.TestCase):
+    def test_cancellation_flow(self):
+        res = lived('''
+scenario "cancel"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01
+  expect status live
+  expect expiry 2027-01-01
+  when cancelled by customer on 2026-04-11
+  expect refund 23.79
+  expect status cancelled
+  expect status live on 2026-03-01
+''')
+        self.assertEqual(res["cancel"], [])
+
+    def test_lapse_and_payment(self):
+        res = lived('''
+scenario "lapse"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01 unpaid
+  expect status lapsed on 2026-02-15
+  when paid on 2026-02-20
+  expect status live on 2026-02-21
+''')
+        self.assertEqual(res["lapse"], [])
+
+    def test_adjustment_and_renewal(self):
+        res = lived('''
+scenario "mta"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01
+  when adjusted on 2026-04-11 with bike_value 4000
+  expect additional premium 56.35
+  expect premium 141.04
+  expect renewal invite 2026-12-11
+  expect renewal premium 141.04
+  when adjusted on 2026-04-11 with bike_value 2000
+  expect return premium 36.35
+  when renewed on 2027-01-01
+  expect status live on 2027-06-01
+  expect status renewed on 2026-06-01
+''')
+        self.assertEqual(res["mta"], [])
+
+    def test_renewal_declined(self):
+        res = lived('''
+scenario "old"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01
+  when adjusted on 2026-06-01 with rider_age 85
+  expect renewal declined "Age limit"
+  when renewed on 2027-01-01
+''')
+        self.assertEqual(len(res["old"]), 1)
+        self.assertIn("Age limit", res["old"][0])
+
+    def test_wrong_status_reports_actual(self):
+        res = lived('''
+scenario "wrong"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01
+  expect status cancelled
+''')
+        self.assertIn("expected status cancelled, got live", res["wrong"][0])
