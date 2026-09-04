@@ -1,8 +1,8 @@
 """Applies a Product to a risk: eligibility, covers, rating, lifecycle and claims."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import calendar
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -72,6 +72,7 @@ class Quote:
     net: Decimal
     lines: list[tuple[str, Decimal]]  # taxes and fees, in order
     total: Decimal
+    earning: Decimal  # net plus taxes: the part that earns over the term and is refundable pro rata
     trail: list[Trail] = field(default_factory=list)
 
 
@@ -95,16 +96,16 @@ def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
                 continue
             amount = value(row.amount)
             net = net * amount if row.op == "x" else net + amount if row.op == "+" else net - amount
-            trail.append(Trail(step.label, f"{row.op} {str(amount)}", net))
+            trail.append(Trail(step.label, f"{row.op} {amount}", net))
         elif step.kind == "add":
             amount = value(step.amount)
             net += amount
-            trail.append(Trail(step.label or "add", f"+ {str(amount)}", net))
+            trail.append(Trail(step.label or "add", f"+ {amount}", net))
         elif step.kind in ("discount", "load"):
             pct = value(step.amount)
             mult = (1 - pct) if step.kind == "discount" else (1 + pct)
             net *= mult
-            trail.append(Trail(step.label or step.kind, f"x {str(mult)}", net))
+            trail.append(Trail(step.label or step.kind, f"x {mult}", net))
         elif step.kind == "minimum":
             floor = value(step.amount)
             net = max(net, floor)
@@ -115,8 +116,10 @@ def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
             quantum = value(step.amount)
 
     net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
-    lines = [(label, (net * amount if kind == "tax" else amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
-    return Quote(net, lines, net + sum((a for _, a in lines), Decimal(0)), trail)
+    lines = [(kind, label, (net * amount if kind == "tax" else amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
+    taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
+    fees = sum((a for kind, _, a in lines if kind == "fee"), Decimal(0))
+    return Quote(net, [(label, a) for _, label, a in lines], net + taxes + fees, net + taxes, trail)
 
 
 # --- lifecycle --------------------------------------------------------------
@@ -166,12 +169,8 @@ class Policy:
 
     @property
     def refundable(self) -> Decimal:
-        """Premium that earns over the term: net plus taxes. Fees are earned on day one."""
-        q = self.quote
-        return q.net + sum((a for label, a in q.lines if self._is_tax(label)), Decimal(0))
-
-    def _is_tax(self, label: str) -> bool:
-        return any(s.kind == "tax" and s.label == label for s in self.product.rating)
+        """Fees are earned on day one; only net plus taxes earn over the term."""
+        return self.quote.earning
 
     @property
     def expiry(self) -> date:
