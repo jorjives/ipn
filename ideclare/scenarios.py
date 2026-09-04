@@ -99,3 +99,36 @@ class Run:
             self.fail(step.line, f"expected {name} {status}, got {actual}")
         elif len(rest) > 2 and unquote(rest[2]) != state.reason:
             self.fail(step.line, f"expected {name} {status} {unquote(rest[2])!r}, got {actual}")
+
+    # --- rating ---------------------------------------------------------------
+
+    def quote(self) -> engine.Quote:
+        return engine.rate(self.product, self.inputs, self.selected)
+
+    def expect_premium(self, step, rest):
+        self.check(step, "premium", money(Decimal(rest[0])), money(self.quote().total))
+
+    def expect_net(self, step, rest):
+        self.check(step, "net", money(Decimal(rest[0])), money(self.quote().net))
+
+    def expect_tax(self, step, rest):
+        self._line(step, "tax", rest)
+
+    def expect_fee(self, step, rest):
+        self._line(step, "fee", rest)
+
+    def _line(self, step, kind, rest):
+        label = unquote(rest[0])
+        actual = dict(self.quote().lines).get(label)
+        if actual is None:
+            self.fail(step.line, f"no {kind} called {label!r} in the quote")
+        else:
+            self.check(step, f"{kind} {label}", money(Decimal(rest[1])), money(actual))
+
+    def expect_factor(self, step, rest):
+        label = unquote(rest[0])
+        hit = next((t for t in self.quote().trail if t.label == label), None)
+        if hit is None:
+            self.fail(step.line, f"factor {label!r} was not applied")
+        else:
+            self.check(step, f"factor {label}", " ".join(rest[1:]), hit.applied)

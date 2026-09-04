@@ -32,6 +32,26 @@ cover Racing optional
   excess 250
   available when racing is yes
 
+rating
+  base 3.5% of bike_value
+  factor "Rider age"
+    rider_age < 25: x 1.40
+    rider_age < 40: x 1.00
+    otherwise: x 0.90
+  factor "Security"
+    security is gold: x 0.85
+    security is silver: x 0.95
+    otherwise: x 1.00
+  factor "Claims history"
+    previous_claims is 0: x 0.90
+    previous_claims is 1: x 1.10
+    otherwise: x 1.35
+  add "Racing cover" 45 when Racing selected
+  minimum 60
+  tax IPT 12%
+  fee "Admin fee" 10
+  round to 0.01
+
 # --- Eligibility ---------------------------------------------------------
 
 scenario "Standard rider is eligible"
@@ -74,3 +94,29 @@ scenario "Racing cover selected and available"
   select Racing
   expect cover Racing included
   expect cover Racing limit 5000
+
+# --- Rating --------------------------------------------------------------
+
+scenario "Young rider with a gold lock"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  # 3.5% of 2000 = 70, x 1.40 age, x 0.85 security, x 0.90 no claims = 74.97
+  expect factor "Rider age" x 1.40
+  expect factor "Security" x 0.85
+  expect net 74.97
+  expect tax IPT 9.00
+  expect fee "Admin fee" 10.00
+  expect premium 93.97
+
+scenario "Minimum premium applies to a cheap bike"
+  given bike_value 500, rider_age 45, security gold, racing no, previous_claims 0
+  # 17.50 x 0.90 x 0.85 x 0.90 = 12.05, floored to 60
+  expect net 60.00
+  expect premium 77.20
+
+scenario "Racing cover adds a flat amount before the minimum and tax"
+  given bike_value 4000, rider_age 30, security silver, racing yes, previous_claims 1
+  select Racing
+  # 140 x 1.00 x 0.95 x 1.10 = 146.30, + 45 = 191.30
+  expect net 191.30
+  expect tax IPT 22.96
+  expect premium 224.26
