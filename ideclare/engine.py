@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import calendar
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from .expr import evaluate
@@ -117,3 +119,140 @@ def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
     net = net.quantize(quantum, ROUNDING)
     lines = [(label, amount.quantize(quantum, ROUNDING)) for label, amount in lines]
     return Quote(net, lines, net + sum((a for _, a in lines), Decimal(0)), trail)
+
+
+# --- lifecycle --------------------------------------------------------------
+
+def add_months(d: date, months: int) -> date:
+    month = d.month - 1 + months
+    year, month = d.year + month // 12, month % 12 + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def pence(v: Decimal) -> Decimal:
+    return v.quantize(Decimal("0.01"), ROUNDING)
+
+
+@dataclass
+class RenewalOffer:
+    invite_date: date
+    premium: Decimal
+    uncapped: Decimal
+    declined: str | None = None
+
+
+class Policy:
+    """One policy's history: bind, pay, cancel, adjust, claim, renew. Status is derived per date."""
+
+    def __init__(self, product: Product, inputs: dict, selected: set[str]):
+        self.product, self.inputs, self.selected = product, dict(inputs), set(selected)
+        self.inception: date | None = None
+        self.paid_on: date | None = None
+        self.cancelled_on: date | None = None
+        self.expiring_premium = Decimal(0)  # the annual total the customer is currently on
+        self.claims: list = []
+        self.previous_terms: list[tuple[date, date]] = []
+
+    # -- derived ------------------------------------------------------------
+
+    @property
+    def quote(self) -> Quote:
+        return rate(self.product, self.inputs, self.selected)
+
+    @property
+    def refundable(self) -> Decimal:
+        """Premium that earns over the term: net plus taxes. Fees are earned on day one."""
+        q = self.quote
+        return q.net + sum((a for label, a in q.lines if self._is_tax(label)), Decimal(0))
+
+    def _is_tax(self, label: str) -> bool:
+        return any(s.kind == "tax" and s.label == label for s in self.product.rating)
+
+    @property
+    def expiry(self) -> date:
+        return add_months(self.inception, self.product.term_months)
+
+    def term_days(self) -> int:
+        return (self.expiry - self.inception).days
+
+    def days_remaining(self, on: date) -> int:
+        return max(0, (self.expiry - on).days)
+
+    def status(self, on: date) -> str:
+        lc = self.product.lifecycle
+        if self.inception is None:
+            return "quoted"
+        if self.cancelled_on is not None and on >= self.cancelled_on:
+            return "cancelled"
+        for start, end in self.previous_terms:
+            if start <= on < end:
+                return "renewed"
+        if on < self.inception:
+            return "bound"
+        if on >= self.expiry:
+            return "expired"
+        if lc.lapse_days is not None and self.paid_on is None and (on - self.inception).days > lc.lapse_days:
+            return "lapsed"
+        return "live"
+
+    # -- events -------------------------------------------------------------
+
+    def bind(self, on: date, paid: bool = True) -> None:
+        self.inception = on
+        self.paid_on = on if paid else None
+        self.expiring_premium = self.quote.total
+
+    def pay(self, on: date) -> None:
+        self.paid_on = on
+
+    def cancel(self, on: date, by: str) -> Decimal:
+        lc = self.product.lifecycle
+        terms = lc.cancellation.get(by)
+        if terms is None:
+            raise ValueError(f"cancellation by {by} is not declared in the lifecycle")
+        self.cancelled_on = on
+        if (on - self.inception).days < lc.cooling_off_days:
+            return pence(self.quote.total)
+        if terms.refund == "full":
+            refund = self.refundable
+        elif terms.refund == "pro rata":
+            refund = self.refundable * self.days_remaining(on) / self.term_days()
+        else:
+            refund = Decimal(0)
+        return pence(max(Decimal(0), refund - terms.fee))
+
+    def adjust(self, on: date, changes: dict) -> Decimal:
+        """Applies changes; returns the amount to charge (negative = return premium)."""
+        lc = self.product.lifecycle
+        if not lc.adjustment_allowed:
+            raise ValueError("adjustment is not allowed")
+        before = self.refundable
+        self.inputs.update(changes)
+        difference = (self.refundable - before) * self.days_remaining(on) / self.term_days()
+        self.expiring_premium = self.quote.total
+        return pence(difference + lc.adjustment_fee)
+
+    def renew(self) -> RenewalOffer:
+        lc = self.product.lifecycle
+        ctx = context(self.inputs, self.selected, claims_in_term=len(self.claims))
+        new = pence(self.quote.total * self.claims_loading())
+        offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new)
+        if lc.renewal_cap is not None:
+            offer.premium = min(new, pence(self.expiring_premium * (1 + lc.renewal_cap)))
+        for r in lc.renewal_decline:
+            if evaluate(r.condition, ctx):
+                offer.declined = r.reason
+                break
+        return offer
+
+    def claims_loading(self) -> Decimal:
+        return Decimal(1)
+
+    def accept_renewal(self) -> None:
+        offer = self.renew()
+        if offer.declined:
+            raise ValueError(f"renewal declined: {offer.declined}")
+        self.previous_terms.append((self.inception, self.expiry))
+        self.inception = self.paid_on = self.expiry
+        self.expiring_premium = offer.premium
+        self.claims = []
