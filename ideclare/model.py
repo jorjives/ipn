@@ -23,6 +23,8 @@ class Product:
     covers: list["Cover"] = field(default_factory=list)
     rating: list["RatingStep"] = field(default_factory=list)
     lifecycle: "Lifecycle" = field(default_factory=lambda: Lifecycle())
+    claims: dict[str, "ClaimRule"] = field(default_factory=dict)
+    claims_loading: list[tuple[int, Decimal]] = field(default_factory=list)  # (claims in term, multiplier)
     scenarios: list["Scenario"] = field(default_factory=list)
 
     def cover(self, name: str) -> "Cover | None":
@@ -101,3 +103,11 @@ class Lifecycle:
     renewal_invite_days: int = 0
     renewal_cap: Decimal | None = None
     renewal_decline: list[Rule] = field(default_factory=list)
+
+
+@dataclass
+class ClaimRule:
+    cover: str
+    requires: list[str] = field(default_factory=list)
+    less_excess: bool = False
+    decline: list[Rule] = field(default_factory=list)

@@ -161,3 +161,40 @@ scenario "wrong"
   expect status cancelled
 ''')
         self.assertIn("expected status cancelled, got live", res["wrong"][0])
+
+
+from tests.test_parser import CLAIMS
+
+
+def claimed(extra):
+    return {r.scenario.name: r.failures for r in run_all(parse(CLAIMS + extra))}
+
+
+class ClaimSteps(unittest.TestCase):
+    def test_claim_flow(self):
+        res = claimed('''
+scenario "claims"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 with police_report, crime_reference
+  expect claim paid
+  expect payout 1350.00
+  when claim Theft for 1500 on 2026-03-01 reported 2026-05-01 with police_report, crime_reference
+  expect claim declined "Late notification"
+  expect claims in term 1
+  when claim "Accidental Damage" for 500 on 2026-06-01
+  expect payout 500.00
+  expect claims in term 2
+  expect renewal declined "Too many claims"
+''')
+        self.assertEqual(res["claims"], [])
+
+    def test_wrong_payout_reports_actual(self):
+        res = claimed('''
+scenario "wrong"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 with police_report, crime_reference
+  expect payout 1500.00
+''')
+        self.assertIn("expected payout 1500.00, got 1350.00", res["wrong"][0])

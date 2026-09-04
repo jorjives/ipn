@@ -37,6 +37,7 @@ class Run:
         self.policy = engine.Policy(product, self.inputs, self.selected)
         self.last_date: date | None = None
         self.last_amount: Decimal | None = None
+        self.last_claim: engine.ClaimResult | None = None
 
     def run(self) -> Result:
         for inp in self.product.inputs.values():  # free text is informational only
@@ -86,6 +87,14 @@ class Run:
         for name, value in zip(pairs[::2], pairs[1::2]):
             changes[name] = given_value(Line(step.line, 0, ""), self.product.inputs[name], value)
         self.last_amount = self.policy.adjust(on, changes)
+
+    def when_claim(self, step, on, toks):
+        # claim <Cover> for <amount> on <date> [reported <date>] [with a, b]
+        cover, amount = unquote(toks[1]), Decimal(toks[toks.index("for") + 1])
+        reported = date.fromisoformat(toks[toks.index("reported") + 1]) if "reported" in toks else on
+        evidence = {t for t in toks[toks.index("with") + 1:] if t != ","} if "with" in toks else set()
+        self.last_claim = self.policy.claim(cover, amount, on, reported, evidence)
+        self.last_amount = self.last_claim.amount
 
     def when_renewed(self, step, on, toks):
         offer = self.policy.renew()
@@ -200,3 +209,23 @@ class Run:
             self.check(step, "renewal invite", rest[1], offer.invite_date.isoformat())
         elif what != "offered":
             raise ValueError("expected renewal premium|invite|declined|offered")
+
+    # --- claims ---------------------------------------------------------------
+
+    def expect_payout(self, step, rest):
+        c = self.last_claim
+        if c.status != "paid":
+            self.fail(step.line, f"expected payout {rest[0]}, got declined: {c.reason}")
+        else:
+            self.check(step, "payout", money(Decimal(rest[0])), money(c.amount))
+
+    def expect_claim(self, step, rest):
+        c = self.last_claim
+        actual = c.status + (f": {c.reason}" if c.reason else f" {money(c.amount)}")
+        if rest[0] != c.status:
+            self.fail(step.line, f"expected claim {rest[0]}, got {actual}")
+        elif len(rest) > 1 and unquote(rest[1]) != c.reason:
+            self.fail(step.line, f"expected claim declined {unquote(rest[1])!r}, got {actual}")
+
+    def expect_claims(self, step, rest):  # claims in term N
+        self.check(step, "claims in term", int(rest[-1]), len(self.policy.claims))

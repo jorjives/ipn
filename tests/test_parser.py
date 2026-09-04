@@ -233,3 +233,37 @@ class Lifecycle(unittest.TestCase):
     def test_bad_lifecycle_line(self):
         with self.assertRaises(ParseError):
             parse(FULL + "lifecycle\n  cancellation by dog: refund pro rata\n")
+
+
+CLAIMS = LIFECYCLE + '''
+claims
+  claim Theft
+    requires police_report, crime_reference
+    pays claimed amount up to limit, less excess
+    decline when reported after 30 days because "Late notification"
+    decline when claimed > bike_value because "Claim exceeds insured value"
+  claim "Accidental Damage"
+    pays claimed amount up to limit
+  after 2 claims in term: renewal load x 1.25
+  after 3 claims in term: renewal load x 1.50
+'''
+
+
+class Claims(unittest.TestCase):
+    def test_claim_rules(self):
+        p = parse(CLAIMS)
+        theft = p.claims["Theft"]
+        self.assertEqual(theft.requires, ["police_report", "crime_reference"])
+        self.assertTrue(theft.less_excess)
+        self.assertEqual(theft.decline[0].reason, "Late notification")
+        self.assertEqual(theft.decline[0].condition, (">", ("name", "days_to_report"), ("num", Decimal(30))))
+        self.assertEqual(theft.decline[1].condition, (">", ("name", "claimed"), ("name", "bike_value")))
+        self.assertFalse(p.claims["Accidental Damage"].less_excess)
+
+    def test_claims_loading(self):
+        p = parse(CLAIMS)
+        self.assertEqual(p.claims_loading, [(2, Decimal("1.25")), (3, Decimal("1.50"))])
+
+    def test_claim_on_unknown_cover(self):
+        with self.assertRaises(ParseError):
+            parse(FULL + "claims\n  claim Flying\n    pays claimed amount up to limit\n")

@@ -139,6 +139,13 @@ class RenewalOffer:
     declined: str | None = None
 
 
+@dataclass
+class ClaimResult:
+    status: str  # paid | declined
+    amount: Decimal = Decimal(0)
+    reason: str = ""
+
+
 class Policy:
     """One policy's history: bind, pay, cancel, adjust, claim, renew. Status is derived per date."""
 
@@ -244,7 +251,37 @@ class Policy:
         return offer
 
     def claims_loading(self) -> Decimal:
-        return Decimal(1)
+        applicable = [m for count, m in self.product.claims_loading if len(self.claims) >= count]
+        return applicable[-1] if applicable else Decimal(1)
+
+    def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str]) -> "ClaimResult":
+        rules = self.product.claims.get(cover)
+        if rules is None:
+            return ClaimResult("declined", reason=f"claims on {cover} are not declared")
+        status = self.status(on)
+        if status != "live":
+            return ClaimResult("declined", reason=f"policy was {status} on {on.isoformat()}")
+        state = cover_state(self.product.cover(cover), self.inputs, self.selected)
+        if state.status != "included":
+            return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
+        for name in rules.requires:
+            if name not in evidence:
+                return ClaimResult("declined", reason=f"{name} is required")
+        ctx = context(self.inputs, self.selected, claim=claimed, claimed=claimed,
+                      days_to_report=(reported - on).days, claims_in_term=len(self.claims))
+        for r in rules.decline:
+            if evaluate(r.condition, ctx):
+                return ClaimResult("declined", reason=r.reason)
+        payout = min(claimed, state.limit) if state.limit is not None else claimed
+        if rules.less_excess:
+            excess = self.product.cover(cover).excess
+            amount = Decimal(evaluate(excess.amount, ctx)) if excess.amount is not None else Decimal(0)
+            if excess.minimum is not None:
+                amount = max(amount, Decimal(evaluate(excess.minimum, ctx)))
+            payout -= amount
+        result = ClaimResult("paid", pence(max(Decimal(0), payout)))
+        self.claims.append(result)
+        return result
 
     def accept_renewal(self) -> None:
         offer = self.renew()

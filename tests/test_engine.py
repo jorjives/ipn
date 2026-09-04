@@ -207,3 +207,56 @@ class PolicyLifecycle(unittest.TestCase):
         self.assertEqual(pol.inception, date(2027, 1, 1))
         self.assertEqual(pol.status(date(2027, 1, 1)), "live")
         self.assertEqual(pol.status(date(2026, 12, 31)), "renewed")
+
+
+from tests.test_parser import CLAIMS
+
+
+class ClaimsEngine(unittest.TestCase):
+    def setUp(self):
+        self.pol = Policy(parse(CLAIMS), risk(), set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, cover="Theft", amount=1500, on=date(2026, 3, 1), reported=None, evidence=("police_report", "crime_reference")):
+        return self.pol.claim(cover, Decimal(amount), on, reported or on, set(evidence))
+
+    def test_paid_up_to_limit_less_percentage_excess_with_minimum(self):
+        c = self.claim(amount=1500)
+        self.assertEqual((c.status, c.amount), ("paid", Decimal("1350.00")))  # 10% excess = 150
+        c = self.claim(amount=300)
+        self.assertEqual(c.amount, Decimal("250.00"))  # 10% = 30 < minimum 50
+        c = self.claim(amount=1900, cover="Accidental Damage", evidence=())
+        self.assertEqual(c.amount, Decimal("1900.00"))  # no excess declared for claims on this cover
+
+    def test_limit_applies_before_excess(self):
+        self.pol.product.claims["Theft"].decline.pop()  # allow claimed > bike_value for this test
+        c = self.claim(amount=5000)
+        self.assertEqual(c.amount, Decimal("1500.00"))  # min(5000, 2000) - 10% of 5000
+
+    def test_missing_evidence_declines(self):
+        c = self.claim(evidence=("police_report",))
+        self.assertEqual((c.status, c.reason), ("declined", "crime_reference is required"))
+
+    def test_late_notification_declines(self):
+        c = self.claim(on=date(2026, 3, 1), reported=date(2026, 4, 15))
+        self.assertEqual(c.reason, "Late notification")
+
+    def test_excluded_cover_declines(self):
+        self.pol.inputs["security"] = "bronze"
+        self.pol.inputs["bike_value"] = Decimal(3000)
+        c = self.claim()
+        self.assertEqual(c.reason, "Theft is excluded: Gold or silver lock required")
+
+    def test_claim_outside_live_period_declines(self):
+        c = self.claim(on=date(2025, 12, 1))
+        self.assertEqual(c.reason, "policy was bound on 2025-12-01")
+
+    def test_only_paid_claims_count_and_load_renewal(self):
+        self.claim(evidence=())
+        self.assertEqual(len(self.pol.claims), 0)
+        self.claim(); self.claim()
+        self.assertEqual(len(self.pol.claims), 2)
+        offer = self.pol.renew()
+        self.assertEqual(offer.declined, "Too many claims")
+        self.assertEqual(offer.uncapped, Decimal("96.50"))  # 77.20 x 1.25
+        self.assertEqual(offer.premium, Decimal("92.64"))  # capped at 20%

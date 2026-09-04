@@ -6,7 +6,7 @@ from decimal import Decimal
 from dataclasses import dataclass, field
 
 from .expr import ExprError, names, parse_expr
-from .model import Cancellation, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
+from .model import Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
 
 
 class ParseError(Exception):
@@ -114,19 +114,19 @@ def parse_inputs(line: Line, product: Product) -> None:
 # --- expressions and rules ---------------------------------------------------
 
 # Words an expression may use besides inputs, choices and cover names.
-CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term"}
-
-PHRASES = {("claims", "in", "term"): "claims_in_term"}
+CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term", "days_to_report"}
 
 
 def fold_phrases(toks: list[str]) -> list[str]:
+    """Rewrites English phrases into the words the expression language understands."""
     out, i = [], 0
     while i < len(toks):
-        for phrase, word in PHRASES.items():
-            if tuple(toks[i:i + len(phrase)]) == phrase:
-                out.append(word)
-                i += len(phrase)
-                break
+        if toks[i:i + 3] == ["claims", "in", "term"]:
+            out.append("claims_in_term")
+            i += 3
+        elif toks[i:i + 2] == ["reported", "after"] and toks[i + 3:i + 4] == ["days"]:
+            out += ["days_to_report", ">", toks[i + 2]]
+            i += 4
         else:
             out.append(toks[i])
             i += 1
@@ -308,6 +308,35 @@ def parse_renewal(line: Line, product: Product) -> None:
             raise child.error(f"unknown renewal setting {child.text!r}")
 
 
+def parse_claims(line: Line, product: Product) -> None:
+    for child in line.children:
+        toks = tokens(child)
+        if toks[:1] == ["claim"] and len(toks) == 2:
+            name = unquote(toks[1])
+            if product.cover(name) is None:
+                raise child.error(f"unknown cover {name!r}")
+            product.claims[name] = parse_claim(child, name, product)
+        elif toks[:1] == ["after"] and toks[2:9] == ["claims", "in", "term", ":", "renewal", "load", "x"] and len(toks) == 10:
+            product.claims_loading.append((int(toks[1]), Decimal(toks[9])))
+        else:
+            raise child.error("expected 'claim Cover' or 'after N claims in term: renewal load x M'")
+
+
+def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
+    rule_ = ClaimRule(name)
+    for child in line.children:
+        toks = tokens(child)
+        if toks[:1] == ["requires"]:
+            rule_.requires = [t for t in toks[1:] if t != ","]
+        elif toks[:6] == ["pays", "claimed", "amount", "up", "to", "limit"] and toks[6:] in ([], [",", "less", "excess"]):
+            rule_.less_excess = bool(toks[6:])
+        elif toks[:1] == ["decline"]:
+            rule_.decline.append(rule(child, "decline", toks[1:], product))
+        else:
+            raise child.error(f"unknown claim setting {child.text!r}")
+    return rule_
+
+
 def given_value(line: Line, inp: Input, tok: str):
     if inp.kind in ("money", "integer", "number") and tok[0].isdigit():
         return Decimal(tok)
@@ -355,6 +384,7 @@ BLOCKS = {
     "cover": parse_cover,
     "rating": parse_rating,
     "lifecycle": parse_lifecycle,
+    "claims": parse_claims,
     "scenario": parse_scenario,
 }
 
