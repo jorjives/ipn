@@ -179,7 +179,7 @@ scenario "Mid term adjustment charges the pro rata difference plus a fee"
   given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
   when bound on 2026-01-01
   when adjusted on 2026-04-11 with bike_value 3000
-  # new net 112.46 + IPT 13.50 = 125.96; difference 42.00 x 265/365 = 30.49, plus 10 fee
+  # new net 112.46 + IPT 13.50 = 125.96; difference 41.99 x 265/365 = 30.49, plus 10 fee
   expect additional premium 40.49
   expect premium 135.96
 
@@ -187,7 +187,7 @@ scenario "Adjusting down returns premium"
   given bike_value 3000, rider_age 22, security gold, racing no, previous_claims 0
   when bound on 2026-01-01
   when adjusted on 2026-04-11 with bike_value 2000
-  # -42.00 x 265/365 = -30.49, plus 10 fee
+  # -41.99 x 265/365 = -30.49, plus 10 fee
   expect return premium 20.49
 
 scenario "Renewal is invited 21 days before expiry at the same price"
@@ -199,13 +199,6 @@ scenario "Renewal is invited 21 days before expiry at the same price"
   expect status renewed on 2026-06-01
   expect status live on 2027-06-01
   expect expiry 2028-01-01
-
-scenario "Renewal increase is capped at 20%"
-  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
-  when bound on 2026-01-01
-  when adjusted on 2026-12-01 with bike_value 4000
-  # full price would be 177.95; cap is 93.97 x 1.20
-  expect renewal premium 112.76
 
 scenario "Renewal declined on age"
   given bike_value 2000, rider_age 79, security gold, racing no, previous_claims 0

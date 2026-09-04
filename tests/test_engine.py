@@ -87,12 +87,12 @@ class RatingEngine(unittest.TestCase):
         self.assertEqual(q.net, Decimal("178.75"))
         self.assertEqual(q.total, Decimal("178.75") + Decimal("21.45") + 10)
 
-    def test_rounding_is_half_up_at_the_end(self):
-        p = parse(FULL + "rating\n  base 1.005\n  tax IPT 12%\n")
+    def test_rounding_is_half_up_and_tax_is_on_rounded_net(self):
+        p = parse(FULL + "rating\n  base 112.455\n  tax IPT 12%\n")
         q = rate(p, risk(), set())
-        self.assertEqual(q.net, Decimal("1.01"))
-        self.assertEqual(q.lines, [("IPT", Decimal("0.12"))])
-        self.assertEqual(q.total, Decimal("1.13"))
+        self.assertEqual(q.net, Decimal("112.46"))
+        self.assertEqual(q.lines, [("IPT", Decimal("13.50"))])  # 13.4952 on rounded net, not 13.4946
+        self.assertEqual(q.total, Decimal("125.96"))
 
     def test_no_rating_block_gives_zero(self):
         q = rate(parse(FULL), risk(), set())

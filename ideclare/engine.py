@@ -109,15 +109,13 @@ def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
             floor = value(step.amount)
             net = max(net, floor)
             trail.append(Trail(step.label or "minimum", str(floor), net))
-        elif step.kind == "tax":
-            lines.append((step.label, net * value(step.amount)))
-        elif step.kind == "fee":
-            lines.append((step.label, value(step.amount)))
+        elif step.kind in ("tax", "fee"):
+            lines.append((step.kind, step.label, value(step.amount)))
         elif step.kind == "round":
             quantum = value(step.amount)
 
-    net = net.quantize(quantum, ROUNDING)
-    lines = [(label, amount.quantize(quantum, ROUNDING)) for label, amount in lines]
+    net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
+    lines = [(label, (net * amount if kind == "tax" else amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
     return Quote(net, lines, net + sum((a for _, a in lines), Decimal(0)), trail)
 
 
