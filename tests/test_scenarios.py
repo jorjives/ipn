@@ -58,3 +58,33 @@ scenario "short"
   expect eligible
 ''')
         self.assertIn("rider_age", res["short"][0])
+
+
+from tests.test_parser import RATING
+
+
+def rated(extra):
+    return {r.scenario.name: r.failures for r in run_all(parse(RATING + extra))}
+
+
+class RatingExpectations(unittest.TestCase):
+    def test_premium_net_tax_fee_factor(self):
+        res = rated('''
+scenario "priced"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  expect net 60.00
+  expect tax IPT 7.20
+  expect fee "Admin fee" 10.00
+  expect premium 77.20
+  expect factor "Rider age" x 1.00
+  expect factor "Security" - 10
+''')
+        self.assertEqual(res["priced"], [])
+
+    def test_wrong_premium_shows_breakdown(self):
+        res = rated('''
+scenario "wrong"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  expect premium 99.99
+''')
+        self.assertIn("expected premium 99.99, got 77.20", res["wrong"][0])

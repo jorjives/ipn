@@ -6,7 +6,7 @@ from decimal import Decimal
 from dataclasses import dataclass, field
 
 from .expr import ExprError, names, parse_expr
-from .model import Cover, Excess, Input, Product, Rule, Scenario, Step
+from .model import Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
 
 
 class ParseError(Exception):
@@ -180,6 +180,61 @@ def parse_cover(line: Line, product: Product) -> None:
             raise child.error(f"unexpected {' '.join(rest)!r}")
 
 
+def parse_factor(line: Line, label: str, product: Product) -> RatingStep:
+    step = RatingStep("factor", label, line=line.number)
+    for child in line.children:
+        toks = tokens(child)
+        if step.rows and step.rows[-1].condition is None:
+            raise child.error("'otherwise' must be the last row")
+        if toks[:2] == ["otherwise", ":"]:
+            cond, rest = None, toks[2:]
+        else:
+            cond, rest = expression(child, toks, product, stop={":"})
+            rest = rest[1:]
+        if len(rest) < 2 or rest[0] not in ("x", "+", "-"):
+            raise child.error("expected ': x 1.25' or ': + 10' or ': - 10'")
+        op = rest[0]
+        amount, rest = expression(child, rest[1:], product)
+        if rest:
+            raise child.error(f"unexpected {' '.join(rest)!r}")
+        step.rows.append(FactorRow(cond, op, amount))
+    if not step.rows:
+        raise line.error("factor needs at least one row")
+    return step
+
+
+def parse_rating(line: Line, product: Product) -> None:
+    for child in line.children:
+        toks = tokens(child)
+        kind, rest = toks[0], toks[1:]
+        label = ""
+        if rest and rest[0].startswith('"'):
+            label, rest = unquote(rest[0]), rest[1:]
+        step = RatingStep(kind, label, line=child.number)
+        if kind == "factor":
+            step = parse_factor(child, label, product)
+        elif kind in ("base", "add", "discount", "load", "minimum"):
+            step.amount, rest = expression(child, rest, product, stop={"when"})
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif kind in ("tax", "fee"):
+            if kind == "tax" and not label and rest and rest[0][0].isalpha():
+                label, rest = rest[0], rest[1:]  # tax IPT 12%
+            if not label:
+                raise child.error(f'{kind} needs a name, e.g. {kind} "Label" ...')
+            step.label = label
+            step.amount, rest = expression(child, rest, product)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif kind == "round" and rest[:1] == ["to"]:
+            step.amount, rest = expression(child, rest[1:], product)
+        else:
+            raise child.error(f"unknown rating step {kind!r}")
+        product.rating.append(step)
+
+
 def given_value(line: Line, inp: Input, tok: str):
     if inp.kind in ("money", "integer", "number") and tok[0].isdigit():
         return Decimal(tok)
@@ -225,6 +280,7 @@ BLOCKS = {
     "inputs": parse_inputs,
     "eligibility": parse_eligibility,
     "cover": parse_cover,
+    "rating": parse_rating,
     "scenario": parse_scenario,
 }
 

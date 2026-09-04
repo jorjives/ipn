@@ -135,3 +135,57 @@ class RulesCoversScenarios(unittest.TestCase):
     def test_select_unknown_cover_is_error(self):
         with self.assertRaises(ParseError):
             parse(FULL + 'scenario "bad"\n  select Flying\n')
+
+
+RATING = FULL + '''
+rating
+  base 3.5% of bike_value
+  factor "Rider age"
+    rider_age < 25: x 1.40
+    rider_age < 40: x 1.00
+    otherwise: x 0.90
+  factor "Security"
+    security is gold: - 10
+    otherwise: + 0
+  add "Racing cover" 45 when Racing selected
+  discount 10% when security is gold
+  load 25% when rider_age < 21
+  minimum 60
+  tax IPT 12%
+  fee "Admin fee" 10
+  round to 0.01
+'''
+
+
+class Rating(unittest.TestCase):
+    def test_steps_parse_in_order(self):
+        p = parse(RATING)
+        self.assertEqual([s.kind for s in p.rating], ["base", "factor", "factor", "add", "discount", "load", "minimum", "tax", "fee", "round"])
+
+    def test_factor_rows(self):
+        p = parse(RATING)
+        age = p.rating[1]
+        self.assertEqual(age.label, "Rider age")
+        self.assertEqual([(r.op, r.amount) for r in age.rows], [("x", ("num", Decimal("1.40"))), ("x", ("num", Decimal("1.00"))), ("x", ("num", Decimal("0.90")))])
+        self.assertIsNone(age.rows[2].condition)
+        self.assertEqual(p.rating[2].rows[0].op, "-")
+
+    def test_conditional_add_and_labels(self):
+        p = parse(RATING)
+        add, disc, load, tax, fee = p.rating[3], p.rating[4], p.rating[5], p.rating[7], p.rating[8]
+        self.assertEqual(add.label, "Racing cover")
+        self.assertEqual(add.condition, ("selected", ("name", "Racing")))
+        self.assertEqual(disc.amount, ("pct", ("num", Decimal(10))))
+        self.assertEqual(load.condition, ("<", ("name", "rider_age"), ("num", Decimal(21))))
+        self.assertEqual(tax.label, "IPT")
+        self.assertEqual(fee.label, "Admin fee")
+        self.assertEqual(p.rating[9].amount, ("num", Decimal("0.01")))
+
+    def test_otherwise_must_be_last(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + 'rating\n  base 10\n  factor "A"\n    otherwise: x 1\n    rider_age < 5: x 2\n')
+        self.assertIn("otherwise", str(cm.exception))
+
+    def test_unknown_rating_step(self):
+        with self.assertRaises(ParseError):
+            parse(FULL + 'rating\n  multiply 10\n')

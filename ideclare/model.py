@@ -21,6 +21,7 @@ class Product:
     inputs: dict[str, Input] = field(default_factory=dict)
     eligibility: list["Rule"] = field(default_factory=list)
     covers: list["Cover"] = field(default_factory=list)
+    rating: list["RatingStep"] = field(default_factory=list)
     scenarios: list["Scenario"] = field(default_factory=list)
 
     def cover(self, name: str) -> "Cover | None":
@@ -64,3 +65,20 @@ class Scenario:
     given: dict = field(default_factory=dict)
     selected: set[str] = field(default_factory=set)
     steps: list[Step] = field(default_factory=list)
+
+
+@dataclass
+class FactorRow:
+    condition: tuple | None  # None = otherwise
+    op: str  # x | + | -
+    amount: tuple
+
+
+@dataclass
+class RatingStep:
+    kind: str  # base | factor | add | discount | load | minimum | tax | fee | round
+    label: str = ""
+    amount: tuple | None = None
+    condition: tuple | None = None
+    rows: list[FactorRow] = field(default_factory=list)
+    line: int = 0
