@@ -61,8 +61,20 @@ lifecycle
   renewal
     invite 21 days before expiry
     increase capped at 20%
-    decline when claims in term >= 2 because "Two or more claims in the year"
+    decline when claims in term >= 3 because "Three or more claims in the year"
     decline when rider_age > 80 because "Rider is over the age limit"
+
+claims
+  claim Theft
+    requires police_report, crime_reference
+    pays claimed amount up to limit, less excess
+    decline when reported after 30 days because "Theft must be reported within 30 days"
+    decline when claimed > bike_value because "Claim exceeds the insured value"
+  claim "Accidental Damage"
+    pays claimed amount up to limit, less excess
+  claim Racing
+    pays claimed amount up to limit, less excess
+  after 2 claims in term: renewal load x 1.25
 
 # --- Eligibility ---------------------------------------------------------
 
@@ -205,3 +217,77 @@ scenario "Renewal declined on age"
   when bound on 2026-01-01
   when adjusted on 2026-06-01 with rider_age 81
   expect renewal declined "Rider is over the age limit"
+
+# --- Claims --------------------------------------------------------------
+
+scenario "Theft claim pays up to the limit less a percentage excess"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 with police_report, crime_reference
+  expect claim paid
+  expect payout 1350.00
+  expect claims in term 1
+
+scenario "Small theft claim uses the minimum excess"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim Theft for 300 on 2026-03-01 with police_report, crime_reference
+  expect payout 250.00
+
+scenario "Theft claim without a crime reference is declined"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 with police_report
+  expect claim declined "crime_reference is required"
+  expect claims in term 0
+
+scenario "Late theft notification is declined"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 reported 2026-04-15 with police_report, crime_reference
+  expect claim declined "Theft must be reported within 30 days"
+
+scenario "Claim on an excluded cover is declined"
+  given bike_value 3000, rider_age 22, security bronze, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 with police_report, crime_reference
+  expect claim declined "Theft is excluded: Gold or silver rated lock required"
+
+scenario "Claim on an unselected optional cover is declined"
+  given bike_value 3000, rider_age 22, security gold, racing yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Racing for 800 on 2026-03-01
+  expect claim declined "Racing is not selected"
+
+scenario "Claim after cancellation is declined"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-04-11
+  when claim "Accidental Damage" for 400 on 2026-05-01
+  expect claim declined "policy was cancelled on 2026-05-01"
+
+scenario "Accidental damage pays the claim less the flat excess"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim "Accidental Damage" for 600 on 2026-05-01
+  expect payout 500.00
+
+scenario "Two claims load the renewal, capped at a 20% increase"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim "Accidental Damage" for 600 on 2026-05-01
+  expect renewal premium 93.97
+  when claim Theft for 1000 on 2026-08-01 with police_report, crime_reference
+  expect claims in term 2
+  # loaded price would be 93.97 x 1.25 = 117.46; the cap is 93.97 x 1.20
+  expect renewal premium 112.76
+  when renewed on 2027-01-01
+  expect claims in term 0
+
+scenario "Three claims in a term decline the renewal"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  when bound on 2026-01-01
+  when claim "Accidental Damage" for 600 on 2026-03-01
+  when claim "Accidental Damage" for 600 on 2026-05-01
+  when claim "Accidental Damage" for 600 on 2026-08-01
+  expect renewal declined "Three or more claims in the year"
