@@ -1,0 +1,76 @@
+# Cycle Cover: a worked example exercising every part of the iDeclare language.
+# Run it with:  python3 -m ideclare check examples/cycle.idl
+
+product "Cycle Cover"
+  territory UK
+  currency GBP
+  term 12 months
+
+inputs
+  bike_value: money
+  rider_age: integer
+  security: choice of bronze, silver, gold
+  racing: yes/no
+  previous_claims: integer
+
+eligibility
+  decline when rider_age < 16 because "Rider must be at least 16"
+  decline when bike_value > 15000 because "Bikes over 15,000 need a specialist policy"
+  refer when previous_claims >= 3 because "Claims history needs an underwriter"
+
+cover Theft
+  limit bike_value
+  excess 10% of claim, minimum 50
+  excludes when security is bronze and bike_value > 2000 because "Gold or silver rated lock required"
+
+cover "Accidental Damage"
+  limit bike_value
+  excess 100
+
+cover Racing optional
+  limit 5000
+  excess 250
+  available when racing is yes
+
+# --- Eligibility ---------------------------------------------------------
+
+scenario "Standard rider is eligible"
+  given bike_value 2000, rider_age 30, security gold, racing no, previous_claims 0
+  expect eligible
+
+scenario "Under 16 is declined"
+  given bike_value 2000, rider_age 15, security gold, racing no, previous_claims 0
+  expect declined "Rider must be at least 16"
+
+scenario "Heavy claims history is referred"
+  given bike_value 2000, rider_age 30, security gold, racing no, previous_claims 3
+  expect referred "Claims history needs an underwriter"
+
+scenario "Decline outranks refer"
+  given bike_value 20000, rider_age 30, security gold, racing no, previous_claims 3
+  expect declined
+
+# --- Covers --------------------------------------------------------------
+
+scenario "Standard covers included, optional cover not selected"
+  given bike_value 2000, rider_age 30, security gold, racing no, previous_claims 0
+  expect cover Theft included
+  expect cover Theft limit 2000
+  expect cover "Accidental Damage" included
+  expect cover Racing "not selected"
+
+scenario "Poor lock excludes theft on an expensive bike"
+  given bike_value 3000, rider_age 30, security bronze, racing no, previous_claims 0
+  expect cover Theft excluded "Gold or silver rated lock required"
+  expect cover "Accidental Damage" included
+
+scenario "Racing cover needs the racing answer"
+  given bike_value 3000, rider_age 30, security gold, racing no, previous_claims 0
+  select Racing
+  expect cover Racing "not available"
+
+scenario "Racing cover selected and available"
+  given bike_value 3000, rider_age 30, security gold, racing yes, previous_claims 0
+  select Racing
+  expect cover Racing included
+  expect cover Racing limit 5000
