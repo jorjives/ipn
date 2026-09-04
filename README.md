@@ -1,0 +1,16 @@
+# iDeclare
+
+A declarative language for defining an insurance product end to end, from the questions
+asked at quote through eligibility, cover, rating, the policy lifecycle (cooling off,
+cancellation, mid-term adjustment, lapse, renewal) and claims. Written for insurance
+professionals, not developers, and proven by scenarios written in the same file.
+
+```
+python3 -m ideclare check examples/cycle.idl
+python3 -m ideclare quote examples/cycle.idl bike_value=2000 rider_age=22 security=gold racing=no previous_claims=0
+```
+
+- `docs/reference.md`: the language, block by block.
+- `examples/cycle.idl`: a complete product with scenarios covering every language feature.
+- `ideclare/`: the sidecar engine. Python 3.12, standard library only.
+- `python3 -m unittest`: the engine's own tests.

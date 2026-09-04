@@ -1,0 +1,243 @@
+# iDeclare language reference
+
+iDeclare lets you describe an insurance product in one plain text file: what you ask the
+customer, who you will and will not insure, what is covered, how it is priced, how the
+policy behaves from purchase to renewal, and how claims are paid. You then prove the
+product does what you meant by writing *scenarios* in the same file and running:
+
+```
+python3 -m ideclare check my-product.idl
+```
+
+Every scenario prints `PASS` or `FAIL`, and every failure says which line disagreed and
+what the engine actually produced. You can also price a single risk from the terminal:
+
+```
+python3 -m ideclare quote my-product.idl bike_value=2000 rider_age=22 security=gold racing=yes previous_claims=0 select=Racing
+```
+
+See `examples/cycle.idl` for a complete product with thirty scenarios.
+
+## Writing conventions
+
+- Indent with two spaces to put a line inside the block above it.
+- One statement per line. Anything after `#` is a comment.
+- Names of inputs are single words joined with underscores: `bike_value`, `rider_age`.
+- Cover names, labels and reasons that contain spaces go in double quotes: `"Accidental Damage"`.
+- Money and numbers are written plainly: `2000`, `3.5`, `12%`. Dates are `2026-01-31`.
+- The file starts with the `product` block. The other blocks can come in any order.
+
+## Conditions
+
+Many lines take a condition after `when`. A condition compares inputs and other known
+values and can be combined:
+
+| Write | Meaning |
+|---|---|
+| `rider_age < 25`, `<=`, `>`, `>=` | numeric comparison |
+| `security is gold`, `security is not gold` | equal / not equal, also `racing is yes` |
+| `a and b`, `a or b`, `not a` | combine conditions; `and` binds tighter than `or` |
+| `( ... )` | group |
+| `Racing selected` | the customer chose the optional cover Racing |
+| `10% of bike_value`, `bike_value * 2`, `+ - /` | arithmetic, used in amounts |
+
+Words available inside conditions: every input you declared, every choice value, every
+cover name, and in claim rules `claimed` (the amount claimed). In renewal rules
+`claims in term` is the number of paid claims this policy year.
+
+## Blocks
+
+### product
+
+```
+product "Cycle Cover"
+  territory UK
+  currency GBP
+  term 12 months
+```
+
+`term` is the length of one policy period. A policy bound on 31 January with a 1 month
+term expires on 28 February.
+
+### inputs
+
+What you ask at quote. Each line is `name: type`.
+
+| Type | Values |
+|---|---|
+| `money`, `number` | a decimal amount |
+| `integer` | a whole number |
+| `yes/no` | `yes` or `no` |
+| `choice of a, b, c` | exactly one of the listed words |
+| `text` | free text, never used in rules; scenarios may leave it out |
+
+### eligibility
+
+```
+eligibility
+  decline when rider_age < 16 because "Rider must be at least 16"
+  refer when previous_claims >= 3 because "Claims history needs an underwriter"
+```
+
+Every rule is checked. If any `decline` fires the outcome is *declined*; otherwise if any
+`refer` fires it is *referred*; otherwise *eligible*. All reasons that fired are reported.
+
+### cover
+
+One block per section of cover.
+
+```
+cover Theft
+  limit bike_value
+  excess 10% of claim, minimum 50
+  excludes when security is bronze and bike_value > 2000 because "Gold or silver rated lock required"
+
+cover Racing optional
+  limit 5000
+  excess 250
+  available when racing is yes
+```
+
+- `optional` covers are only included when the customer selects them.
+- `available when` says when an optional cover may be offered at all.
+- `excludes when` removes the cover for this risk and records the reason.
+- `limit` and `excess` are amounts; `claim` inside an excess means the amount claimed.
+  `minimum` floors a percentage excess.
+
+The engine reports each cover as *included*, *excluded*, *not selected* or *not available*.
+
+### rating
+
+```
+rating
+  base 3.5% of bike_value
+  factor "Rider age"
+    rider_age < 25: x 1.40
+    rider_age < 40: x 1.00
+    otherwise: x 0.90
+  add "Racing cover" 45 when Racing selected
+  discount 10% when security is gold
+  load 25% when rider_age < 21
+  minimum 60
+  tax IPT 12%
+  fee "Admin fee" 10
+  round to 0.01
+```
+
+Steps run top to bottom, so the order you write is the order of calculation.
+
+| Step | Effect on the net premium |
+|---|---|
+| `base <amount>` | sets it |
+| `factor "Label"` with rows `condition: x N`, `: + N` or `: - N` | first row whose condition holds is applied; `otherwise` must be last |
+| `add ["Label"] <amount> [when ...]` | adds a flat amount |
+| `discount N% [when ...]`, `load N% [when ...]` | multiplies by (1 - N%) or (1 + N%) |
+| `minimum <amount>` | raises it to at least this |
+| `tax Name N%` | adds a tax line of N% of the rounded net |
+| `fee "Label" <amount>` | adds a flat fee line |
+| `round to 0.01` | rounding unit for every figure, half up (default 0.01) |
+
+The result is the net premium, one line per tax and fee, and the total. The `quote`
+command prints the full trail of applied steps.
+
+### lifecycle
+
+```
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata, fee 25
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference, fee 10
+  lapse when unpaid after 30 days
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+    decline when claims in term >= 3 because "Three or more claims in the year"
+```
+
+Policy status on any date is one of *quoted*, *bound* (before inception), *live*,
+*lapsed*, *cancelled*, *expired* or *renewed* (a past policy year).
+
+- **Cooling off**: cancelling within this many days of inception refunds the whole
+  amount paid, fees included.
+- **Cancellation** terms per party: `refund pro rata`, `full refund` or `no refund`,
+  optionally `, fee N`. Pro rata refunds the earning premium (net plus taxes, never fees)
+  for the unused days of the term, less the fee, never below zero. A party without a
+  cancellation line cannot cancel.
+- **Adjustment** (mid-term change): the policy is repriced with the new answers and the
+  difference in earning premium is charged pro rata for the remaining days, plus the fee.
+  A negative result is a return premium. Write `adjustment: not allowed` to forbid it.
+  After an adjustment the customer's annual premium is the new one.
+- **Lapse**: a policy bound but unpaid lapses after this many days until it is paid.
+- **Renewal**: the offer is the product repriced with the policy's current answers, times
+  any claims loading (see `claims`), then capped at the current annual premium plus the
+  cap percentage. `decline when` rules use the current answers and `claims in term`.
+  Accepting a renewal starts a new term at expiry and resets the claims count.
+
+### claims
+
+```
+claims
+  claim Theft
+    requires police_report, crime_reference
+    pays claimed amount up to limit, less excess
+    decline when reported after 30 days because "Theft must be reported within 30 days"
+    decline when claimed > bike_value because "Claim exceeds the insured value"
+  after 2 claims in term: renewal load x 1.25
+```
+
+A claim on a cover is declined, with the reason, when the policy is not live on the loss
+date, the cover is not included for that risk, a required item is missing, or a `decline
+when` rule fires. Otherwise it pays the claimed amount capped at the cover's limit, less
+the cover's excess if `less excess` is written. Only paid claims count towards
+`claims in term`. `after N claims in term: renewal load x M` multiplies the renewal
+premium when the paid claim count reaches N; the highest matching line wins.
+
+## Scenarios
+
+```
+scenario "Customer cancels mid term"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
+  select Racing
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-04-11
+  expect refund 35.96
+  expect status cancelled
+```
+
+`given` supplies every input; `select` chooses optional covers. Then `when` lines happen
+in order and `expect` lines check the state at that point.
+
+Events:
+
+| Event | Meaning |
+|---|---|
+| `when bound on DATE [unpaid]` | inception date; add `unpaid` to test lapse |
+| `when paid on DATE` | payment received |
+| `when cancelled by customer\|insurer on DATE` | cancellation; the refund is available to `expect refund` |
+| `when adjusted on DATE with input value, input value` | mid-term change |
+| `when claim Cover for AMOUNT on DATE [reported DATE] [with item, item]` | a loss on DATE, notified on the reported date, with the listed evidence |
+| `when renewed on DATE` | accept the renewal offer (fails if it is declined) |
+
+Expectations:
+
+| Expectation | Checks |
+|---|---|
+| `expect eligible` / `expect referred ["reason"]` / `expect declined ["reason"]` | eligibility outcome |
+| `expect cover Name included\|excluded\|"not selected"\|"not available" ["reason"]` | cover state |
+| `expect cover Name limit AMOUNT` | the resolved limit |
+| `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium |
+| `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
+| `expect factor "Label" x 1.40` | what a factor applied |
+| `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
+| `expect expiry DATE` | end of the current term |
+| `expect refund AMOUNT` | refund from the last cancellation |
+| `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment |
+| `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
+| `expect claims in term N` | paid claims this policy year |
+| `expect renewal premium AMOUNT`, `expect renewal invite DATE`, `expect renewal offered`, `expect renewal declined ["reason"]` | the renewal offer as things stand |
+
+## Not yet supported
+
+Short-rate cancellation, instalments, commission, multi-currency, more than one product per
+file. Each is a small addition to the engine; say which you need.
