@@ -22,6 +22,7 @@ class Product:
     eligibility: list["Rule"] = field(default_factory=list)
     covers: list["Cover"] = field(default_factory=list)
     rating: list["RatingStep"] = field(default_factory=list)
+    lifecycle: "Lifecycle" = field(default_factory=lambda: Lifecycle())
     scenarios: list["Scenario"] = field(default_factory=list)
 
     def cover(self, name: str) -> "Cover | None":
@@ -82,3 +83,21 @@ class RatingStep:
     condition: tuple | None = None
     rows: list[FactorRow] = field(default_factory=list)
     line: int = 0
+
+
+@dataclass
+class Cancellation:
+    refund: str = "pro rata"  # pro rata | full | none
+    fee: Decimal = Decimal(0)
+
+
+@dataclass
+class Lifecycle:
+    cooling_off_days: int = 0
+    cancellation: dict[str, Cancellation] = field(default_factory=dict)  # by customer | insurer
+    adjustment_allowed: bool = True
+    adjustment_fee: Decimal = Decimal(0)
+    lapse_days: int | None = None
+    renewal_invite_days: int = 0
+    renewal_cap: Decimal | None = None
+    renewal_decline: list[Rule] = field(default_factory=list)

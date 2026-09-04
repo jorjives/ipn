@@ -97,3 +97,113 @@ class RatingEngine(unittest.TestCase):
     def test_no_rating_block_gives_zero(self):
         q = rate(parse(FULL), risk(), set())
         self.assertEqual(q.total, Decimal("0.00"))
+
+
+from datetime import date
+from ideclare.engine import Policy, add_months
+from tests.test_parser import LIFECYCLE
+
+
+class Months(unittest.TestCase):
+    def test_add_months_clamps_to_month_end(self):
+        self.assertEqual(add_months(date(2026, 1, 31), 1), date(2026, 2, 28))
+        self.assertEqual(add_months(date(2026, 3, 15), 12), date(2027, 3, 15))
+        self.assertEqual(add_months(date(2026, 11, 30), 3), date(2027, 2, 28))
+
+
+class PolicyLifecycle(unittest.TestCase):
+    def setUp(self):
+        self.p = parse(LIFECYCLE)
+        # net 60 + IPT 7.20 + fee 10 = 77.20; refundable part 67.20
+        self.policy = Policy(self.p, risk(), set())
+
+    def test_status_progression(self):
+        pol = self.policy
+        self.assertEqual(pol.status(date(2026, 1, 1)), "quoted")
+        pol.bind(date(2026, 3, 1))
+        self.assertEqual(pol.status(date(2026, 2, 1)), "bound")
+        self.assertEqual(pol.status(date(2026, 3, 1)), "live")
+        self.assertEqual(pol.expiry, date(2027, 3, 1))
+        self.assertEqual(pol.status(date(2027, 3, 1)), "expired")
+
+    def test_lapse_when_unpaid(self):
+        pol = self.policy
+        pol.bind(date(2026, 3, 1), paid=False)
+        self.assertEqual(pol.status(date(2026, 3, 20)), "live")
+        self.assertEqual(pol.status(date(2026, 4, 1)), "lapsed")
+        pol.pay(date(2026, 3, 25))
+        self.assertEqual(pol.status(date(2026, 4, 1)), "live")
+
+    def test_cooling_off_full_refund(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.cancel(date(2026, 1, 10), "customer"), Decimal("77.20"))
+        self.assertEqual(pol.status(date(2026, 1, 10)), "cancelled")
+        self.assertEqual(pol.status(date(2026, 1, 5)), "live")
+
+    def test_pro_rata_cancellation_less_fee(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))  # 365 day term
+        # 100 days used, 265 remaining: 67.20 * 265/365 = 48.79 - 25 fee = 23.79
+        self.assertEqual(pol.cancel(date(2026, 4, 11), "customer"), Decimal("23.79"))
+
+    def test_insurer_cancellation_has_no_fee(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.cancel(date(2026, 4, 11), "insurer"), Decimal("48.79"))
+
+    def test_refund_never_negative(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.cancel(date(2026, 12, 25), "customer"), Decimal("0.00"))
+
+    def test_adjustment_charges_pro_rata_difference_plus_fee(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        # bike_value 2000 -> 4000: net 60 -> 140-10=130 x0.9=117; +IPT = 131.04 vs 67.20; diff 63.84 * 265/365 = 46.35 + fee 10
+        self.assertEqual(pol.adjust(date(2026, 4, 11), {"bike_value": Decimal(4000)}), Decimal("56.35"))
+        self.assertEqual(pol.inputs["bike_value"], Decimal(4000))
+        self.assertEqual(pol.quote.total, Decimal("141.04"))
+
+    def test_adjustment_downwards_returns_premium(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        pol.adjust(date(2026, 1, 1), {"bike_value": Decimal(4000)})
+        # back to 2000: -63.84 * 265/365 = -46.35 + fee 10 = -36.35
+        self.assertEqual(pol.adjust(date(2026, 4, 11), {"bike_value": Decimal(2000)}), Decimal("-36.35"))
+
+    def test_adjustment_not_allowed(self):
+        pol = Policy(parse(FULL + "lifecycle\n  adjustment: not allowed\n"), risk(), set())
+        pol.bind(date(2026, 1, 1))
+        with self.assertRaises(ValueError):
+            pol.adjust(date(2026, 2, 1), {"bike_value": Decimal(1)})
+
+    def test_renewal_offer(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        offer = pol.renew()
+        self.assertEqual(offer.invite_date, date(2026, 12, 11))
+        self.assertEqual(offer.premium, Decimal("77.20"))
+        self.assertIsNone(offer.declined)
+
+    def test_renewal_increase_is_capped(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        pol.inputs["bike_value"] = Decimal(4000)  # would reprice to 141.04
+        offer = pol.renew()
+        self.assertEqual(offer.premium, Decimal("92.64"))  # 77.20 x 1.2
+        self.assertEqual(offer.uncapped, Decimal("141.04"))
+
+    def test_renewal_declined(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        pol.inputs["rider_age"] = Decimal(85)
+        self.assertEqual(pol.renew().declined, "Age limit")
+
+    def test_accepting_renewal_starts_new_term(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        pol.accept_renewal()
+        self.assertEqual(pol.inception, date(2027, 1, 1))
+        self.assertEqual(pol.status(date(2027, 1, 1)), "live")
+        self.assertEqual(pol.status(date(2026, 12, 31)), "renewed")

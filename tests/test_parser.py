@@ -189,3 +189,47 @@ class Rating(unittest.TestCase):
     def test_unknown_rating_step(self):
         with self.assertRaises(ParseError):
             parse(FULL + 'rating\n  multiply 10\n')
+
+
+LIFECYCLE = RATING + '''
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata, fee 25
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference, fee 10
+  lapse when unpaid after 30 days
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+    decline when claims in term >= 2 because "Too many claims"
+    decline when rider_age > 80 because "Age limit"
+'''
+
+
+class Lifecycle(unittest.TestCase):
+    def test_lifecycle_block(self):
+        lc = parse(LIFECYCLE).lifecycle
+        self.assertEqual(lc.cooling_off_days, 14)
+        self.assertEqual(lc.cancellation["customer"].refund, "pro rata")
+        self.assertEqual(lc.cancellation["customer"].fee, Decimal(25))
+        self.assertEqual(lc.cancellation["insurer"].fee, Decimal(0))
+        self.assertTrue(lc.adjustment_allowed)
+        self.assertEqual(lc.adjustment_fee, Decimal(10))
+        self.assertEqual(lc.lapse_days, 30)
+        self.assertEqual(lc.renewal_invite_days, 21)
+        self.assertEqual(lc.renewal_cap, Decimal("0.20"))
+        self.assertEqual([r.reason for r in lc.renewal_decline], ["Too many claims", "Age limit"])
+        self.assertEqual(lc.renewal_decline[0].condition, (">=", ("name", "claims_in_term"), ("num", Decimal(2))))
+
+    def test_no_refund_and_adjustment_not_allowed(self):
+        lc = parse(FULL + "lifecycle\n  cancellation by customer: no refund\n  adjustment: not allowed\n").lifecycle
+        self.assertEqual(lc.cancellation["customer"].refund, "none")
+        self.assertFalse(lc.adjustment_allowed)
+
+    def test_date_token(self):
+        p = parse(FULL + 'scenario "d"\n  given bike_value 1, rider_age 1, security gold, racing no\n  when bound on 2026-01-31\n')
+        self.assertEqual(p.scenarios[-1].steps[0].tokens, ["when", "bound", "on", "2026-01-31"])
+
+    def test_bad_lifecycle_line(self):
+        with self.assertRaises(ParseError):
+            parse(FULL + "lifecycle\n  cancellation by dog: refund pro rata\n")

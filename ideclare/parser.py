@@ -6,7 +6,7 @@ from decimal import Decimal
 from dataclasses import dataclass, field
 
 from .expr import ExprError, names, parse_expr
-from .model import Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
+from .model import Cancellation, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
 
 
 class ParseError(Exception):
@@ -57,7 +57,7 @@ def build_tree(text: str) -> list[Line]:
 
 # --- statement tokens -------------------------------------------------------
 
-TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<num>\d+(?:\.\d+)?)|(?P<id>[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/]))')
+TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/]))')
 
 
 def tokens(line: Line) -> list[str]:
@@ -114,7 +114,23 @@ def parse_inputs(line: Line, product: Product) -> None:
 # --- expressions and rules ---------------------------------------------------
 
 # Words an expression may use besides inputs, choices and cover names.
-CONTEXT_WORDS = {"claim", "claimed", "yes", "no"}
+CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term"}
+
+PHRASES = {("claims", "in", "term"): "claims_in_term"}
+
+
+def fold_phrases(toks: list[str]) -> list[str]:
+    out, i = [], 0
+    while i < len(toks):
+        for phrase, word in PHRASES.items():
+            if tuple(toks[i:i + len(phrase)]) == phrase:
+                out.append(word)
+                i += len(phrase)
+                break
+        else:
+            out.append(toks[i])
+            i += 1
+    return out
 
 
 def known_words(product: Product) -> set[str]:
@@ -127,7 +143,7 @@ def known_words(product: Product) -> set[str]:
 
 def expression(line: Line, toks: list[str], product: Product, stop: set[str] = frozenset()) -> tuple[tuple, list[str]]:
     try:
-        node, rest = parse_expr(toks, stop)
+        node, rest = parse_expr(fold_phrases(toks), stop)
     except ExprError as e:
         raise line.error(str(e))
     unknown = names(node) - known_words(product)
@@ -235,6 +251,63 @@ def parse_rating(line: Line, product: Product) -> None:
         product.rating.append(step)
 
 
+def parse_lifecycle(line: Line, product: Product) -> None:
+    lc = product.lifecycle
+    for child in line.children:
+        toks = tokens(child)
+        words = " ".join(toks)
+        if toks[:2] == ["cooling", "off"] and toks[3:] == ["days", ",", "full", "refund"]:
+            lc.cooling_off_days = int(toks[2])
+        elif toks[:2] == ["cancellation", "by"] and toks[2] in ("customer", "insurer") and toks[3] == ":":
+            lc.cancellation[toks[2]] = parse_cancellation(child, toks[4:])
+        elif toks[:2] == ["adjustment", ":"]:
+            if toks[2:] == ["not", "allowed"]:
+                lc.adjustment_allowed = False
+            elif toks[2:8] == ["reprice", ",", "charge", "pro", "rata", "difference"]:
+                lc.adjustment_allowed = True
+                lc.adjustment_fee = parse_fee(child, toks[8:])
+            else:
+                raise child.error("expected 'adjustment: reprice, charge pro rata difference[, fee N]' or 'adjustment: not allowed'")
+        elif toks[:4] == ["lapse", "when", "unpaid", "after"] and toks[5:] == ["days"]:
+            lc.lapse_days = int(toks[4])
+        elif toks == ["renewal"]:
+            parse_renewal(child, product)
+        else:
+            raise child.error(f"unknown lifecycle setting {words!r}")
+
+
+def parse_fee(line: Line, toks: list[str]) -> Decimal:
+    if not toks:
+        return Decimal(0)
+    if len(toks) == 3 and toks[:2] == [",", "fee"]:
+        return Decimal(toks[2])
+    raise line.error(f"expected ', fee N' not {' '.join(toks)!r}")
+
+
+def parse_cancellation(line: Line, toks: list[str]) -> Cancellation:
+    if toks[:3] == ["refund", "pro", "rata"]:
+        return Cancellation("pro rata", parse_fee(line, toks[3:]))
+    if toks[:2] == ["full", "refund"]:
+        return Cancellation("full", parse_fee(line, toks[2:]))
+    if toks[:2] == ["no", "refund"]:
+        return Cancellation("none", parse_fee(line, toks[2:]))
+    raise line.error("expected 'refund pro rata', 'full refund' or 'no refund', optionally ', fee N'")
+
+
+def parse_renewal(line: Line, product: Product) -> None:
+    lc = product.lifecycle
+    for child in line.children:
+        toks = tokens(child)
+        if toks[:1] == ["invite"] and toks[2:] == ["days", "before", "expiry"]:
+            lc.renewal_invite_days = int(toks[1])
+        elif toks[:3] == ["increase", "capped", "at"] and toks[4:] == ["%"]:
+            lc.renewal_cap = Decimal(toks[3]) / 100
+        elif toks[:1] == ["decline"]:
+            lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
+        else:
+            raise child.error(f"unknown renewal setting {child.text!r}")
+
+
 def given_value(line: Line, inp: Input, tok: str):
     if inp.kind in ("money", "integer", "number") and tok[0].isdigit():
         return Decimal(tok)
@@ -281,6 +354,7 @@ BLOCKS = {
     "eligibility": parse_eligibility,
     "cover": parse_cover,
     "rating": parse_rating,
+    "lifecycle": parse_lifecycle,
     "scenario": parse_scenario,
 }
 
