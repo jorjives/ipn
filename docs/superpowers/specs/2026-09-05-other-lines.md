@@ -50,11 +50,41 @@ Each addition is used by at least one example, and none is speculative.
   `after N claims in term`, restating an index for the same input replaces it instead of
   adding a second one; this is how a no-claims discount steps back.
 
+Found necessary while building, not foreseen above:
+
+- `renewal: none` for products that simply end (travel, life); the offer is declined.
+- `expect refused ["reason"]` so a scenario can prove an adjustment or cancellation was
+  rightly refused rather than have the runner treat the refusal as a broken step.
+- `counts towards claims in term when <cond>` and `does not count towards claims in term`
+  on a claim: glass and non-fault motor claims are paid but leave the no-claims record alone.
+- The `pays` clauses apply in the order written (see below); the fixed "limit then excess"
+  order of the first build was one line's convention, not the industry's.
+- Eligibility rules on a field an enrichment could not provide are skipped; the lookup's
+  own refer or decline speaks for them (engine bug found by the motor example).
+- `after 1 claim in term: renewal load x M` accepts the singular.
+
 ## Settlement order in a claim
 
-claimed → settlement/depreciation table → excess → co-payment → limit (any one claim or what
-is left of the aggregate). This matches how pet wordings describe it: excess first, then the
-percentage, then the annual limit.
+claimed (or the fixed benefit) → settlement/depreciation table → the `pays` clauses in the
+order written: `up to limit`, `less excess`, `less co-payment`. A sum insured is usually
+capped then the excess deducted; a liability or aggregate limit caps what the insurer pays
+after the excess. Pet wordings read excess, then co-payment, then the annual limit.
+
+## Outcome
+
+| Example | Scenarios |
+|---|---|
+| travel.idl | 17 |
+| pet.idl | 18 |
+| motor.idl | 18 |
+| life.idl | 19 |
+| pi.idl | 16 |
+| home.idl | 17 |
+
+All pass alongside the three bike examples; the engine's own tests grew from 129 to 177.
+Every example was written against the engine as it stood and the language was extended
+only where a scenario could not be expressed; each extension is one commit with its own
+tests.
 
 ## Research
 
