@@ -568,3 +568,13 @@ class ClaimFacts(unittest.TestCase):
         self.assertEqual(r.amount, Decimal(320))
         r = self.policy(pet_age=3).claim("Vet", Decimal(1000), date(2026, 3, 1), date(2026, 3, 1), set(), facts={"condition": "ear"})
         self.assertEqual(r.amount, Decimal(400))
+
+
+class NonRenewable(unittest.TestCase):
+    def test_offer_is_declined(self):
+        p = parse('product "X"\n  term 20 years\ninputs\n  a: integer\nrating\n  base 100\nlifecycle\n  renewal: none\n')
+        pol = Policy(p, {"a": Decimal(1)}, set())
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.renew().declined, "The policy is not renewable")
+        with self.assertRaises(ValueError):
+            pol.accept_renewal()

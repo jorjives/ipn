@@ -601,3 +601,10 @@ class ClaimFacts(unittest.TestCase):
     def test_scenario_with_facts(self):
         p = parse(LIFE + 'rating\n  base 100\nscenario "s"\n  given sum_assured 100000, term_years 20, pet_age 3\n  when bound on 2026-01-01\n  when claim Death for 0 on 2026-06-01 with death_certificate, cause suicide\n  expect claim declined "Suicide in the first year"\n')
         self.assertEqual(p.scenarios[0].steps[1].tokens[-3:], ["death_certificate", ",", "cause", "suicide"][-3:])
+
+
+class NonRenewable(unittest.TestCase):
+    def test_renewal_none(self):
+        p = parse('product "X"\nlifecycle\n  renewal: none\n')
+        self.assertFalse(p.lifecycle.renewable)
+        self.assertTrue(parse('product "X"\n').lifecycle.renewable)

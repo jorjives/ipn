@@ -74,6 +74,7 @@ lifecycle
   cancellation by customer: no refund
   cancellation by insurer: refund pro rata
   adjustment: not allowed
+  renewal: none
 
 claims
   claim Cancellation
@@ -168,6 +169,7 @@ scenario "The policy runs from purchase to the return date"
   expect expiry 2026-07-17
   expect status live on 2026-07-16
   expect status expired on 2026-07-17
+  expect renewal declined "The policy is not renewable"
 
 scenario "Cancelling within cooling off refunds in full"
   given departure_date 2026-07-10, return_date 2026-07-17, destination europe

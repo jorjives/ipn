@@ -384,6 +384,8 @@ def parse_lifecycle(line: Line, product: Product) -> None:
             lc.lapse_days = int(toks[4])
         elif toks == ["renewal"]:
             parse_renewal(child, product)
+        elif toks == ["renewal", ":", "none"]:
+            lc.renewable = False
         else:
             raise child.error(f"unknown lifecycle setting {words!r}")
 

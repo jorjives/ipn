@@ -123,6 +123,7 @@ class Lifecycle:
     adjustment_allowed: bool = True
     adjustment_fee: Decimal = Decimal(0)
     lapse_days: int | None = None
+    renewable: bool = True
     renewal_invite_days: int = 0
     renewal_cap: Decimal | None = None
     renewal_collar: Decimal | None = None

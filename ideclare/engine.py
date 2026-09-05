@@ -357,6 +357,9 @@ class Policy:
         ctx = context(self.product, inputs, self.selected, claims_in_term=len(self.claims))
         new = pence(rate(self.product, inputs, self.selected).total * self.claims_loading())
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
+        if not lc.renewable:
+            offer.declined = "The policy is not renewable"
+            return offer
         if lc.renewal_cap is not None:
             offer.premium = min(offer.premium, pence(self.expiring_premium * (1 + lc.renewal_cap)))
         if lc.renewal_collar is not None:
