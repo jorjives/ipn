@@ -100,6 +100,15 @@ class _Parser:
 
     def primary(self):
         t = self.take()
+        if t == "count" and self.peek() == "of":
+            self.take()
+            return ("count", self.take())
+        if t in ("total", "highest", "lowest") and self.toks[self.i + 1:self.i + 2] == ["of"]:
+            field_, _, coll = self.take(), self.take(), self.take()
+            return ("agg", t, field_, coll)
+        if t in ("any", "every") and self.toks[self.i + 1:self.i + 2] == ["where"]:
+            name, _ = self.take(), self.take()
+            return (t, name, self.or_())
         if t == "(":
             node = self.or_()
             if self.take() != ")":
@@ -125,6 +134,12 @@ def names(node: tuple) -> set[str]:
         return {node[1]}
     if kind in ("num", "bool"):
         return set()
+    if kind == "count":
+        return {node[1]}
+    if kind == "agg":
+        return {node[2], node[3]}
+    if kind in ("any", "every"):
+        return {node[1]} | names(node[2])
     return set().union(*(names(c) for c in node[1:]))
 
 
@@ -137,6 +152,16 @@ def evaluate(node: tuple, ctx: dict):
         return ctx.get(node[1], node[1])
     if kind == "selected":
         return node[1][1] in ctx.get("selected", set())
+    if kind == "count":
+        return Decimal(len(_items(node[1], ctx)))
+    if kind == "agg":
+        values = [Decimal(item[node[2]]) for item in _items(node[3], ctx)]
+        if not values:
+            return Decimal(0)
+        return sum(values) if node[1] == "total" else max(values) if node[1] == "highest" else min(values)
+    if kind in ("any", "every"):
+        results = [evaluate(node[2], {**ctx, **item}) for item in _items(node[1], ctx)]
+        return any(results) if kind == "any" else all(results)
     if kind == "not":
         return not evaluate(node[1], ctx)
     if kind == "neg":
@@ -161,6 +186,13 @@ def evaluate(node: tuple, ctx: dict):
     if kind == "*": return left * right
     if kind == "/": return left / right
     raise ExprError(f"cannot evaluate {kind}")
+
+
+def _items(name: str, ctx: dict) -> list[dict]:
+    items = ctx.get(name)
+    if not isinstance(items, list):
+        raise ExprError(f"{name} is not a collection here")
+    return items
 
 
 def _num(node, ctx) -> Decimal:

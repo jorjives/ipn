@@ -267,3 +267,94 @@ class Claims(unittest.TestCase):
     def test_claim_on_unknown_cover(self):
         with self.assertRaises(ParseError):
             parse(FULL + "claims\n  claim Flying\n    pays claimed amount up to limit\n")
+
+
+FLEET = '''
+product "Family Cycle Cover"
+  term 12 months
+
+inputs
+  rider_age: integer
+  bikes: collection of bike, 1 to 3
+    value: money
+    age: integer
+    security: choice of bronze, silver, gold
+
+eligibility
+  decline when any bike where value > 10000 because "Too valuable"
+  refer when total value of bikes > 12000 because "Fleet review"
+
+cover Theft
+  limit value
+  excess 10% of claim, minimum 50
+  excludes when security is bronze and value > 2000 because "Better lock needed"
+
+rating
+  for each bike
+    base 3% of value
+    factor "Bike age"
+      age < 1: x 1.00
+      otherwise: x 0.90
+  factor "Fleet"
+    count of bikes > 1: x 0.95
+    otherwise: x 1.00
+  minimum 40
+  tax IPT 12%
+
+lifecycle
+  cancellation by customer: refund pro rata
+  adjustment: reprice, charge pro rata difference
+  renewal
+    index bike value by 10%
+
+claims
+  claim Theft
+    pays claimed amount up to limit, less excess
+
+scenario "two bikes"
+  given rider_age 30
+  given bike value 2000, age 0, security gold
+  given bike value 1000, age 3, security silver
+  expect eligible
+'''
+
+
+class Collections(unittest.TestCase):
+    def test_collection_input(self):
+        bikes = parse(FLEET).inputs["bikes"]
+        self.assertEqual((bikes.kind, bikes.singular, bikes.min_items, bikes.max_items), ("collection", "bike", 1, 3))
+        self.assertEqual(list(bikes.fields), ["value", "age", "security"])
+        self.assertEqual(bikes.fields["security"].choices, ["bronze", "silver", "gold"])
+
+    def test_bounds_forms(self):
+        for spec, bounds in [("collection of bike", (0, None)), ("collection of bike, at least 2", (2, None)), ("collection of bike, at most 4", (0, 4))]:
+            p = parse(f'product "X"\ninputs\n  bikes: {spec}\n    value: money\n')
+            self.assertEqual((p.inputs["bikes"].min_items, p.inputs["bikes"].max_items), bounds)
+
+    def test_aggregates_and_any(self):
+        p = parse(FLEET)
+        self.assertEqual(p.eligibility[0].condition, ("any", "bike", (">", ("name", "value"), ("num", Decimal(10000)))))
+        self.assertEqual(p.eligibility[1].condition, (">", ("agg", "total", "value", "bikes"), ("num", Decimal(12000))))
+        self.assertEqual(p.rating[1].rows[0].condition, (">", ("count", "bikes"), ("num", Decimal(1))))
+
+    def test_for_each_rating_block(self):
+        each = parse(FLEET).rating[0]
+        self.assertEqual((each.kind, each.label), ("each", "bike"))
+        self.assertEqual([s.kind for s in each.steps], ["base", "factor"])
+
+    def test_tax_inside_for_each_is_error(self):
+        with self.assertRaises(ParseError):
+            parse(FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax IPT 5%\n"))
+
+    def test_field_clashing_with_input_is_error(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FLEET.replace("    age: integer\n", "    rider_age: integer\n"))
+        self.assertIn("rider_age", str(cm.exception))
+
+    def test_given_items(self):
+        sc = parse(FLEET).scenarios[0]
+        self.assertEqual(sc.given["rider_age"], Decimal(30))
+        self.assertEqual(sc.given["bikes"][1], {"value": Decimal(1000), "age": Decimal(3), "security": "silver"})
+
+    def test_index_item_field(self):
+        self.assertEqual(parse(FLEET).lifecycle.renewal_index, [("bike.value", "%", Decimal(10))])

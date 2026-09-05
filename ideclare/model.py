@@ -8,8 +8,13 @@ from decimal import Decimal
 @dataclass
 class Input:
     name: str
-    kind: str  # money | integer | number | text | yes/no | choice
+    kind: str  # money | integer | number | text | yes/no | choice | collection
     choices: list[str] = field(default_factory=list)
+    # collection only
+    singular: str = ""
+    fields: dict[str, "Input"] = field(default_factory=dict)
+    min_items: int = 0
+    max_items: int | None = None
 
 
 @dataclass
@@ -29,6 +34,13 @@ class Product:
 
     def cover(self, name: str) -> "Cover | None":
         return next((c for c in self.covers if c.name == name), None)
+
+    @property
+    def collections(self) -> list["Input"]:
+        return [i for i in self.inputs.values() if i.kind == "collection"]
+
+    def collection_for(self, singular: str) -> "Input | None":
+        return next((c for c in self.collections if c.singular == singular), None)
 
 
 @dataclass
@@ -84,6 +96,7 @@ class RatingStep:
     amount: tuple | None = None
     condition: tuple | None = None
     rows: list[FactorRow] = field(default_factory=list)
+    steps: list["RatingStep"] = field(default_factory=list)  # kind == "each": label is the item name
     line: int = 0
 
 

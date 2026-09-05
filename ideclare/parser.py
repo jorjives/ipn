@@ -95,7 +95,16 @@ def parse_product_header(line: Line, product: Product) -> None:
 
 
 def parse_inputs(line: Line, product: Product) -> None:
-    for child in line.children:
+    product.inputs.update(parse_input_lines(line.children))
+    for coll in product.collections:
+        clash = set(coll.fields) & (set(product.inputs) - {coll.name})
+        if clash:
+            raise line.error(f"{coll.name} field {sorted(clash)[0]!r} has the same name as an input")
+
+
+def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Input]:
+    inputs = {}
+    for child in lines:
         toks = tokens(child)
         if len(toks) < 3 or toks[1] != ":":
             raise child.error("expected 'name: type'")
@@ -103,12 +112,37 @@ def parse_inputs(line: Line, product: Product) -> None:
         if kind == "choice":
             if len(toks) < 5 or toks[3] != "of":
                 raise child.error("expected 'choice of a, b, c'")
-            choices = [t for t in toks[4:] if t != ","]
-            product.inputs[name] = Input(name, "choice", choices)
+            inputs[name] = Input(name, "choice", [t for t in toks[4:] if t != ","])
+        elif kind == "collection" and not nested:
+            inputs[name] = parse_collection(child, name, toks[3:])
         elif kind in INPUT_KINDS and len(toks) == 3:
-            product.inputs[name] = Input(name, kind)
+            inputs[name] = Input(name, kind)
         else:
             raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
+    return inputs
+
+
+def parse_collection(line: Line, name: str, toks: list[str]) -> Input:
+    """collection of bike[, 1 to 5 | , at least 1 | , at most 5] with the item's fields indented below."""
+    if toks[:1] != ["of"] or len(toks) < 2:
+        raise line.error("expected 'collection of <item name>'")
+    coll = Input(name, "collection", singular=toks[1], fields=parse_input_lines(line.children, nested=True))
+    bounds = toks[2:]
+    if bounds[:1] == [","]:
+        bounds = bounds[1:]
+    if not bounds:
+        pass
+    elif len(bounds) == 3 and bounds[1] == "to":
+        coll.min_items, coll.max_items = int(bounds[0]), int(bounds[2])
+    elif len(bounds) == 3 and bounds[:2] == ["at", "least"]:
+        coll.min_items = int(bounds[2])
+    elif len(bounds) == 3 and bounds[:2] == ["at", "most"]:
+        coll.max_items = int(bounds[2])
+    else:
+        raise line.error("expected ', 1 to 5', ', at least 1' or ', at most 5'")
+    if not coll.fields:
+        raise line.error(f"{name} needs at least one field indented below it")
+    return coll
 
 
 # --- expressions and rules ---------------------------------------------------
@@ -137,6 +171,11 @@ def known_words(product: Product) -> set[str]:
     words = set(CONTEXT_WORDS) | set(product.inputs)
     for inp in product.inputs.values():
         words |= set(inp.choices)
+        if inp.kind == "collection":
+            words.add(inp.singular)
+            words |= set(inp.fields)
+            for f in inp.fields.values():
+                words |= set(f.choices)
     words |= {c.name for c in product.covers}
     return words
 
@@ -220,14 +259,28 @@ def parse_factor(line: Line, label: str, product: Product) -> RatingStep:
 
 
 def parse_rating(line: Line, product: Product) -> None:
-    for child in line.children:
+    product.rating.extend(parse_rating_steps(line.children, product))
+
+
+PER_ITEM_STEPS = {"base", "factor", "add", "discount", "load", "minimum", "maximum"}
+
+
+def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = False) -> list[RatingStep]:
+    steps = []
+    for child in lines:
         toks = tokens(child)
         kind, rest = toks[0], toks[1:]
         label = ""
         if rest and rest[0].startswith('"'):
             label, rest = unquote(rest[0]), rest[1:]
         step = RatingStep(kind, label, line=child.number)
-        if kind == "factor":
+        if per_item and kind not in PER_ITEM_STEPS:
+            raise child.error(f"{kind!r} cannot be used inside 'for each'; only {', '.join(sorted(PER_ITEM_STEPS))}")
+        if toks[:2] == ["for", "each"] and len(toks) == 3 and not per_item:
+            if product.collection_for(toks[2]) is None:
+                raise child.error(f"unknown item {toks[2]!r}; declare a collection of {toks[2]}")
+            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True), line=child.number)
+        elif kind == "factor":
             step = parse_factor(child, label, product)
         elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
             step.amount, rest = expression(child, rest, product, stop={"when"})
@@ -248,7 +301,8 @@ def parse_rating(line: Line, product: Product) -> None:
             step.amount, rest = expression(child, rest[1:], product)
         else:
             raise child.error(f"unknown rating step {kind!r}")
-        product.rating.append(step)
+        steps.append(step)
+    return steps
 
 
 def parse_lifecycle(line: Line, product: Product) -> None:
@@ -306,10 +360,13 @@ def parse_renewal(line: Line, product: Product) -> None:
             lc.renewal_collar = Decimal(toks[3]) / 100
         elif toks[:1] == ["decline"]:
             lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
-        elif toks[:1] == ["index"] and toks[2:3] == ["by"] and len(toks) in (4, 5) and toks[4:] in ([], ["%"]):
-            if toks[1] not in product.inputs or product.inputs[toks[1]].kind not in ("money", "number", "integer"):
-                raise child.error(f"index needs a money, number or integer input, not {toks[1]!r}")
-            lc.renewal_index.append((toks[1], "%" if len(toks) == 5 else "+", Decimal(toks[3])))
+        elif toks[:1] == ["index"] and "by" in toks and toks[-1:] in (["%"], [toks[toks.index("by") + 1]]):
+            target, amount = toks[1:toks.index("by")], toks[toks.index("by") + 1]
+            coll = product.collection_for(target[0]) if len(target) == 2 else None
+            inp = coll.fields.get(target[1]) if coll else product.inputs.get(target[0]) if len(target) == 1 else None
+            if inp is None or inp.kind not in ("money", "number", "integer"):
+                raise child.error(f"index needs a money, number or integer input, not {' '.join(target)!r}")
+            lc.renewal_index.append((".".join(target), "%" if toks[-1] == "%" else "+", Decimal(amount)))
         else:
             raise child.error(f"unknown renewal setting {child.text!r}")
 
@@ -364,7 +421,19 @@ def parse_scenario(line: Line, product: Product) -> None:
     sc = Scenario(unquote(toks[1]), line.number)
     for child in line.children:
         toks = tokens(child)
-        if toks[0] == "given":
+        if toks[0] == "given" and len(toks) > 1 and product.collection_for(toks[1]) is not None:
+            coll = product.collection_for(toks[1])
+            pairs = [t for t in toks[2:] if t != ","]
+            item = {}
+            for name, value in zip(pairs[::2], pairs[1::2]):
+                if name not in coll.fields:
+                    raise child.error(f"unknown {coll.singular} field {name!r}")
+                item[name] = given_value(child, coll.fields[name], value)
+            missing = [f for f in coll.fields if f not in item and coll.fields[f].kind != "text"]
+            if missing:
+                raise child.error(f"{coll.singular} is missing {', '.join(missing)}")
+            sc.given.setdefault(coll.name, []).append(item)
+        elif toks[0] == "given":
             pairs = [t for t in toks[1:] if t != ","]
             if len(pairs) % 2:
                 raise child.error("expected 'given name value, name value'")
