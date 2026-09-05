@@ -73,6 +73,7 @@ What you ask at quote. Each line is `name: type`.
 | `choice of a, b, c` | exactly one of the listed words |
 | `text` | free text; compare it to a quoted value, `make is "Brompton"`; scenarios may leave it out |
 | `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
+| `calculated` | an item field worked out from the others by the steps indented below it |
 
 #### Repeatable items
 
@@ -193,6 +194,29 @@ rating
 
 The ordering only decides the position. Items keep their given numbers in the trail and in
 claims, so `bike 2` always means the second bike declared.
+
+When the order depends on several things at once, give each item a calculated field and
+order on that. A calculated field is declared with the other fields and worked out by the
+same steps a `for each` block uses (`base`, `add`, `factor`, `discount`, `load`, `minimum`,
+`maximum`), with the item's other fields in scope. It is never given in a scenario:
+
+```
+inputs
+  bikes: collection of bike
+    make: text
+    value: money
+    ebike: yes/no
+    rank: calculated
+      base value
+      add 0.01 when ebike is yes
+      add 0.001 when make is "Brompton"
+
+rating
+  for each bike, ordered by rank descending
+```
+
+Calculated fields are filled in before anything else runs, so eligibility, covers and
+claims can use them too.
 
 | Step | Effect on the net premium |
 |---|---|

@@ -1,5 +1,6 @@
-# Multi Bike Cover: several bikes, each rated on its make and value, with the
-# bikes ordered so the first takes the full rate and the rest half rate.
+# Multi Bike Cover: several bikes, each rated on its make and value. Every bike
+# gets a calculated rank score, the fleet is ordered on it, and the first bike
+# takes the full rate while the rest take half.
 # Run it with:  python3 -m ideclare check examples/multibike.idl
 
 product "Multi Bike Cover"
@@ -14,6 +15,13 @@ inputs
     model: text
     value: money
     ebike: yes/no
+    # The rank is the value plus small nudges: an e-bike beats a pedal bike of the
+    # same value, and a Brompton beats another make. Bikes that still tie keep
+    # the order they were given.
+    rank: calculated
+      base value
+      add 0.01 when ebike is yes
+      add 0.001 when make is "Brompton"
 
 eligibility
   decline when rider_age < 18 because "Policyholder must be an adult"
@@ -28,9 +36,8 @@ cover "Accidental Damage"
   excess 10% of claim, minimum 50
 
 rating
-  # E-bikes are placed before pedal bikes, then the most valuable first.
   # The ordering decides which bike is "first"; it does not change any rate.
-  for each bike, ordered by ebike descending, value descending
+  for each bike, ordered by rank descending
     base 4% of value
     factor "Make"
       make is "Brompton": x 0.90
@@ -84,24 +91,30 @@ scenario "The most valuable bike is first; the rest are half rate"
   expect net 106.00
   expect premium 118.72
 
-scenario "An e-bike comes first even when it is cheaper"
+scenario "An e-bike outranks a pedal bike of the same value"
   given rider_age 30
   given bike make "Trek", model "Domane", value 2000, ebike no
-  given bike make "Cube", model "Reaction Hybrid", value 1500, ebike yes
+  given bike make "Cube", model "Reaction Hybrid", value 2000, ebike yes
   expect factor "bike 2 Position" x 1.00
   expect factor "bike 1 Position" x 0.50
-  # bike 2: 60 x 1.10 x 1.15 = 75.90; bike 1: 80 x 1.10 x 0.5 = 44.00
-  expect net 119.90
+  # bike 2: 80 x 1.10 x 1.15 = 101.20; bike 1: 80 x 1.10 x 0.5 = 44.00
+  expect net 145.20
 
-scenario "Make lookup adjusts the rate"
+scenario "A Brompton outranks another make of the same value"
   given rider_age 30
-  given bike make "Brompton", model "C Line", value 1200, ebike no
   given bike make "Canyon", model "Aeroad", value 1200, ebike no
-  expect factor "bike 1 Make" x 0.90
-  expect factor "bike 2 Make" x 1.10
-  # tie on value keeps the written order: bike 1 first at 48 x 0.90 x 1.10 = 47.52,
-  # bike 2 second at 48 x 1.10 x 1.10 x 0.5 = 29.04
+  given bike make "Brompton", model "C Line", value 1200, ebike no
+  expect factor "bike 1 Make" x 1.10
+  expect factor "bike 2 Make" x 0.90
+  # bike 2 first at 48 x 0.90 x 1.10 = 47.52; bike 1 second at 48 x 1.10 x 1.10 x 0.5 = 29.04
   expect net 76.56
+
+scenario "Bikes that tie on rank keep the order they were given"
+  given rider_age 30
+  given bike make "Trek", model "FX", value 1200, ebike no
+  given bike make "Trek", model "Domane", value 1200, ebike no
+  expect factor "bike 1 Position" x 1.00
+  expect factor "bike 2 Position" x 0.50
 
 scenario "Adding a bike mid term re-orders the fleet"
   given rider_age 30

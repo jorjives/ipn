@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from .expr import evaluate
-from .model import Cover, Product
+from .model import Cover, Input, Product
 
 
 def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
