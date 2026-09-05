@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 
 from ideclare.parser import parse
-from ideclare.engine import check_eligibility, cover_state, cover_states
+from ideclare.engine import check_eligibility, context, cover_state, cover_states
 from tests.test_parser import FULL
 
 
@@ -342,7 +342,7 @@ class DepreciationAndIndexation(unittest.TestCase):
         self.assertEqual(pol.renew().inputs["item_age"], Decimal(3))
 
 
-from tests.test_parser import FLEET
+from tests.test_parser import ENRICHED, FLEET
 
 
 def fleet(*bikes, rider_age=30):
@@ -410,3 +410,32 @@ class CollectionEngine(unittest.TestCase):
         offer = pol.renew()
         self.assertEqual([b["value"] for b in offer.inputs["bikes"]], [Decimal("2200.00"), Decimal("1100.00")])
         self.assertEqual(pol.inputs["bikes"][0]["value"], Decimal(2000))
+
+
+class EnrichmentEngine(unittest.TestCase):
+    def setUp(self):
+        self.p = parse(ENRICHED)
+
+    def test_unavailable_without_default_refers(self):
+        e = check_eligibility(self.p, fleet((100, 0, "gold")))
+        self.assertEqual((e.outcome, e.reasons), ("referred", ["Postcode not recognised"]))
+
+    def test_provided_value_is_used(self):
+        inputs = {**fleet((100, 0, "gold")), "theft_area": "high"}
+        self.assertEqual(check_eligibility(self.p, inputs).outcome, "eligible")
+        self.assertEqual(context(self.p, inputs, set())["theft_area"], "high")
+
+    def test_default_fills_missing_item_field(self):
+        inputs = {**fleet((100, 0, "gold")), "theft_area": "low"}
+        ctx = context(self.p, inputs, set())
+        self.assertEqual(ctx["bikes"][0]["category"], "other")
+        inputs["bikes"][0]["category"] = "folding"
+        self.assertEqual(context(self.p, inputs, set())["bikes"][0]["category"], "folding")
+
+    def test_held_field_cannot_change_mid_term(self):
+        inputs = {**fleet((100, 0, "gold")), "theft_area": "low"}
+        inputs["bikes"][0]["category"] = "road"
+        policy = Policy(self.p, inputs, set())
+        policy.bind(date(2026, 1, 1))
+        with self.assertRaises(ValueError):
+            policy.adjust(date(2026, 3, 1), {"bikes": [{**inputs["bikes"][0], "category": "folding"}]})

@@ -12,6 +12,7 @@ from .model import Cover, Input, Product
 
 def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
     """Evaluation context: inputs, singular aliases for collections, the current item's fields."""
+    inputs, _ = enriched(product, inputs)
     ctx = {**inputs, "selected": selected, **extra}
     for coll in product.collections:
         ctx[coll.name] = ctx[coll.singular] = [calculated(product, coll, i, ctx) for i in ctx.get(coll.name, [])]
@@ -20,6 +21,23 @@ def context(product: Product, inputs: dict, selected: set[str], item: dict | Non
     if item:
         ctx.update(item)
     return ctx
+
+
+def enriched(product: Product, inputs: dict) -> tuple[dict, list[tuple[str, str]]]:
+    """Inputs with enrichment defaults filled in, plus (refer|decline, reason) for lookups that could not answer."""
+    inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in inputs.items()}
+    outcomes = []
+    for e in product.enrichments:
+        targets = inputs.get(product.collection_for(e.item).name, []) if e.item else [inputs]
+        for target in targets:
+            if all(f in target for f in e.provides):
+                continue
+            if e.unavailable == "default":
+                for f in e.provides:
+                    target.setdefault(f, e.defaults.get(f))
+            elif (e.unavailable, e.reason) not in outcomes:
+                outcomes.append((e.unavailable, e.reason))
+    return inputs, outcomes
 
 
 def calculated(product: Product, coll: Input, item: dict, ctx: dict) -> dict:
@@ -40,13 +58,16 @@ class Eligibility:
 def check_eligibility(product: Product, inputs: dict) -> Eligibility:
     ctx = context(product, inputs, set())
     reasons, declined = [], False
+    for kind, reason in enriched(product, inputs)[1]:
+        reasons.append(reason)
+        declined = declined or kind == "decline"
     for coll in product.collections:
         count = len(inputs.get(coll.name, []))
         if count < coll.min_items:
             reasons.append(f"{coll.name}: at least {coll.min_items} required")
         elif coll.max_items is not None and count > coll.max_items:
             reasons.append(f"{coll.name}: at most {coll.max_items} allowed")
-    declined = bool(reasons)
+        declined = declined or count < coll.min_items or (coll.max_items is not None and count > coll.max_items)
     for r in product.eligibility:
         if evaluate(r.condition, ctx):
             reasons.append(r.reason)
@@ -283,6 +304,20 @@ class Policy:
         if not lc.adjustment_allowed:
             raise ValueError("adjustment is not allowed")
         before = self.refundable
+        for e in self.product.enrichments:
+            if not e.held:
+                continue
+            if e.item:
+                name = self.product.collection_for(e.item).name
+                old_items, new_items = self.inputs.get(name, []), changes.get(name, self.inputs.get(name, []))
+                # ponytail: items have no identity, so a fleet that changed size is not checked
+                pairs = zip(old_items, new_items) if len(old_items) == len(new_items) else []
+            else:
+                pairs = [(self.inputs, {**self.inputs, **changes})]
+            for old, new in pairs:
+                changed = [f for f in e.provides if f in old and new.get(f, old[f]) != old[f]]
+                if changed:
+                    raise ValueError(f"{changed[0]} is held for the term")
         self.inputs.update(changes)
         difference = (self.refundable - before) * self.days_remaining(on) / self.term_days()
         self.expiring_premium = self.quote.total

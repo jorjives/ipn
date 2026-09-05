@@ -17,6 +17,7 @@ class Input:
     max_items: int | None = None
     # calculated field only: per-item steps that produce its value
     steps: list["RatingStep"] = field(default_factory=list)
+    provided: str = ""  # name of the enrichment that supplies this field, if any
 
 
 @dataclass
@@ -33,6 +34,7 @@ class Product:
     claims: dict[str, "ClaimRule"] = field(default_factory=dict)
     claims_loading: list[tuple[int, Decimal]] = field(default_factory=list)  # (claims in term, multiplier)
     scenarios: list["Scenario"] = field(default_factory=list)
+    enrichments: list["Enrichment"] = field(default_factory=list)
 
     def cover(self, name: str) -> "Cover | None":
         return next((c for c in self.covers if c.name == name), None)
@@ -130,3 +132,17 @@ class ClaimRule:
     less_excess: bool = False
     decline: list[Rule] = field(default_factory=list)
     depreciation: list[FactorRow] = field(default_factory=list)
+
+
+@dataclass
+class Enrichment:
+    """An external lookup: keyed on inputs, providing fields the product can use."""
+    name: str
+    keys: list[str]
+    item: str = ""  # singular item name when the lookup is per item
+    provides: dict[str, Input] = field(default_factory=dict)
+    unavailable: str = "default"  # default | refer | decline
+    reason: str = ""
+    defaults: dict = field(default_factory=dict)
+    held: bool = False  # values fixed at inception for the whole term
+    line: int = 0

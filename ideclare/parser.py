@@ -6,7 +6,7 @@ from decimal import Decimal
 from dataclasses import dataclass, field
 
 from .expr import ExprError, names, parse_expr
-from .model import Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
+from .model import Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
 
 
 class ParseError(Exception):
@@ -464,7 +464,7 @@ def parse_scenario(line: Line, product: Product) -> None:
                 if name not in coll.fields:
                     raise child.error(f"unknown {coll.singular} field {name!r}")
                 item[name] = given_value(child, coll.fields[name], value)
-            missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated")]
+            missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated") and not coll.fields[f].provided]
             if missing:
                 raise child.error(f"{coll.singular} is missing {', '.join(missing)}")
             sc.given.setdefault(coll.name, []).append(item)
@@ -490,8 +490,60 @@ def parse_scenario(line: Line, product: Product) -> None:
     product.scenarios.append(sc)
 
 
+def parse_enrichment(line: Line, product: Product) -> None:
+    """enrichment "Name" [for each bike] from key[, key] with provides / when unavailable / held for the term."""
+    toks = tokens(line)
+    if len(toks) < 4 or not toks[1].startswith('"'):
+        raise line.error('expected enrichment "Name" [for each <item>] from <input>, ...')
+    e = Enrichment(unquote(toks[1]), [], line=line.number)
+    rest = toks[2:]
+    fields = product.inputs
+    if rest[:2] == ["for", "each"]:
+        coll = product.collection_for(rest[2]) if len(rest) > 2 else None
+        if coll is None:
+            raise line.error(f"unknown item {rest[2:3] and rest[2]!r}; declare a collection first")
+        e.item, fields, rest = coll.singular, coll.fields, rest[3:]
+    if rest[:1] != ["from"]:
+        raise line.error("expected 'from <input>, ...'")
+    e.keys = [t for t in rest[1:] if t != ","]
+    for k in e.keys:
+        if k not in fields or fields[k].provided:
+            raise line.error(f"unknown input {k!r}; enrichment keys must be inputs")
+    for child in line.children:
+        ctoks = tokens(child)
+        if ctoks == ["provides"]:
+            e.provides = parse_input_lines(child.children, nested=True)
+            for f in e.provides.values():
+                if f.kind == "calculated":
+                    raise child.error("an enrichment provides plain fields, not calculated ones")
+                if f.name in fields or f.name in product.inputs:
+                    raise child.error(f"{f.name!r} is already an input")
+                f.provided = e.name
+            fields.update(e.provides)
+        elif ctoks[:3] == ["when", "unavailable", ":"] and ctoks[3:4] and ctoks[3] in ("refer", "decline"):
+            if ctoks[4:5] != ["because"] or len(ctoks) != 6:
+                raise child.error(f'expected {ctoks[3]} because "reason"')
+            e.unavailable, e.reason = ctoks[3], unquote(ctoks[5])
+        elif ctoks[:3] == ["when", "unavailable", ":"]:
+            pairs = [t for t in ctoks[3:] if t != ","]
+            if len(pairs) % 3 or any(pairs[i + 1] != "is" for i in range(0, len(pairs), 3)):
+                raise child.error("expected 'when unavailable: field is value, ...' or 'refer/decline because \"reason\"'")
+            for name, _, value in zip(pairs[::3], pairs[1::3], pairs[2::3]):
+                if name not in e.provides:
+                    raise child.error(f"{name!r} is not provided by this enrichment; put 'provides' first")
+                e.defaults[name] = given_value(child, e.provides[name], value)
+        elif ctoks == ["held", "for", "the", "term"]:
+            e.held = True
+        else:
+            raise child.error(f"unknown enrichment setting {child.text!r}")
+    if not e.provides:
+        raise line.error("an enrichment needs a 'provides' section")
+    product.enrichments.append(e)
+
+
 BLOCKS = {
     "inputs": parse_inputs,
+    "enrichment": parse_enrichment,
     "eligibility": parse_eligibility,
     "cover": parse_cover,
     "rating": parse_rating,

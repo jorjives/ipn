@@ -384,3 +384,45 @@ class Collections(unittest.TestCase):
 
     def test_index_item_field(self):
         self.assertEqual(parse(FLEET).lifecycle.renewal_index, [("bike.value", "%", Decimal(10))])
+
+
+ENRICHED = FLEET.replace("  rider_age: integer\n", "  rider_age: integer\n  postcode: text\n") + '''
+enrichment "Postcode risk" from postcode
+  provides
+    theft_area: choice of low, medium, high
+  when unavailable: refer because "Postcode not recognised"
+
+enrichment "Bike catalogue" for each bike from value
+  provides
+    category: choice of road, folding, other
+  when unavailable: category is other
+  held for the term
+'''
+
+
+class Enrichments(unittest.TestCase):
+    def test_declares_shape_and_registers_fields(self):
+        p = parse(ENRICHED)
+        risk, catalogue = p.enrichments
+        self.assertEqual((risk.name, risk.keys, risk.item), ("Postcode risk", ["postcode"], ""))
+        self.assertEqual((risk.unavailable, risk.reason), ("refer", "Postcode not recognised"))
+        self.assertEqual(p.inputs["theft_area"].provided, "Postcode risk")
+        self.assertEqual((catalogue.item, catalogue.keys, catalogue.held), ("bike", ["value"], True))
+        self.assertEqual(catalogue.defaults, {"category": "other"})
+        self.assertEqual(p.collections[0].fields["category"].provided, "Bike catalogue")
+
+    def test_provided_fields_usable_in_rules(self):
+        src = ENRICHED + "eligibility\n  decline when theft_area is high because \"No\"\n"
+        self.assertEqual(parse(src).eligibility[-1].reason, "No")
+
+    def test_unknown_key_is_error(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(ENRICHED.replace("from postcode", "from post_code"))
+        self.assertIn("post_code", str(cm.exception))
+
+    def test_default_must_be_a_provided_field(self):
+        with self.assertRaises(ParseError):
+            parse(ENRICHED.replace("category is other", "colour is red"))
+
+    def test_scenario_may_omit_provided_item_fields(self):
+        parse(ENRICHED + 'scenario "s"\n  given rider_age 30\n  given bike value 1, age 0, security gold\n  expect eligible\n')
