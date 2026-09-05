@@ -14,10 +14,21 @@ def context(product: Product, inputs: dict, selected: set[str], item: dict | Non
     """Evaluation context: inputs, singular aliases for collections, the current item's fields."""
     ctx = {**inputs, "selected": selected, **extra}
     for coll in product.collections:
-        ctx[coll.singular] = ctx.get(coll.name, [])
+        ctx[coll.name] = ctx[coll.singular] = [calculated(product, coll, i, ctx) for i in ctx.get(coll.name, [])]
+        if item and set(item) >= {f.name for f in coll.fields.values() if f.kind not in ("text", "calculated")}:
+            item = calculated(product, coll, item, ctx)
     if item:
         ctx.update(item)
     return ctx
+
+
+def calculated(product: Product, coll: Input, item: dict, ctx: dict) -> dict:
+    """The item with its calculated fields filled in, in declaration order."""
+    item = dict(item)
+    for f in coll.fields.values():
+        if f.kind == "calculated":
+            item[f.name], _ = run_steps(product, f.steps, {**ctx, **item}, Decimal(0), [], [])
+    return item
 
 
 @dataclass

@@ -348,6 +348,21 @@ class Collections(unittest.TestCase):
         self.assertEqual(each.order, [(("name", "value"), True), (("name", "age"), False)])
         self.assertEqual(each.steps[-1].rows[0].condition, ("is", ("name", "position"), ("num", Decimal(1))))
 
+    def test_calculated_field(self):
+        src = FLEET.replace("    security: choice of bronze, silver, gold\n",
+                            "    security: choice of bronze, silver, gold\n    rank: calculated\n      base value\n      add 5000 when security is gold\n")
+        rank = parse(src).collections[0].fields["rank"]
+        self.assertEqual(rank.kind, "calculated")
+        self.assertEqual([s.kind for s in rank.steps], ["base", "add"])
+
+    def test_calculated_field_is_not_given(self):
+        src = FLEET.replace("    security: choice of bronze, silver, gold\n",
+                            "    security: choice of bronze, silver, gold\n    rank: calculated\n      base value\n")
+        parse(src)  # scenario lines give value, age, security only
+        with self.assertRaises(ParseError) as cm:
+            parse(src.replace("security gold\n", "security gold, rank 1\n", 1))
+        self.assertIn("rank", str(cm.exception))
+
     def test_position_outside_for_each_is_error(self):
         with self.assertRaises(ParseError) as cm:
             parse(FLEET.replace("    count of bikes > 1: x 0.95\n", "    position is 1: x 0.95\n"))

@@ -100,6 +100,14 @@ def parse_inputs(line: Line, product: Product) -> None:
         clash = set(coll.fields) & (set(product.inputs) - {coll.name})
         if clash:
             raise line.error(f"{coll.name} field {sorted(clash)[0]!r} has the same name as an input")
+    # Calculated fields are parsed once every input is known, so their steps can use the other fields.
+    for child in line.children:
+        for sub in child.children:
+            toks = tokens(sub)
+            if toks[2:] == ["calculated"]:
+                if not sub.children:
+                    raise sub.error(f"{toks[0]} needs its steps indented below it, e.g. base value")
+                product.inputs[tokens(child)[0]].fields[toks[0]].steps = parse_rating_steps(sub.children, product, per_item=True)
 
 
 def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Input]:
@@ -117,6 +125,8 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
             inputs[name] = parse_collection(child, name, toks[3:])
         elif kind in INPUT_KINDS and len(toks) == 3:
             inputs[name] = Input(name, kind)
+        elif kind == "calculated" and nested and len(toks) == 3:
+            inputs[name] = Input(name, "calculated")
         else:
             raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
     return inputs
@@ -285,9 +295,8 @@ def parse_order(line: Line, toks: list[str], product: Product) -> list[tuple[tup
     return order
 
 
-def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = False) -> list[RatingStep]:
+def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = False, extra: set[str] = frozenset()) -> list[RatingStep]:
     steps = []
-    extra = ITEM_WORDS if per_item else frozenset()
     for child in lines:
         toks = tokens(child)
         kind, rest = toks[0], toks[1:]
@@ -305,7 +314,7 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
                 order = parse_order(child, toks[6:], product)
             elif toks[3:]:
                 raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
-            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True), order=order, line=child.number)
+            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True, extra=ITEM_WORDS), order=order, line=child.number)
         elif kind == "factor":
             step = parse_factor(child, label, product, extra)
         elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
@@ -455,7 +464,7 @@ def parse_scenario(line: Line, product: Product) -> None:
                 if name not in coll.fields:
                     raise child.error(f"unknown {coll.singular} field {name!r}")
                 item[name] = given_value(child, coll.fields[name], value)
-            missing = [f for f in coll.fields if f not in item and coll.fields[f].kind != "text"]
+            missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated")]
             if missing:
                 raise child.error(f"{coll.singular} is missing {', '.join(missing)}")
             sc.given.setdefault(coll.name, []).append(item)

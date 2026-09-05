@@ -15,6 +15,8 @@ class Input:
     fields: dict[str, "Input"] = field(default_factory=dict)
     min_items: int = 0
     max_items: int | None = None
+    # calculated field only: per-item steps that produce its value
+    steps: list["RatingStep"] = field(default_factory=list)
 
 
 @dataclass
