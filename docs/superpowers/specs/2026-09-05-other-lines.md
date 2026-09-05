@@ -81,7 +81,7 @@ after the excess. Pet wordings read excess, then co-payment, then the annual lim
 | pi.idl | 16 |
 | home.idl | 17 |
 
-All pass alongside the three bike examples; the engine's own tests grew from 129 to 177.
+All pass alongside the three bike examples; the engine's own tests grew from 129 to 181.
 Every example was written against the engine as it stood and the language was extended
 only where a scenario could not be expressed; each extension is one commit with its own
 tests.
