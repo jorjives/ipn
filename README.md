@@ -22,5 +22,6 @@ python3 -m ideclare quote examples/cycle.idl bike_value=2000 rider_age=22 securi
 - `examples/home.idl`: home contents; specified items on top of a sum insured, a cause-based excess, the average clause.
 - `examples/leasing.idl`: a cycle leasing scheme; a group policy held by the supplier, members who join and leave mid term, each covered for their own lease dates.
 - `examples/income.idl`: short-term income protection; a monthly benefit paid for the months off work after a deferred period, up to a year's worth.
+- `examples/van.idl`: light commercial vehicle; rated from a three-dimensional table of 300 cells held as a CSV beside the product (`van_rates.csv`), with a small excess table written inline.
 - `ideclare/`: the sidecar engine. Python 3.12, standard library only.
 - `python3 -m unittest`: the engine's own tests.

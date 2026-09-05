@@ -147,6 +147,59 @@ Scenarios stand in for the lookup by giving the provided fields directly, for ex
 `given postcode "M1 1AA", theft_area high`. Leaving them out is how a scenario says the
 lookup could not answer.
 
+### table
+
+Rating tables with several dimensions (driver age band by area by vehicle group, say) are
+owned by the pricing team as a spreadsheet, not written as factor rows. A `table` block
+reads one in its *long* form: one row per cell, one column per key, then the value
+columns. That is what a spreadsheet grid becomes with one unpivot, and it carries any
+number of dimensions:
+
+```
+table "Van rates" from "van_rates.csv" keyed on driver_age, area, vehicle_group
+
+table "Theft excess" keyed on area, use
+  area, use, excess
+  1-3, *, 250
+  4-5, courier, 750
+  4-5, *, 500
+```
+
+- `from "file.csv"` reads the rows from a file beside the `.idl`; without it the rows are
+  written below, as plain CSV with the header first. The same text works in either place.
+- `keyed on` names the columns matched against the product's inputs, item fields,
+  calculated inputs or enrichment-provided fields. The column headers are the input names.
+  Every other column is a value column.
+- A cell is matched by its form, so a column may mix them:
+
+  | Cell | Matches |
+  |---|---|
+  | `gold`, `12`, `yes` | that value exactly |
+  | `17-20` | a number from 17 to 20, both inclusive |
+  | `65+` | a number of 65 or more |
+  | `*` | anything; a row with fewer `*` cells beats one with more, so `*` rows are the fallback |
+
+A value is taken with `<column> from "<table>"` anywhere an amount can go: a factor, a
+`base`, an `add`, a `limit`, an `excess`, a benefit. Inside `for each` the lookup uses the
+current item's fields.
+
+```
+rating
+  base 6% of vehicle_value
+  factor "Driver, area and group" x rate from "Van rates"
+
+cover Theft
+  excess excess from "Theft excess"
+```
+
+The parser checks that the file exists, every key is an input the product knows and a
+column of the table, at least one value column exists, every cell reads, and no two rows
+repeat the same keys. When a risk is priced, exactly one row must match: none is reported
+as `no row in Van rates for driver_age 16, area 3, vehicle_group 5`, and two equally
+specific rows (overlapping bands) as ambiguous. A value between bands is an error, never a
+silent default, so the scenarios that prove the product are how the pricing team checks a
+reissued table. `examples/van.idl` rates from a three-dimensional table of 300 cells.
+
 ### eligibility
 
 ```
@@ -295,6 +348,7 @@ inputs
 |---|---|
 | `base <amount>` | sets it |
 | `factor "Label"` with rows `condition: x N`, `: + N` or `: - N` | first row whose condition holds is applied; `otherwise` must be last |
+| `factor "Label" x <amount> [when ...]` (or `+`, `-`) | a single-row factor, usually `x rate from "Table"` |
 | `add ["Label"] <amount> [when ...]` | adds a flat amount |
 | `discount N% [when ...]`, `load N% [when ...]` | multiplies by (1 - N%) or (1 + N%) |
 | `minimum <amount>` | raises it to at least this |
