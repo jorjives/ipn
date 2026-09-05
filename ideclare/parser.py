@@ -518,10 +518,8 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
         elif toks[:3] == ["pays", "claimed", "amount"]:
             rule_.pays = parse_pays(child, toks[3:])
         elif toks[:1] == ["pays"]:
-            rule_.pays_amount, rest = expression(child, toks[1:], product, extra=facts)
-            rule_.pays = []
-            if rest:
-                raise child.error(f"unexpected {' '.join(rest)!r}")
+            rule_.pays_amount, rest = expression(child, toks[1:], product, stop={","}, extra=facts)
+            rule_.pays = parse_pays(child, rest)
         elif toks[:1] == ["co-payment"]:
             step = RatingStep("co-payment", line=child.number)
             step.amount, rest = expression(child, toks[1:], product, stop={"when"}, extra=facts)

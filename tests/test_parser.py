@@ -678,3 +678,10 @@ class ClaimsLoadingSingular(unittest.TestCase):
     def test_after_one_claim_singular(self):
         p = parse('product "X"\ninputs\n  a: money\ncover V\n  limit a\nclaims\n  claim V\n    pays claimed amount\n  after 1 claim in term: renewal load x 1.30\n')
         self.assertEqual(p.claims_loading, [(1, Decimal("1.30"))])
+
+
+class FixedBenefitWithClauses(unittest.TestCase):
+    def test_pays_amount_then_clauses(self):
+        p = parse('product "X"\ninputs\n  benefit: money\ncover I\n  limit benefit * 12 per term\nclaims\n  claim I\n    asks\n      months: integer\n    pays benefit * months, up to limit\n')
+        self.assertEqual(p.claims["I"].pays_amount, ("*", ("name", "benefit"), ("name", "months")))
+        self.assertEqual(p.claims["I"].pays, ["limit"])
