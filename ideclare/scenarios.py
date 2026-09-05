@@ -310,4 +310,4 @@ class Run:
             self.fail(step.line, f"expected claim declined {unquote(rest[1])!r}, got {actual}")
 
     def expect_claims(self, step, rest):  # claims in term N
-        self.check(step, "claims in term", int(rest[-1]), len(self.policy.claims))
+        self.check(step, "claims in term", int(rest[-1]), self.policy.claims_in_term)

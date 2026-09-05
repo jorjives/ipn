@@ -396,7 +396,7 @@ class Collections(unittest.TestCase):
         self.assertEqual(sc.given["bikes"][1], {"value": Decimal(1000), "age": Decimal(3), "security": "silver"})
 
     def test_index_item_field(self):
-        self.assertEqual(parse(FLEET).lifecycle.renewal_index, [("bike.value", "%", Decimal(10))])
+        self.assertEqual(parse(FLEET).lifecycle.renewal_index, [("bike.value", "%", Decimal(10), None, None)])
 
 
 ENRICHED = FLEET.replace("  rider_age: integer\n", "  rider_age: integer\n  postcode: text\n") + '''
@@ -608,3 +608,67 @@ class NonRenewable(unittest.TestCase):
         p = parse('product "X"\nlifecycle\n  renewal: none\n')
         self.assertFalse(p.lifecycle.renewable)
         self.assertTrue(parse('product "X"\n').lifecycle.renewable)
+
+
+MOTOR = '''
+product "Motor"
+
+inputs
+  vehicle_value: money
+  ncd_years: integer
+  voluntary_excess: money
+
+cover "Accidental Damage"
+  limit vehicle_value
+  excess
+    driver_age < 25: 550 + voluntary_excess
+    otherwise: 250 + voluntary_excess
+
+cover Windscreen
+  limit 1000
+  excess 75
+
+lifecycle
+  renewal
+    index ncd_years by 1, at most 9
+
+claims
+  claim "Accidental Damage"
+    asks
+      driver_age: integer
+      fault: yes/no
+    pays claimed amount up to limit, less excess
+    counts towards claims in term when fault is yes
+  claim Windscreen
+    pays claimed amount up to limit, less excess
+    does not count towards claims in term
+  after 1 claim in term
+    renewal
+      index ncd_years by -2, at least 0
+'''
+
+
+class MotorFeatures(unittest.TestCase):
+    def test_excess_table_uses_claim_facts(self):
+        p = parse(MOTOR)
+        rows = p.cover("Accidental Damage").excess.rows
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].condition, ("<", ("name", "driver_age"), ("num", Decimal(25))))
+        self.assertIsNone(rows[1].condition)
+        self.assertIsNone(p.cover("Accidental Damage").excess.amount)
+
+    def test_excess_table_may_only_use_facts_some_claim_asks(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(MOTOR.replace("driver_age < 25", "pilot_age < 25"))
+        self.assertIn("pilot_age", str(cm.exception))
+
+    def test_index_bounds_and_negative(self):
+        p = parse(MOTOR)
+        self.assertEqual(p.lifecycle.renewal_index[0], ("ncd_years", "+", Decimal(1), None, Decimal(9)))
+        imposed = p.claims_terms[0][1]
+        self.assertEqual(imposed.renewal_index, [("ncd_years", "+", Decimal(-2), Decimal(0), None)])
+
+    def test_counting(self):
+        p = parse(MOTOR)
+        self.assertEqual(p.claims["Accidental Damage"].counts, ("is", ("name", "fault"), ("bool", True)))
+        self.assertEqual(p.claims["Windscreen"].counts, ("bool", False))

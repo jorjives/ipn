@@ -343,7 +343,7 @@ class DepreciationAndIndexation(unittest.TestCase):
         self.assertEqual(c.amount, Decimal("800.00"))  # 1600 capped at 1000, less 200
 
     def test_indexation_raises_the_input_at_renewal(self):
-        self.assertEqual(self.p.lifecycle.renewal_index, [("item_value", "%", Decimal(5))])
+        self.assertEqual(self.p.lifecycle.renewal_index, [("item_value", "%", Decimal(5), None, None)])
         self.assertEqual(self.pol.renew().inputs["item_value"], Decimal("1050.00"))
         self.assertEqual(self.pol.inputs["item_value"], Decimal(1000))  # offer only
         self.pol.accept_renewal()
@@ -578,3 +578,39 @@ class NonRenewable(unittest.TestCase):
         self.assertEqual(pol.renew().declined, "The policy is not renewable")
         with self.assertRaises(ValueError):
             pol.accept_renewal()
+
+
+class MotorFeatures(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import MOTOR
+        self.p = parse(MOTOR + 'rating\n  base 500\n  factor "NCD"\n    ncd_years >= 5: x 0.40\n    ncd_years >= 3: x 0.60\n    otherwise: x 1.00\n')
+        self.pol = Policy(self.p, {"vehicle_value": Decimal(10000), "ncd_years": Decimal(5), "voluntary_excess": Decimal(100)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def ad(self, age, fault, amount=3000, on=date(2026, 3, 1)):
+        return self.pol.claim("Accidental Damage", Decimal(amount), on, on, set(), facts={"driver_age": Decimal(age), "fault": fault})
+
+    def test_excess_depends_on_the_driver(self):
+        self.assertEqual(self.ad(19, True).amount, Decimal(2350))
+        self.assertEqual(self.ad(40, True).amount, Decimal(2650))
+
+    def test_only_fault_claims_count(self):
+        self.ad(40, False)
+        self.pol.claim("Windscreen", Decimal(300), date(2026, 3, 1), date(2026, 3, 1), set())
+        self.assertEqual(self.pol.claims_in_term, 0)
+        self.assertEqual(self.pol.renew().inputs["ncd_years"], Decimal(6))
+        self.ad(40, True)
+        self.assertEqual(self.pol.claims_in_term, 1)
+
+    def test_fault_claim_steps_back_the_discount_instead_of_adding_a_year(self):
+        self.ad(40, True)
+        offer = self.pol.renew()
+        self.assertEqual(offer.inputs["ncd_years"], Decimal(3))
+        self.assertEqual(offer.premium, Decimal(300))
+
+    def test_index_bounds(self):
+        self.pol.inputs["ncd_years"] = Decimal(9)
+        self.assertEqual(self.pol.renew().inputs["ncd_years"], Decimal(9))
+        self.pol.inputs["ncd_years"] = Decimal(1)
+        self.ad(40, True)
+        self.assertEqual(self.pol.renew().inputs["ncd_years"], Decimal(0))

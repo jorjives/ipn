@@ -247,6 +247,10 @@ def parse_cover(line: Line, product: Product) -> None:
             cover.limit, rest = expression(child, toks[1:], product, stop={"per"})
             if rest == ["per", "term"]:
                 cover.aggregate, rest = True, []
+        elif key == "excess" and len(toks) == 1 and child.children:
+            # A table of rows may use facts a claim asks for, which are declared later: parse it last.
+            product.deferred.append(lambda: parse_excess_table(child, cover, product))
+            rest = []
         elif key == "excess":
             cover.excess.amount, rest = expression(child, toks[1:], product, stop={","})
             if rest[:2] == [",", "minimum"]:
@@ -266,6 +270,30 @@ def parse_cover(line: Line, product: Product) -> None:
             raise child.error(f"unknown cover setting {child.text!r}")
         if rest:
             raise child.error(f"unexpected {' '.join(rest)!r}")
+
+
+def claim_facts(product: Product, cover: str) -> set[str]:
+    """Words a claim on this cover asks for: the fact names and their choice values."""
+    rule_ = product.claims.get(cover)
+    return set(rule_.asks) | {c for f in rule_.asks.values() for c in f.choices} if rule_ else set()
+
+
+def parse_excess_table(line: Line, cover: Cover, product: Product) -> None:
+    """Rows of `condition: amount` with `otherwise: amount` last, like a factor without the x."""
+    facts = claim_facts(product, cover.name)
+    for child in line.children:
+        toks = tokens(child)
+        if cover.excess.rows and cover.excess.rows[-1].condition is None:
+            raise child.error("'otherwise' must be the last row")
+        if toks[:2] == ["otherwise", ":"]:
+            cond, rest = None, toks[2:]
+        else:
+            cond, rest = expression(child, toks, product, stop={":"}, extra=facts)
+            rest = rest[1:]
+        amount, rest = expression(child, rest, product, extra=facts)
+        if rest:
+            raise child.error(f"unexpected {' '.join(rest)!r}")
+        cover.excess.rows.append(FactorRow(cond, "=", amount))
 
 
 def parse_factor(line: Line, label: str, product: Product, extra: set[str] = frozenset()) -> RatingStep:
@@ -420,15 +448,34 @@ def parse_renewal(line: Line, product: Product) -> None:
             lc.renewal_collar = Decimal(toks[3]) / 100
         elif toks[:1] == ["decline"]:
             lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
-        elif toks[:1] == ["index"] and "by" in toks and toks[-1:] in (["%"], [toks[toks.index("by") + 1]]):
-            target, amount = toks[1:toks.index("by")], toks[toks.index("by") + 1]
-            coll = product.collection_for(target[0]) if len(target) == 2 else None
-            inp = coll.fields.get(target[1]) if coll else product.inputs.get(target[0]) if len(target) == 1 else None
-            if inp is None or inp.kind not in ("money", "number", "integer"):
-                raise child.error(f"index needs a money, number or integer input, not {' '.join(target)!r}")
-            lc.renewal_index.append((".".join(target), "%" if toks[-1] == "%" else "+", Decimal(amount)))
+        elif toks[:1] == ["index"] and "by" in toks:
+            lc.renewal_index = [ix for ix in lc.renewal_index if ix[0] != ".".join(toks[1:toks.index("by")])]  # restating replaces
+            lc.renewal_index.append(parse_index(child, toks, product))
         else:
             raise child.error(f"unknown renewal setting {child.text!r}")
+
+
+def parse_index(line: Line, toks: list[str], product: Product) -> tuple:
+    """`index <input> by [-]N[%][, at least A][, at most B]` -> (input, "%" or "+", amount, at least, at most)."""
+    target, rest = toks[1:toks.index("by")], toks[toks.index("by") + 1:]
+    coll = product.collection_for(target[0]) if len(target) == 2 else None
+    inp = coll.fields.get(target[1]) if coll else product.inputs.get(target[0]) if len(target) == 1 else None
+    if inp is None or inp.kind not in ("money", "number", "integer"):
+        raise line.error(f"index needs a money, number or integer input, not {' '.join(target)!r}")
+    sign = -1 if rest[:1] == ["-"] else 1
+    rest = rest[1:] if sign < 0 else rest
+    if not rest or not rest[0][0].isdigit():
+        raise line.error("expected 'index <input> by N', 'by N%' or 'by -N'")
+    amount, rest = Decimal(rest[0]) * sign, rest[1:]
+    how = "+"
+    if rest[:1] == ["%"]:
+        how, rest = "%", rest[1:]
+    bounds = {"least": None, "most": None}
+    while rest[:2] == [",", "at"] and rest[2:3] and rest[2] in bounds and len(rest) >= 4:
+        bounds[rest[2]], rest = Decimal(rest[3]), rest[4:]
+    if rest:
+        raise line.error(f"unexpected {' '.join(rest)!r}; use ', at least N' or ', at most N'")
+    return (".".join(target), how, amount, bounds["least"], bounds["most"])
 
 
 def parse_claims(line: Line, product: Product) -> None:
@@ -487,6 +534,12 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
             rule_.decline.append(rule(child, "decline", toks[1:], product, extra=facts))
         elif toks in (["depreciation"], ["settlement"]):
             rule_.depreciation = parse_factor(child, toks[0], product, extra=facts).rows
+        elif toks == ["does", "not", "count", "towards", "claims", "in", "term"]:
+            rule_.counts = ("bool", False)
+        elif toks[:6] == ["counts", "towards", "claims", "in", "term", "when"]:
+            rule_.counts, rest = expression(child, toks[6:], product, extra=facts)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
         else:
             raise child.error(f"unknown claim setting {child.text!r}")
     return rule_
@@ -643,6 +696,8 @@ def parse(text: str) -> Product:
         handler(line, product)
     if product is None:
         raise ParseError("empty file: expected product \"Name\"")
+    for work in product.deferred:
+        work()
     unknown = names(product.term[0]) - set(product.inputs)
     if unknown:
         raise ParseError(f"term refers to {sorted(unknown)[0]!r}, which is not an input")

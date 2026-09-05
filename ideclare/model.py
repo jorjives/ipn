@@ -36,6 +36,7 @@ class Product:
     claims_terms: list[tuple[int, "Lifecycle"]] = field(default_factory=list)  # (paid claims in term, lifecycle in force from then)
     scenarios: list["Scenario"] = field(default_factory=list)
     enrichments: list["Enrichment"] = field(default_factory=list)
+    deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
 
     def cover(self, name: str) -> "Cover | None":
         return next((c for c in self.covers if c.name == name), None)
@@ -60,6 +61,7 @@ class Rule:
 class Excess:
     amount: tuple | None = None
     minimum: tuple | None = None
+    rows: list["FactorRow"] = field(default_factory=list)  # a table instead of one amount; op is unused
 
 
 @dataclass
@@ -127,7 +129,7 @@ class Lifecycle:
     renewal_invite_days: int = 0
     renewal_cap: Decimal | None = None
     renewal_collar: Decimal | None = None
-    renewal_index: list[tuple[str, str, Decimal]] = field(default_factory=list)  # (input, "%" or "+", amount)
+    renewal_index: list[tuple] = field(default_factory=list)  # (input, "%" or "+", amount, at least, at most)
     renewal_decline: list[Rule] = field(default_factory=list)
 
 
@@ -141,6 +143,7 @@ class ClaimRule:
     co_payments: list["RatingStep"] = field(default_factory=list)  # amount is the percentage, condition optional
     decline: list[Rule] = field(default_factory=list)
     depreciation: list[FactorRow] = field(default_factory=list)
+    counts: tuple = ("bool", True)  # condition under which a paid claim counts towards claims in term
 
 
 @dataclass

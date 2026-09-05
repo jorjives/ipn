@@ -224,10 +224,23 @@ class ClaimResult:
     amount: Decimal = Decimal(0)
     reason: str = ""
     cover: str = ""
+    counted: bool = True  # towards claims in term
+
+
+def excess_amount(excess, ctx: dict) -> Decimal:
+    """One amount, or the first matching row of a table, floored at the minimum."""
+    row = next((r for r in excess.rows if r.condition is None or evaluate(r.condition, ctx)), None)
+    node = row.amount if row is not None else excess.amount
+    amount = Decimal(evaluate(node, ctx)) if node is not None else Decimal(0)
+    return max(amount, Decimal(evaluate(excess.minimum, ctx))) if excess.minimum is not None else amount
 
 
 class Policy:
     """One policy's history: bind, pay, cancel, adjust, claim, renew. Status is derived per date."""
+
+    @property
+    def claims_in_term(self) -> int:
+        return sum(c.counted for c in self.claims)
 
     def __init__(self, product: Product, inputs: dict, selected: set[str]):
         self.product, self.inputs, self.selected = product, dict(inputs), set(selected)
@@ -269,7 +282,7 @@ class Policy:
     @property
     def terms(self) -> "Lifecycle":
         """The lifecycle in force: the product's own, or the last set of terms imposed by paid claims."""
-        imposed = [terms for count, terms in self.product.claims_terms if len(self.claims) >= count]
+        imposed = [terms for count, terms in self.product.claims_terms if self.claims_in_term >= count]
         return imposed[-1] if imposed else self.product.lifecycle
 
     def status(self, on: date) -> str:
@@ -344,17 +357,19 @@ class Policy:
         lc = self.terms
         inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in self.inputs.items()}
 
-        def indexed(v, how, amount):
-            return pence(v * (1 + amount / 100)) if how == "%" else v + amount
+        def indexed(v, how, amount, least, most):
+            v = pence(v * (1 + amount / 100)) if how == "%" else v + amount
+            v = v if least is None else max(v, least)
+            return v if most is None else min(v, most)
 
-        for name, how, amount in lc.renewal_index:
+        for name, *how in lc.renewal_index:
             if "." in name:
                 singular, field_ = name.split(".")
                 for item in inputs.get(self.product.collection_for(singular).name, []):
-                    item[field_] = indexed(item[field_], how, amount)
+                    item[field_] = indexed(item[field_], *how)
             else:
-                inputs[name] = indexed(inputs[name], how, amount)
-        ctx = context(self.product, inputs, self.selected, claims_in_term=len(self.claims))
+                inputs[name] = indexed(inputs[name], *how)
+        ctx = context(self.product, inputs, self.selected, claims_in_term=self.claims_in_term)
         new = pence(rate(self.product, inputs, self.selected).total * self.claims_loading())
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
         if not lc.renewable:
@@ -378,7 +393,7 @@ class Policy:
         return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover), Decimal(0)))
 
     def claims_loading(self) -> Decimal:
-        applicable = [m for count, m in self.product.claims_loading if len(self.claims) >= count]
+        applicable = [m for count, m in self.product.claims_loading if self.claims_in_term >= count]
         return applicable[-1] if applicable else Decimal(1)
 
     def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None, facts: dict | None = None) -> "ClaimResult":
@@ -404,7 +419,7 @@ class Policy:
         since = on - self.first_inception
         months = (on.year - self.first_inception.year) * 12 + on.month - self.first_inception.month - (on.day < self.first_inception.day)
         ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed, **facts,
-                      days_to_report=(reported - on).days, claims_in_term=len(self.claims),
+                      days_to_report=(reported - on).days, claims_in_term=self.claims_in_term,
                       days_since_inception=since.days, months_since_inception=months)
         for r in rules.decline:
             if evaluate(r.condition, ctx):
@@ -420,16 +435,12 @@ class Policy:
             if clause == "limit" and limit is not None:
                 payout = min(payout, limit)
             elif clause == "excess":
-                excess = self.product.cover(cover).excess
-                amount = Decimal(evaluate(excess.amount, ctx)) if excess.amount is not None else Decimal(0)
-                if excess.minimum is not None:
-                    amount = max(amount, Decimal(evaluate(excess.minimum, ctx)))
-                payout -= amount
+                payout -= excess_amount(self.product.cover(cover).excess, ctx)
             elif clause == "co-payment":
                 for cp in rules.co_payments:
                     if cp.condition is None or evaluate(cp.condition, ctx):
                         payout *= 1 - Decimal(evaluate(cp.amount, ctx))
-        result = ClaimResult("paid", pence(max(Decimal(0), payout)), cover=cover)
+        result = ClaimResult("paid", pence(max(Decimal(0), payout)), cover=cover, counted=bool(evaluate(rules.counts, ctx)))
         self.claims.append(result)
         return result
 
