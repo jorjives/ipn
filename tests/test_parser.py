@@ -672,3 +672,9 @@ class MotorFeatures(unittest.TestCase):
         p = parse(MOTOR)
         self.assertEqual(p.claims["Accidental Damage"].counts, ("is", ("name", "fault"), ("bool", True)))
         self.assertEqual(p.claims["Windscreen"].counts, ("bool", False))
+
+
+class ClaimsLoadingSingular(unittest.TestCase):
+    def test_after_one_claim_singular(self):
+        p = parse('product "X"\ninputs\n  a: money\ncover V\n  limit a\nclaims\n  claim V\n    pays claimed amount\n  after 1 claim in term: renewal load x 1.30\n')
+        self.assertEqual(p.claims_loading, [(1, Decimal("1.30"))])

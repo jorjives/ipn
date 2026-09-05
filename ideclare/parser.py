@@ -486,7 +486,7 @@ def parse_claims(line: Line, product: Product) -> None:
             if product.cover(name) is None:
                 raise child.error(f"unknown cover {name!r}")
             product.claims[name] = parse_claim(child, name, product)
-        elif toks[:1] == ["after"] and toks[2:9] == ["claims", "in", "term", ":", "renewal", "load", "x"] and len(toks) == 10:
+        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:9] == ["in", "term", ":", "renewal", "load", "x"] and len(toks) == 10:
             product.claims_loading.append((int(toks[1]), Decimal(toks[9])))
         elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:] == ["in", "term"] and child.children:
             # Terms imposed once that many claims have been paid: lifecycle lines that override the product's own.
