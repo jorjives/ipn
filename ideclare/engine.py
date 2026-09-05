@@ -413,20 +413,19 @@ class Policy:
         state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
-        window = self.product.cover(cover)
-        ctx = context(self.product, self.inputs, self.selected, item)
-        if (window.from_ is not None and on < evaluate(window.from_, ctx)) or (window.until is not None and on >= evaluate(window.until, ctx)):
+        section = self.product.cover(cover)
+        first = self.first_inception
+        months = (on.year - first.year) * 12 + on.month - first.month - (on.day < first.day)
+        ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed, **facts,
+                      days_to_report=(reported - on).days, claims_in_term=self.claims_in_term,
+                      days_since_inception=(on - first).days, months_since_inception=months)
+        if (section.from_ is not None and on < evaluate(section.from_, ctx)) or (section.until is not None and on >= evaluate(section.until, ctx)):
             return ClaimResult("declined", reason=f"{cover} is not in force on {on.isoformat()}")
-        if (on - self.first_inception).days < window.waiting_days:
-            return ClaimResult("declined", reason=f"{cover} is within the {window.waiting_days} day waiting period")
+        if (on - first).days < section.waiting_days:
+            return ClaimResult("declined", reason=f"{cover} is within the {section.waiting_days} day waiting period")
         for name in rules.requires + [f for f in rules.asks if f not in facts]:
             if name not in evidence:
                 return ClaimResult("declined", reason=f"{name} is required")
-        since = on - self.first_inception
-        months = (on.year - self.first_inception.year) * 12 + on.month - self.first_inception.month - (on.day < self.first_inception.day)
-        ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed, **facts,
-                      days_to_report=(reported - on).days, claims_in_term=self.claims_in_term,
-                      days_since_inception=since.days, months_since_inception=months)
         for r in rules.decline:
             if evaluate(r.condition, ctx):
                 return ClaimResult("declined", reason=r.reason)
@@ -434,14 +433,14 @@ class Policy:
         row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
         if row is not None:
             payout = apply_row(payout, row, ctx)
-        limit = self.remaining(cover, item) if window.aggregate else state.limit
-        if window.aggregate and limit == 0:
+        limit = self.remaining(cover, item) if section.aggregate else state.limit
+        if section.aggregate and limit == 0:
             return ClaimResult("declined", reason=f"{cover} limit for the term is used up")
         for clause in rules.pays:  # in the order the wording gives them
             if clause == "limit" and limit is not None:
                 payout = min(payout, limit)
             elif clause == "excess":
-                payout -= excess_amount(self.product.cover(cover).excess, ctx)
+                payout -= excess_amount(section.excess, ctx)
             elif clause == "co-payment":
                 for cp in rules.co_payments:
                     if cp.condition is None or evaluate(cp.condition, ctx):
