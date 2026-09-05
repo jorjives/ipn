@@ -10,6 +10,7 @@ product "Multi Bike Cover"
 
 inputs
   rider_age: integer
+  postcode: text
   bikes: collection of bike, 1 to 6
     make: text
     model: text
@@ -22,6 +23,19 @@ inputs
       base value
       add 0.01 when ebike is yes
       add 0.001 when make is "Brompton"
+
+# Lookups the product relies on but does not perform. Each declares what it is
+# keyed on, what it provides, and what to do when it cannot answer.
+enrichment "Postcode risk" from postcode
+  provides
+    theft_area: choice of low, medium, high
+  when unavailable: refer because "Postcode not recognised"
+  held for the term
+
+enrichment "Bike catalogue" for each bike from make, model
+  provides
+    category: choice of road, mountain, folding, other
+  when unavailable: category is other
 
 eligibility
   decline when rider_age < 18 because "Policyholder must be an adult"
@@ -50,9 +64,16 @@ rating
     factor "E-bike"
       ebike is yes: x 1.15
       otherwise: x 1.00
+    factor "Category"
+      category is folding: x 0.90
+      otherwise: x 1.00
     factor "Position"
       position is 1: x 1.00
       otherwise: x 0.50
+  factor "Theft area"
+    theft_area is high: x 1.30
+    theft_area is medium: x 1.10
+    otherwise: x 1.00
   minimum 40
   tax IPT 12%
 
@@ -74,7 +95,7 @@ claims
 # --- Rating ------------------------------------------------------------------
 
 scenario "One bike takes the full rate"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Trek", model "Domane", value 2000, ebike no
   expect factor "bike 1 Value band" x 1.10
   expect factor "bike 1 Position" x 1.00
@@ -82,7 +103,7 @@ scenario "One bike takes the full rate"
   expect net 88.00
 
 scenario "The most valuable bike is first; the rest are half rate"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Trek", model "FX", value 900, ebike no
   given bike make "Trek", model "Domane", value 2000, ebike no
   expect factor "bike 2 Position" x 1.00
@@ -92,7 +113,7 @@ scenario "The most valuable bike is first; the rest are half rate"
   expect premium 118.72
 
 scenario "An e-bike outranks a pedal bike of the same value"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Trek", model "Domane", value 2000, ebike no
   given bike make "Cube", model "Reaction Hybrid", value 2000, ebike yes
   expect factor "bike 2 Position" x 1.00
@@ -101,7 +122,7 @@ scenario "An e-bike outranks a pedal bike of the same value"
   expect net 145.20
 
 scenario "A Brompton outranks another make of the same value"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Canyon", model "Aeroad", value 1200, ebike no
   given bike make "Brompton", model "C Line", value 1200, ebike no
   expect factor "bike 1 Make" x 1.10
@@ -110,14 +131,14 @@ scenario "A Brompton outranks another make of the same value"
   expect net 76.56
 
 scenario "Bikes that tie on rank keep the order they were given"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Trek", model "FX", value 1200, ebike no
   given bike make "Trek", model "Domane", value 1200, ebike no
   expect factor "bike 1 Position" x 1.00
   expect factor "bike 2 Position" x 0.50
 
 scenario "Adding a bike mid term re-orders the fleet"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Trek", model "FX", value 900, ebike no
   when bound on 2026-01-01
   when adjusted on 2026-07-02 adding bike make "Trek", model "Domane", value 2000, ebike no
@@ -125,10 +146,36 @@ scenario "Adding a bike mid term re-orders the fleet"
   # 73.92 x 183/365 = 37.06, no fee
   expect additional premium 37.06
 
+# --- Enrichment --------------------------------------------------------------
+
+scenario "An unrecognised postcode is referred"
+  given rider_age 30, postcode "ZZ9 9ZZ"
+  given bike make "Trek", model "FX", value 900, ebike no
+  expect referred "Postcode not recognised"
+
+scenario "The theft area from the postcode lookup rates the fleet"
+  given rider_age 30, postcode "M1 1AA", theft_area high
+  given bike make "Trek", model "Domane", value 2000, ebike no
+  expect factor "Theft area" x 1.30
+  # 88.00 x 1.30
+  expect net 114.40
+
+scenario "A bike the catalogue knows uses its category"
+  given rider_age 30, postcode "CH1 1AA", theft_area low
+  given bike make "Brompton", model "C Line", value 1200, ebike no, category folding
+  expect factor "bike 1 Category" x 0.90
+  # 48 x 0.90 x 1.10 x 0.90
+  expect net 42.77
+
+scenario "A bike the catalogue does not know falls back to other"
+  given rider_age 30, postcode "CH1 1AA", theft_area low
+  given bike make "Homebuilt", model "One-off", value 1200, ebike no
+  expect factor "bike 1 Category" x 1.00
+
 # --- Claims ------------------------------------------------------------------
 
 scenario "A claim settles on the named bike"
-  given rider_age 30
+  given rider_age 30, postcode "CH1 1AA", theft_area low
   given bike make "Trek", model "FX", value 900, ebike no
   given bike make "Trek", model "Domane", value 2000, ebike no
   when bound on 2026-01-01
