@@ -621,3 +621,59 @@ class UnavailableEnrichmentInRules(unittest.TestCase):
         p = parse('product "X"\ninputs\n  reg: text\nenrichment "V" from reg\n  provides\n    group: integer\n  when unavailable: refer because "Unknown vehicle"\neligibility\n  refer when group > 45 because "Performance"\n')
         e = check_eligibility(p, {"reg": "ZZ"})
         self.assertEqual((e.outcome, e.reasons), ("referred", ["Unknown vehicle"]))
+
+
+TABLED = '''
+product "Fleet"
+  currency GBP
+
+inputs
+  area: integer
+  vans: collection of van
+    value: money
+    driver_age: integer
+
+table "Rates" keyed on driver_age, area
+  driver_age, area, rate
+  17-24, 1-2, 1.50
+  17-24, 3+, 2.00
+  25+, *, 1.00
+
+table "Excess" keyed on area
+  area, theft
+  1-2, 150
+  3+, 300
+
+cover Theft
+  limit value
+  excess theft from "Excess"
+
+rating
+  for each van
+    base 5% of value
+    factor "Age and area" x rate from "Rates"
+  factor "Fleet" - 10 when count of vans >= 2
+'''
+
+
+class TableEngine(unittest.TestCase):
+    def setUp(self):
+        self.p = parse(TABLED)
+
+    def test_lookup_per_item_and_single_row_factor(self):
+        from ideclare.engine import rate
+        q = rate(self.p, {"area": Decimal(3), "vans": [{"value": Decimal(1000), "driver_age": Decimal(19)}, {"value": Decimal(2000), "driver_age": Decimal(40)}]}, set())
+        self.assertEqual(q.net, Decimal("190.00"))  # 50 x 2.00 + 100 x 1.00 - 10
+        self.assertEqual([(t.label, t.applied) for t in q.trail if t.label.endswith("Age and area")], [("van 1 Age and area", "x 2.00"), ("van 2 Age and area", "x 1.00")])
+        self.assertEqual(q.trail[-1].applied, "- 10")
+
+    def test_lookup_in_an_excess(self):
+        from ideclare.engine import excess_amount
+        ctx = context(self.p, {"area": Decimal(1), "vans": []}, set())
+        self.assertEqual(excess_amount(self.p.cover("Theft").excess, ctx), Decimal(150))
+
+    def test_no_row_is_an_error_not_a_default(self):
+        from ideclare.engine import rate
+        from ideclare.tables import TableError
+        with self.assertRaisesRegex(TableError, "no row in Rates for driver_age 16, area 1"):
+            rate(self.p, {"area": Decimal(1), "vans": [{"value": Decimal(1000), "driver_age": Decimal(16)}]}, set())

@@ -13,7 +13,7 @@ from .model import Cover, Input, Lifecycle, Product
 def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
     """Evaluation context: inputs, singular aliases for collections, the current item's fields."""
     inputs, _, _ = enriched(product, inputs)
-    ctx = {**inputs, "selected": selected, **extra}
+    ctx = {**inputs, "selected": selected, "tables": product.tables, **extra}
     for inp in product.inputs.values():
         if inp.kind == "calculated":
             ctx[inp.name], _ = run_steps(product, inp.steps, ctx, Decimal(0), [], [])
