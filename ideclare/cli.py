@@ -7,6 +7,7 @@ import sys
 from .engine import check_eligibility, cover_states, rate
 from .parser import Line, ParseError, given_value, parse
 from .scenarios import run_all
+from .tables import TableError
 
 
 def check(path: str) -> int:
@@ -46,7 +47,11 @@ def quote(path: str, args: list[str]) -> int:
     print(f"Eligibility: {e.outcome}" + (f" ({'; '.join(e.reasons)})" if e.reasons else ""))
     for c in cover_states(product, inputs, selected):
         print(f"  {c.name}: {c.status}" + (f" ({c.reason})" if c.reason else "") + (f", limit {c.limit:.2f}" if c.limit is not None else ""))
-    q = rate(product, inputs, selected)
+    try:
+        q = rate(product, inputs, selected)
+    except TableError as e:
+        print(f"Premium: {e}")
+        return 1
     print("Premium:")
     for t in q.trail:
         print(f"  {t.label:<20} {t.applied:>10}  = {t.net:.2f}")

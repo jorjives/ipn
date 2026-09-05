@@ -291,3 +291,19 @@ class PerItemNet(unittest.TestCase):
     def test_expect_net_for_item(self):
         p = parse('product "X"\ninputs\n  bikes: collection of bike\n    value: money\nrating\n  for each bike\n    base 10% of value\n  discount 50%\nscenario "s"\n  given bike value 1000\n  given bike value 500\n  expect net for bike 1 100\n  expect net for bike 2 50\n  expect net 75\n')
         self.assertEqual(run_all(p)[0].failures, [])
+
+
+class TableSteps(unittest.TestCase):
+    def test_missing_cell_fails_the_scenario_with_the_table_message(self):
+        from tests.test_parser import TABLES
+        res = {r.scenario.name: r.failures for r in run_all(parse(TABLES + '''
+rating
+  base 100
+  factor "Age" x rate from "Age and lock"
+
+scenario "off the table"
+  given bike_value 2000, rider_age 16, security gold, racing no
+  expect net 100.00
+'''))}
+        self.assertEqual(len(res["off the table"]), 1)
+        self.assertIn("no row in Age and lock for rider_age 16, security gold", res["off the table"][0])
