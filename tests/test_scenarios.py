@@ -256,3 +256,9 @@ class CalculatedInputs(unittest.TestCase):
         from tests.test_parser import CalculatedInputs as T
         p = parse(T.SRC + 'eligibility\n  decline when bmi > 40 because "BMI"\nscenario "s"\n  given height_cm 150, weight_kg 100\n  expect declined "BMI"\n')
         self.assertEqual(run_all(p)[0].failures, [])
+
+
+class AggregateLimit(unittest.TestCase):
+    def test_expect_remaining(self):
+        p = parse('product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term\nrating\n  base 100\nclaims\n  claim Vet\n    pays claimed amount up to limit\nscenario "s"\n  given a 1\n  when bound on 2026-01-01\n  when claim Vet for 3000 on 2026-02-01\n  expect cover Vet remaining 4000\n  when claim Vet for 5000 on 2026-03-01\n  expect payout 4000\n  expect cover Vet remaining 0\n')
+        self.assertEqual(run_all(p)[0].failures, [])

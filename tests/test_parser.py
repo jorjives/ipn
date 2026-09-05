@@ -255,11 +255,11 @@ class Claims(unittest.TestCase):
         p = parse(CLAIMS)
         theft = p.claims["Theft"]
         self.assertEqual(theft.requires, ["police_report", "crime_reference"])
-        self.assertTrue(theft.less_excess)
+        self.assertEqual(theft.pays, ["limit", "excess"])
         self.assertEqual(theft.decline[0].reason, "Late notification")
         self.assertEqual(theft.decline[0].condition, (">", ("name", "days_to_report"), ("num", Decimal(30))))
         self.assertEqual(theft.decline[1].condition, (">", ("name", "claimed"), ("name", "bike_value")))
-        self.assertFalse(p.claims["Accidental Damage"].less_excess)
+        self.assertEqual(p.claims["Accidental Damage"].pays, ["limit"])
 
     def test_terms_imposed_after_a_claim(self):
         src = CLAIMS.replace("  after 2 claims in term: renewal load x 1.25\n",
@@ -516,3 +516,21 @@ class CoverWindows(unittest.TestCase):
     def test_waiting_period(self):
         self.assertEqual(parse(TRAVEL).cover("Vet fees").waiting_days, 14)
         self.assertEqual(parse(TRAVEL).cover("Medical").waiting_days, 0)
+
+
+class AggregateLimit(unittest.TestCase):
+    def test_limit_per_term_is_aggregate(self):
+        p = parse('product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term\ncover Other\n  limit a\n')
+        self.assertTrue(p.cover("Vet").aggregate)
+        self.assertEqual(p.cover("Vet").limit, ("num", Decimal(7000)))
+        self.assertFalse(p.cover("Other").aggregate)
+
+
+class PaysClauses(unittest.TestCase):
+    def test_order_written_is_kept(self):
+        p = parse('product "X"\ninputs\n  a: money\ncover V\n  limit a\nclaims\n  claim V\n    pays claimed amount, less excess, up to limit\n')
+        self.assertEqual(p.claims["V"].pays, ["excess", "limit"])
+
+    def test_unknown_clause_is_error(self):
+        with self.assertRaises(ParseError):
+            parse('product "X"\ninputs\n  a: money\ncover V\n  limit a\nclaims\n  claim V\n    pays claimed amount, less tax\n')

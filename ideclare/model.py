@@ -67,6 +67,7 @@ class Cover:
     name: str
     optional: bool = False
     limit: tuple | None = None
+    aggregate: bool = False  # the limit is for the whole term, eroded by each paid claim
     excess: Excess = field(default_factory=Excess)
     exclusions: list[Rule] = field(default_factory=list)
     available: tuple | None = None
@@ -133,7 +134,7 @@ class Lifecycle:
 class ClaimRule:
     cover: str
     requires: list[str] = field(default_factory=list)
-    less_excess: bool = False
+    pays: list[str] = field(default_factory=lambda: ["limit"])  # clauses in the order written: limit | excess
     decline: list[Rule] = field(default_factory=list)
     depreciation: list[FactorRow] = field(default_factory=list)
 

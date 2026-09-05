@@ -241,7 +241,9 @@ def parse_cover(line: Line, product: Product) -> None:
         toks = tokens(child)
         key = toks[0]
         if key == "limit":
-            cover.limit, rest = expression(child, toks[1:], product)
+            cover.limit, rest = expression(child, toks[1:], product, stop={"per"})
+            if rest == ["per", "term"]:
+                cover.aggregate, rest = True, []
         elif key == "excess":
             cover.excess.amount, rest = expression(child, toks[1:], product, stop={","})
             if rest[:2] == [",", "minimum"]:
@@ -452,8 +454,8 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
         toks = tokens(child)
         if toks[:1] == ["requires"]:
             rule_.requires = [t for t in toks[1:] if t != ","]
-        elif toks[:6] == ["pays", "claimed", "amount", "up", "to", "limit"] and toks[6:] in ([], [",", "less", "excess"]):
-            rule_.less_excess = bool(toks[6:])
+        elif toks[:3] == ["pays", "claimed", "amount"]:
+            rule_.pays = parse_pays(child, toks[3:])
         elif toks[:1] == ["decline"]:
             rule_.decline.append(rule(child, "decline", toks[1:], product))
         elif toks == ["depreciation"]:
@@ -461,6 +463,21 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
         else:
             raise child.error(f"unknown claim setting {child.text!r}")
     return rule_
+
+
+PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess"}
+
+
+def parse_pays(line: Line, toks: list[str]) -> list[str]:
+    """`pays claimed amount[, up to limit][, less excess]` in any order; the order written is the order applied."""
+    clauses, rest = [], [t for t in toks if t != ","]
+    while rest:
+        hit = next((words for words in PAYS_CLAUSES if tuple(rest[:len(words)]) == words), None)
+        if hit is None:
+            raise line.error(f"expected 'up to limit' or 'less excess', not {' '.join(rest)!r}")
+        clauses.append(PAYS_CLAUSES[hit])
+        rest = rest[len(hit):]
+    return clauses
 
 
 def given_value(line: Line, inp: Input, tok: str):

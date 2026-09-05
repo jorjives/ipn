@@ -223,6 +223,7 @@ class ClaimResult:
     status: str  # paid | declined
     amount: Decimal = Decimal(0)
     reason: str = ""
+    cover: str = ""
 
 
 class Policy:
@@ -366,6 +367,13 @@ class Policy:
                 break
         return offer
 
+    def remaining(self, cover: str, item: dict | None = None) -> Decimal | None:
+        """What is left of an aggregate limit this term; None when the cover has no such limit."""
+        state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
+        if not self.product.cover(cover).aggregate or state.limit is None:
+            return None
+        return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover), Decimal(0)))
+
     def claims_loading(self) -> Decimal:
         applicable = [m for count, m in self.product.claims_loading if len(self.claims) >= count]
         return applicable[-1] if applicable else Decimal(1)
@@ -394,18 +402,23 @@ class Policy:
         for r in rules.decline:
             if evaluate(r.condition, ctx):
                 return ClaimResult("declined", reason=r.reason)
-        settlement = claimed
+        payout = claimed
         row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
         if row is not None:
-            settlement = apply_row(settlement, row, ctx)
-        payout = min(settlement, state.limit) if state.limit is not None else settlement
-        if rules.less_excess:
-            excess = self.product.cover(cover).excess
-            amount = Decimal(evaluate(excess.amount, ctx)) if excess.amount is not None else Decimal(0)
-            if excess.minimum is not None:
-                amount = max(amount, Decimal(evaluate(excess.minimum, ctx)))
-            payout -= amount
-        result = ClaimResult("paid", pence(max(Decimal(0), payout)))
+            payout = apply_row(payout, row, ctx)
+        limit = self.remaining(cover, item) if window.aggregate else state.limit
+        if window.aggregate and limit == 0:
+            return ClaimResult("declined", reason=f"{cover} limit for the term is used up")
+        for clause in rules.pays:  # in the order the wording gives them
+            if clause == "limit" and limit is not None:
+                payout = min(payout, limit)
+            elif clause == "excess":
+                excess = self.product.cover(cover).excess
+                amount = Decimal(evaluate(excess.amount, ctx)) if excess.amount is not None else Decimal(0)
+                if excess.minimum is not None:
+                    amount = max(amount, Decimal(evaluate(excess.minimum, ctx)))
+                payout -= amount
+        result = ClaimResult("paid", pence(max(Decimal(0), payout)), cover=cover)
         self.claims.append(result)
         return result
 

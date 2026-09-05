@@ -513,3 +513,25 @@ class CoverWindows(unittest.TestCase):
         r = self.claim("Vet fees", date(2026, 3, 10))
         self.assertEqual((r.status, r.reason), ("declined", "Vet fees is within the 14 day waiting period"))
         self.assertEqual(self.claim("Vet fees", date(2026, 3, 15)).status, "paid")
+
+
+class AggregateLimit(unittest.TestCase):
+    def setUp(self):
+        self.p = parse('product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term\n  excess 100\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\nclaims\n  claim Vet\n    pays claimed amount, less excess, up to limit\n')
+        self.pol = Policy(self.p, {"a": Decimal(1)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, amount, on=date(2026, 3, 1)):
+        return self.pol.claim("Vet", Decimal(amount), on, on, set())
+
+    def test_each_claim_erodes_the_limit(self):
+        self.assertEqual(self.claim(5000).amount, Decimal(4900))
+        self.assertEqual(self.claim(5000).amount, Decimal(2100))  # only 2100 left
+        self.assertEqual(self.pol.remaining("Vet"), Decimal(0))
+        r = self.claim(500)
+        self.assertEqual((r.status, r.reason), ("declined", "Vet limit for the term is used up"))
+
+    def test_limit_restored_on_renewal(self):
+        self.claim(7000)
+        self.pol.accept_renewal()
+        self.assertEqual(self.pol.remaining("Vet"), Decimal(7000))
