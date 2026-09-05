@@ -97,6 +97,7 @@ class RatingStep:
     condition: tuple | None = None
     rows: list[FactorRow] = field(default_factory=list)
     steps: list["RatingStep"] = field(default_factory=list)  # kind == "each": label is the item name
+    order: list[tuple[tuple, bool]] = field(default_factory=list)  # kind == "each": (key, descending)
     line: int = 0
 
 

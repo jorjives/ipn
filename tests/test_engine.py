@@ -372,6 +372,15 @@ class CollectionEngine(unittest.TestCase):
             ("bike 2 base", "30.00"), ("bike 2 Bike age", "x 0.90"),
             ("bikes", "87.00"), ("Fleet", "x 0.95"), ("minimum", "40")])
 
+    def test_ordered_items_and_position(self):
+        src = FLEET.replace("  for each bike\n", "  for each bike, ordered by value descending\n").replace("  factor \"Fleet\"\n", "    factor \"Position\"\n      position is 1: x 1.00\n      otherwise: x 0.50\n  factor \"Fleet\"\n")
+        q = rate(parse(src), fleet((1000, 0, "gold"), (2000, 0, "gold")), set())
+        # bike 2 is rated first at full rate (60), bike 1 second at half (15); total 75 x 0.95 = 71.25
+        self.assertEqual(q.net, Decimal("71.25"))
+        self.assertEqual([t.label for t in q.trail][:6], [
+            "bike 2 base", "bike 2 Bike age", "bike 2 Position",
+            "bike 1 base", "bike 1 Bike age", "bike 1 Position"])
+
     def test_cover_state_for_an_item(self):
         inputs = fleet((2000, 0, "gold"), (3000, 1, "bronze"))
         states = [cover_state(self.p, self.p.cover("Theft"), inputs, set(), item=b) for b in inputs["bikes"]]

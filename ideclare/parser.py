@@ -180,12 +180,12 @@ def known_words(product: Product) -> set[str]:
     return words
 
 
-def expression(line: Line, toks: list[str], product: Product, stop: set[str] = frozenset()) -> tuple[tuple, list[str]]:
+def expression(line: Line, toks: list[str], product: Product, stop: set[str] = frozenset(), extra: set[str] = frozenset()) -> tuple[tuple, list[str]]:
     try:
         node, rest = parse_expr(fold_phrases(toks), stop)
     except ExprError as e:
         raise line.error(str(e))
-    unknown = names(node) - known_words(product)
+    unknown = names(node) - known_words(product) - extra
     if unknown:
         raise line.error(f"unknown word {sorted(unknown)[0]!r}")
     return node, rest
@@ -235,7 +235,7 @@ def parse_cover(line: Line, product: Product) -> None:
             raise child.error(f"unexpected {' '.join(rest)!r}")
 
 
-def parse_factor(line: Line, label: str, product: Product) -> RatingStep:
+def parse_factor(line: Line, label: str, product: Product, extra: set[str] = frozenset()) -> RatingStep:
     step = RatingStep("factor", label, line=line.number)
     for child in line.children:
         toks = tokens(child)
@@ -244,12 +244,12 @@ def parse_factor(line: Line, label: str, product: Product) -> RatingStep:
         if toks[:2] == ["otherwise", ":"]:
             cond, rest = None, toks[2:]
         else:
-            cond, rest = expression(child, toks, product, stop={":"})
+            cond, rest = expression(child, toks, product, stop={":"}, extra=extra)
             rest = rest[1:]
         if len(rest) < 2 or rest[0] not in ("x", "+", "-"):
             raise child.error("expected ': x 1.25' or ': + 10' or ': - 10'")
         op = rest[0]
-        amount, rest = expression(child, rest[1:], product)
+        amount, rest = expression(child, rest[1:], product, extra=extra)
         if rest:
             raise child.error(f"unexpected {' '.join(rest)!r}")
         step.rows.append(FactorRow(cond, op, amount))
@@ -265,8 +265,29 @@ def parse_rating(line: Line, product: Product) -> None:
 PER_ITEM_STEPS = {"base", "factor", "add", "discount", "load", "minimum", "maximum"}
 
 
+ITEM_WORDS = {"position"}  # words only meaningful inside 'for each'
+
+
+def parse_order(line: Line, toks: list[str], product: Product) -> list[tuple[tuple, bool]]:
+    """`ordered by <key> [descending], <key> [descending] ...`; toks start after `ordered by`."""
+    order = []
+    while toks:
+        key, toks = expression(line, toks, product, stop={",", "descending"})
+        descending = toks[:1] == ["descending"]
+        order.append((key, descending))
+        toks = toks[1:] if descending else toks
+        if toks[:1] == [","]:
+            toks = toks[1:]
+        elif toks:
+            raise line.error(f"unexpected {' '.join(toks)!r}")
+    if not order:
+        raise line.error("expected 'ordered by <field>'")
+    return order
+
+
 def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = False) -> list[RatingStep]:
     steps = []
+    extra = ITEM_WORDS if per_item else frozenset()
     for child in lines:
         toks = tokens(child)
         kind, rest = toks[0], toks[1:]
@@ -276,16 +297,21 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
         step = RatingStep(kind, label, line=child.number)
         if per_item and kind not in PER_ITEM_STEPS:
             raise child.error(f"{kind!r} cannot be used inside 'for each'; only {', '.join(sorted(PER_ITEM_STEPS))}")
-        if toks[:2] == ["for", "each"] and len(toks) == 3 and not per_item:
+        if toks[:2] == ["for", "each"] and len(toks) >= 3 and not per_item:
             if product.collection_for(toks[2]) is None:
                 raise child.error(f"unknown item {toks[2]!r}; declare a collection of {toks[2]}")
-            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True), line=child.number)
+            order = []
+            if toks[3:6] == [",", "ordered", "by"]:
+                order = parse_order(child, toks[6:], product)
+            elif toks[3:]:
+                raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
+            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True), order=order, line=child.number)
         elif kind == "factor":
-            step = parse_factor(child, label, product)
+            step = parse_factor(child, label, product, extra)
         elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
-            step.amount, rest = expression(child, rest, product, stop={"when"})
+            step.amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
             if rest[:1] == ["when"]:
-                step.condition, rest = expression(child, rest[1:], product)
+                step.condition, rest = expression(child, rest[1:], product, extra=extra)
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind in ("tax", "fee"):

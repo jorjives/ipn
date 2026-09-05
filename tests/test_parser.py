@@ -342,6 +342,17 @@ class Collections(unittest.TestCase):
         self.assertEqual((each.kind, each.label), ("each", "bike"))
         self.assertEqual([s.kind for s in each.steps], ["base", "factor"])
 
+    def test_for_each_ordered_by(self):
+        src = FLEET.replace("  for each bike\n", "  for each bike, ordered by value descending, age\n").replace("  factor \"Fleet\"\n", "    factor \"Position\"\n      position is 1: x 1.00\n      otherwise: x 0.50\n  factor \"Fleet\"\n")
+        each = parse(src).rating[0]
+        self.assertEqual(each.order, [(("name", "value"), True), (("name", "age"), False)])
+        self.assertEqual(each.steps[-1].rows[0].condition, ("is", ("name", "position"), ("num", Decimal(1))))
+
+    def test_position_outside_for_each_is_error(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FLEET.replace("    count of bikes > 1: x 0.95\n", "    position is 1: x 0.95\n"))
+        self.assertIn("position", str(cm.exception))
+
     def test_tax_inside_for_each_is_error(self):
         with self.assertRaises(ParseError):
             parse(FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax IPT 5%\n"))

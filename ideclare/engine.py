@@ -112,8 +112,11 @@ def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lin
         elif step.kind == "each":
             coll = product.collection_for(step.label)
             total = Decimal(0)
-            for i, item in enumerate(ctx.get(coll.name, []), start=1):
-                sub, _ = run_steps(product, step.steps, {**ctx, **item}, Decimal(0), trail, lines, f"{prefix}{step.label} {i} ")
+            items = list(enumerate(ctx.get(coll.name, []), start=1))  # numbered as declared, so trail and claims agree
+            for key, descending in reversed(step.order):  # stable sorts, last key first
+                items.sort(key=lambda pair: evaluate(key, {**ctx, **pair[1]}), reverse=descending)
+            for position, (i, item) in enumerate(items, start=1):
+                sub, _ = run_steps(product, step.steps, {**ctx, **item, "position": position}, Decimal(0), trail, lines, f"{prefix}{step.label} {i} ")
                 total += sub
             net += total
             record(coll.name, f"{total:.2f}")
