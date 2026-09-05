@@ -1,0 +1,217 @@
+# Cycle Leasing Scheme: a group policy. The policyholder is the leasing supplier,
+# which owns the bikes; the members are employees who hold them under a lease.
+# Members join and leave all year, each member's cover runs for their own lease
+# dates inside a rolling annual master policy, and claims are settled per member.
+# Run it with:  python3 -m ideclare check examples/leasing.idl
+
+product "Cycle Leasing Scheme"
+  territory UK
+  currency GBP
+  term 12 months
+
+inputs
+  scheme_code: text
+  supplier_turnover: money
+  members: collection of member, at least 1
+    employee_ref: text
+    bike_value: money
+    ebike: yes/no
+    lease_start: date
+    lease_end: date
+    lease_days: calculated
+      base lease_end - lease_start
+
+enrichment "Scheme register" from scheme_code
+  provides
+    employer_sector: choice of public, private, charity
+  when unavailable: decline because "Scheme is not registered with the supplier"
+  held for the term
+
+eligibility
+  decline when any member where bike_value > 6000 because "Bikes over 6,000 are outside the scheme"
+  decline when any member where lease_days > 1095 because "Leases run for 36 months at most"
+  decline when any member where lease_days < 1 because "A lease must end after it starts"
+  refer when count of members > 500 because "Schemes over 500 members need an underwriter"
+
+cover Theft
+  limit bike_value
+  excess 10% of claim, minimum 50
+  in force from lease_start
+  in force until lease_end
+
+cover "Accidental Damage"
+  limit bike_value
+  excess 50
+  in force from lease_start
+  in force until lease_end
+
+cover "Scheme Liability"
+  limit 2000000 per term
+
+rating
+  for each member
+    base 4% of bike_value
+    factor "E-bike"
+      ebike is yes: x 1.20
+      otherwise: x 1.00
+  factor "Scheme size"
+    count of members >= 100: x 0.75
+    count of members >= 20: x 0.85
+    otherwise: x 1.00
+  factor "Sector"
+    employer_sector is public: x 0.95
+    otherwise: x 1.00
+  minimum 250
+  tax IPT 12%
+  fee "Scheme administration" 100
+
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference
+  renewal
+    invite 60 days before expiry
+    increase capped at 15%
+
+claims
+  claim Theft
+    requires crime_reference
+    pays claimed amount up to limit, less excess
+    decline when reported after 30 days because "Theft must be reported within 30 days"
+  claim "Accidental Damage"
+    pays claimed amount up to limit, less excess
+  claim "Scheme Liability"
+    pays claimed amount up to limit
+  after 5 claims in term: renewal load x 1.20
+
+# --- Eligibility ---------------------------------------------------------
+
+scenario "A registered scheme with three members"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E101", bike_value 3000, ebike yes, lease_start 2026-02-01, lease_end 2028-02-01
+  given member employee_ref "E102", bike_value 900, ebike no, lease_start 2026-03-15, lease_end 2027-03-15
+  expect eligible
+
+scenario "An unregistered scheme is declined"
+  given scheme_code "NOPE", supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  expect declined "Scheme is not registered with the supplier"
+
+scenario "A lease longer than 36 months is declined"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2030-01-01
+  expect declined "Leases run for 36 months at most"
+
+# --- Rating per member, discounted by scheme size ---------------------------
+
+scenario "Each member is rated on their own bike"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E101", bike_value 3000, ebike yes, lease_start 2026-02-01, lease_end 2028-02-01
+  # 60 + 120 x 1.20 = 204, floored to the 250 minimum
+  expect factor "member 2 E-bike" x 1.20
+  expect net for member 1 60.00
+  expect net for member 2 144.00
+  expect net 250.00
+  expect premium 380.00
+
+scenario "A public sector scheme of twenty gets both discounts"
+  given scheme_code "NHS-07", employer_sector public, supplier_turnover 2000000
+  given member employee_ref "E1", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E2", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E3", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E4", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E5", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E6", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E7", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E8", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E9", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E10", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E11", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E12", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E13", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E14", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E15", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E16", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E17", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E18", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E19", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E20", bike_value 1000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  # 20 x 40 = 800, x 0.85 size, x 0.95 sector
+  expect factor "Scheme size" x 0.85
+  expect net 646.00
+
+# --- Members join and leave mid term ---------------------------------------
+
+scenario "A member joining mid term is charged for the rest of the scheme year"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 4000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E101", bike_value 4000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  when bound on 2026-01-01
+  # 320 net, IPT 38.40: earning 358.40
+  expect premium 458.40
+  when adjusted on 2026-07-02 adding member employee_ref "E102", bike_value 2000, ebike yes, lease_start 2026-07-02, lease_end 2027-07-02
+  # 416 net, IPT 49.92: earning 465.92; the difference 107.52 x 183/365
+  expect additional premium 53.91
+  expect net for member 3 96.00
+
+scenario "A member leaving mid term returns premium to the supplier"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 4000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E101", bike_value 4000, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E102", bike_value 2000, ebike yes, lease_start 2026-01-01, lease_end 2027-01-01
+  when bound on 2026-01-01
+  when adjusted on 2026-07-02 removing member 3
+  expect return premium 53.91
+  expect premium 458.40
+
+# --- Claims per member, within their own lease -----------------------------
+
+scenario "A theft is settled on the member's bike"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E101", bike_value 3000, ebike yes, lease_start 2026-02-01, lease_end 2028-02-01
+  when bound on 2026-01-01
+  when claim Theft on member 2 for 3000 on 2026-06-01 with crime_reference
+  # capped at the bike value, less 10%
+  expect payout 2700.00
+
+scenario "A member's cover starts with their lease, not the scheme year"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  given member employee_ref "E102", bike_value 900, ebike no, lease_start 2026-03-15, lease_end 2027-03-15
+  when bound on 2026-01-01
+  when claim "Accidental Damage" on member 2 for 300 on 2026-03-01
+  expect claim declined "Accidental Damage is not in force on 2026-03-01"
+  when claim "Accidental Damage" on member 2 for 300 on 2026-03-20
+  expect payout 250.00
+
+scenario "A member's cover ends with their lease even though the scheme runs on"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2025-09-01, lease_end 2026-09-01
+  given member employee_ref "E101", bike_value 3000, ebike yes, lease_start 2026-01-01, lease_end 2027-01-01
+  when bound on 2026-01-01
+  when claim Theft on member 1 for 1000 on 2026-10-01 with crime_reference
+  expect claim declined "Theft is not in force on 2026-10-01"
+  when claim Theft on member 2 for 1000 on 2026-10-01 with crime_reference
+  expect payout 900.00
+
+scenario "A lease that outlasts the scheme year is covered on into the renewed year"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E101", bike_value 3000, ebike yes, lease_start 2026-02-01, lease_end 2028-02-01
+  when bound on 2026-01-01
+  when claim Theft on member 1 for 1000 on 2027-03-01 with crime_reference
+  expect claim declined "policy was expired on 2027-03-01"
+  when renewed on 2027-01-01
+  when claim Theft on member 1 for 1000 on 2027-03-01 with crime_reference
+  expect payout 900.00
+
+scenario "Scheme liability is a single limit for the whole scheme"
+  given scheme_code "ACME-01", employer_sector private, supplier_turnover 2000000
+  given member employee_ref "E100", bike_value 1500, ebike no, lease_start 2026-01-01, lease_end 2027-01-01
+  when bound on 2026-01-01
+  when claim "Scheme Liability" for 1500000 on 2026-05-01
+  expect payout 1500000.00
+  expect cover "Scheme Liability" remaining 500000

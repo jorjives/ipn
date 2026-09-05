@@ -20,6 +20,7 @@ from public UK policy wordings and guides (see Research).
 | Term life | `life.idl` | Term chosen in years by the customer; fixed benefit (pays the sum assured, not the amount claimed); BMI as a calculated input from height and weight; 12-month suicide exclusion; no renewal |
 | Professional indemnity | `pi.idl` | Commercial; turnover-rated; claims-made basis with a retroactive date; limit any one claim versus in the aggregate; costs inclusive |
 | Home contents | `home.idl` | Average clause (proportional settlement when underinsured, using the true value found at claim time); peril-specific excess (escape of water); specified high-value items |
+| Cycle leasing scheme (group) | `leasing.idl` | Policyholder is the supplier, risk sits with employee members; members join and leave mid term; each member's cover runs for their own lease dates inside a rolling annual master policy; per-member share of the premium; a scheme-wide aggregate |
 | Short-term income protection | `income.idl` | Protection family; a benefit paid over time, so many months' worth after a deferred period, capped by an aggregate of months per term; initial exclusion period on unemployment |
 
 ## Language additions
@@ -63,6 +64,7 @@ Found necessary while building, not foreseen above:
 - Eligibility rules on a field an enrichment could not provide are skipped; the lookup's
   own refer or decline speaks for them (engine bug found by the motor example).
 - `after 1 claim in term: renewal load x M` accepts the singular.
+- `expect net for member 2 AMOUNT`: a group scheme recharges each member their share.
 
 ## Settlement order in a claim
 
@@ -82,8 +84,9 @@ after the excess. Pet wordings read excess, then co-payment, then the annual lim
 | pi.idl | 16 |
 | home.idl | 17 |
 | income.idl | 13 |
+| leasing.idl | 12 |
 
-All pass alongside the three bike examples; the engine's own tests grew from 129 to 182.
+All pass alongside the three bike examples; the engine's own tests grew from 129 to 183.
 Every example was written against the engine as it stood and the language was extended
 only where a scenario could not be expressed; each extension is one commit with its own
 tests.
