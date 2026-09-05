@@ -249,7 +249,7 @@ def parse_cover(line: Line, product: Product) -> None:
                 cover.aggregate, rest = True, []
         elif key == "excess" and len(toks) == 1 and child.children:
             # A table of rows may use facts a claim asks for, which are declared later: parse it last.
-            product.deferred.append(lambda: parse_excess_table(child, cover, product))
+            product.deferred.append(lambda line=child: parse_excess_table(line, cover, product))
             rest = []
         elif key == "excess":
             cover.excess.amount, rest = expression(child, toks[1:], product, stop={","})

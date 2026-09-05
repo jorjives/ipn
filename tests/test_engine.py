@@ -614,3 +614,10 @@ class MotorFeatures(unittest.TestCase):
         self.pol.inputs["ncd_years"] = Decimal(1)
         self.ad(40, True)
         self.assertEqual(self.pol.renew().inputs["ncd_years"], Decimal(0))
+
+
+class UnavailableEnrichmentInRules(unittest.TestCase):
+    def test_rule_on_a_missing_provided_field_is_skipped(self):
+        p = parse('product "X"\ninputs\n  reg: text\nenrichment "V" from reg\n  provides\n    group: integer\n  when unavailable: refer because "Unknown vehicle"\neligibility\n  refer when group > 45 because "Performance"\n')
+        e = check_eligibility(p, {"reg": "ZZ"})
+        self.assertEqual((e.outcome, e.reasons), ("referred", ["Unknown vehicle"]))

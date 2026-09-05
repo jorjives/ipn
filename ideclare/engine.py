@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from .expr import evaluate
+from .expr import evaluate, names
 from .model import Cover, Input, Lifecycle, Product
 
 
 def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
     """Evaluation context: inputs, singular aliases for collections, the current item's fields."""
-    inputs, _ = enriched(product, inputs)
+    inputs, _, _ = enriched(product, inputs)
     ctx = {**inputs, "selected": selected, **extra}
     for inp in product.inputs.values():
         if inp.kind == "calculated":
@@ -26,10 +26,11 @@ def context(product: Product, inputs: dict, selected: set[str], item: dict | Non
     return ctx
 
 
-def enriched(product: Product, inputs: dict) -> tuple[dict, list[tuple[str, str]]]:
-    """Inputs with enrichment defaults filled in, plus (refer|decline, reason) for lookups that could not answer."""
+def enriched(product: Product, inputs: dict) -> tuple[dict, list[tuple[str, str]], set[str]]:
+    """Inputs with enrichment defaults filled in, (refer|decline, reason) for lookups that could not answer,
+    and the names of the provided fields still missing as a result."""
     inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in inputs.items()}
-    outcomes = []
+    outcomes, missing = [], set()
     for e in product.enrichments:
         targets = inputs.get(product.collection_for(e.item).name, []) if e.item else [inputs]
         for target in targets:
@@ -38,9 +39,11 @@ def enriched(product: Product, inputs: dict) -> tuple[dict, list[tuple[str, str]
             if e.unavailable == "default":
                 for f in e.provides:
                     target.setdefault(f, e.defaults.get(f))
-            elif (e.unavailable, e.reason) not in outcomes:
-                outcomes.append((e.unavailable, e.reason))
-    return inputs, outcomes
+            else:
+                missing |= set(e.provides)
+                if (e.unavailable, e.reason) not in outcomes:
+                    outcomes.append((e.unavailable, e.reason))
+    return inputs, outcomes, missing
 
 
 def calculated(product: Product, coll: Input, item: dict, ctx: dict) -> dict:
@@ -61,7 +64,8 @@ class Eligibility:
 def check_eligibility(product: Product, inputs: dict) -> Eligibility:
     ctx = context(product, inputs, set())
     reasons, declined = [], False
-    for kind, reason in enriched(product, inputs)[1]:
+    _, outcomes, missing = enriched(product, inputs)
+    for kind, reason in outcomes:
         reasons.append(reason)
         declined = declined or kind == "decline"
     for coll in product.collections:
@@ -72,6 +76,8 @@ def check_eligibility(product: Product, inputs: dict) -> Eligibility:
             reasons.append(f"{coll.name}: at most {coll.max_items} allowed")
         declined = declined or count < coll.min_items or (coll.max_items is not None and count > coll.max_items)
     for r in product.eligibility:
+        if names(r.condition) & missing:
+            continue  # the lookup's own refer or decline speaks for this rule
         if evaluate(r.condition, ctx):
             reasons.append(r.reason)
             declined = declined or r.kind == "decline"
