@@ -23,7 +23,7 @@ takes the full rate. The other examples take the same language across the indust
 annual limit eroded by claims, waiting period, co-payment), `motor.idl` (named drivers, no
 claims discount, an excess that depends on who was driving), `life.idl` (a fixed benefit
 over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit) and
-`home.idl` (specified items, the average clause).
+`home.idl` (specified items, the average clause) and `income.idl` (a benefit paid over time).
 
 ## Writing conventions
 
@@ -394,7 +394,8 @@ claims
   deducted (`up to limit, less excess`); a liability or aggregate limit caps what the
   insurer pays after the excess (`less excess, up to limit`). Write what the wording says.
 - `pays <amount>` is a fixed benefit instead of the amount claimed: `pays sum_assured`,
-  `pays 50% of sum_assured`, `pays purchase_price`.
+  `pays 50% of sum_assured`, `pays purchase_price`. It may use asked facts and take the same
+  clauses: `pays monthly_benefit * ( weeks_off_work - deferred_weeks ) / 4, up to limit`.
 - `co-payment N% [when ...]` is a share the customer bears, applied where `less co-payment`
   sits in the `pays` line.
 - `depreciation` (or `settlement`, the same table under a name that suits an average clause)
@@ -484,6 +485,6 @@ Expectations:
 Short-rate cancellation, instalments, commission, multi-currency, more than one product per
 file, new-for-old versus indemnity as a named settlement basis (use a depreciation table),
 per-condition limits within an aggregate (pet), protected no claims discount as an add-on
-that switches off the step-back, run-off cover after a claims-made policy ends, benefits
-paid per day or per month over time. The `quote` command takes scalar inputs only; price a
+that switches off the step-back, run-off cover after a claims-made policy ends, a benefit
+that continues to be paid across policy years. The `quote` command takes scalar inputs only; price a
 policy with items through a scenario. Each is a small addition to the engine; say which you need.
