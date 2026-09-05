@@ -334,6 +334,18 @@ is of the amount claimed, before depreciation. Only paid claims count towards
 `claims in term`. `after N claims in term: renewal load x M` multiplies the renewal
 premium when the paid claim count reaches N; the highest matching line wins.
 
+A paid claim can also change the terms of the policy for the rest of the term. Write
+`after N claims in term` (or `after 1 claim in term`) with lifecycle lines indented below;
+they replace the product's own settings from the point the Nth claim is paid, and anything
+not restated carries over. The `lifecycle` block must come first in the file:
+
+```
+claims
+  after 1 claim in term
+    cancellation by customer: no refund
+    adjustment: not allowed
+```
+
 ## Scenarios
 
 ```

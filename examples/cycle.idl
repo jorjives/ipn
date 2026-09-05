@@ -83,6 +83,8 @@ claims
     pays claimed amount up to limit, less excess
   claim Racing
     pays claimed amount up to limit, less excess
+  after 1 claim in term
+    cancellation by customer: no refund
   after 2 claims in term: renewal load x 1.25
 
 # --- Eligibility ---------------------------------------------------------
@@ -251,6 +253,14 @@ scenario "Collar: a renewal cannot fall more than 10%"
   expect renewal premium 84.57
 
 # --- Claims --------------------------------------------------------------
+
+scenario "No refund on cancellation once a claim has been paid"
+  given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0, bike_age 0
+  when bound on 2026-01-01
+  when claim Theft for 1500 on 2026-03-01 with police_report, crime_reference
+  expect claim paid
+  when cancelled by customer on 2026-04-11
+  expect refund 0
 
 scenario "Theft claim pays up to the limit less a percentage excess"
   given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0, bike_age 0
