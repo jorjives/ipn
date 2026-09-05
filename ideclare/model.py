@@ -103,6 +103,7 @@ class Lifecycle:
     renewal_invite_days: int = 0
     renewal_cap: Decimal | None = None
     renewal_collar: Decimal | None = None
+    renewal_index: list[tuple[str, Decimal]] = field(default_factory=list)  # (input, rise)
     renewal_decline: list[Rule] = field(default_factory=list)
 
 
@@ -112,3 +113,4 @@ class ClaimRule:
     requires: list[str] = field(default_factory=list)
     less_excess: bool = False
     decline: list[Rule] = field(default_factory=list)
+    depreciation: list[FactorRow] = field(default_factory=list)

@@ -278,3 +278,59 @@ class CapAndCollar(unittest.TestCase):
         offer = pol.renew()
         self.assertLess(offer.uncapped, Decimal("69.48"))
         self.assertEqual(offer.premium, Decimal("69.48"))  # 77.20 x 0.90
+
+
+DEPRECIATION = '''
+product "Gadget"
+  term 12 months
+inputs
+  item_value: money
+  item_age: integer
+cover Damage
+  limit item_value
+  excess 10% of claim
+rating
+  base 50
+lifecycle
+  cancellation by customer: no refund
+  renewal
+    index item_value by 5%
+claims
+  claim Damage
+    pays claimed amount up to limit, less excess
+    depreciation
+      item_age < 1: x 1.00
+      item_age < 3: x 0.80
+      otherwise: x 0.50
+'''
+
+
+class DepreciationAndIndexation(unittest.TestCase):
+    def setUp(self):
+        self.p = parse(DEPRECIATION)
+        self.pol = Policy(self.p, {"item_value": Decimal(1000), "item_age": Decimal(2)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def test_depreciation_rows_parse_like_a_factor(self):
+        rows = self.p.claims["Damage"].depreciation
+        self.assertEqual([(r.op, r.amount) for r in rows][1], ("x", ("num", Decimal("0.80"))))
+        self.assertIsNone(rows[2].condition)
+
+    def test_depreciation_applies_before_limit_and_excess(self):
+        c = self.pol.claim("Damage", Decimal(500), date(2026, 2, 1), date(2026, 2, 1), set())
+        self.assertEqual(c.amount, Decimal("350.00"))  # 500 x 0.80 = 400, less 10% of 500
+        c = self.pol.claim("Damage", Decimal(2000), date(2026, 2, 1), date(2026, 2, 1), set())
+        self.assertEqual(c.amount, Decimal("800.00"))  # 1600 capped at 1000, less 200
+
+    def test_indexation_raises_the_input_at_renewal(self):
+        self.assertEqual(self.p.lifecycle.renewal_index, [("item_value", Decimal("0.05"))])
+        self.assertEqual(self.pol.renew().inputs["item_value"], Decimal("1050.00"))
+        self.assertEqual(self.pol.inputs["item_value"], Decimal(1000))  # offer only
+        self.pol.accept_renewal()
+        self.assertEqual(self.pol.inputs["item_value"], Decimal("1050.00"))
+        self.assertEqual(self.pol.renew().inputs["item_value"], Decimal("1102.50"))
+
+    def test_index_unknown_input_is_error(self):
+        from ideclare.parser import ParseError
+        with self.assertRaises(ParseError):
+            parse(DEPRECIATION.replace("index item_value", "index item_colour"))

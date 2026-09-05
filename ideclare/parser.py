@@ -306,6 +306,10 @@ def parse_renewal(line: Line, product: Product) -> None:
             lc.renewal_collar = Decimal(toks[3]) / 100
         elif toks[:1] == ["decline"]:
             lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
+        elif toks[:1] == ["index"] and toks[2:3] == ["by"] and toks[4:] == ["%"]:
+            if toks[1] not in product.inputs or product.inputs[toks[1]].kind not in ("money", "number"):
+                raise child.error(f"index needs a money or number input, not {toks[1]!r}")
+            lc.renewal_index.append((toks[1], Decimal(toks[3]) / 100))
         else:
             raise child.error(f"unknown renewal setting {child.text!r}")
 
@@ -334,6 +338,8 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
             rule_.less_excess = bool(toks[6:])
         elif toks[:1] == ["decline"]:
             rule_.decline.append(rule(child, "decline", toks[1:], product))
+        elif toks == ["depreciation"]:
+            rule_.depreciation = parse_factor(child, "depreciation", product).rows
         else:
             raise child.error(f"unknown claim setting {child.text!r}")
     return rule_

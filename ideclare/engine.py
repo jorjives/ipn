@@ -76,6 +76,11 @@ class Quote:
     trail: list[Trail] = field(default_factory=list)
 
 
+def apply_row(value: Decimal, row, ctx: dict) -> Decimal:
+    amount = Decimal(evaluate(row.amount, ctx))
+    return value * amount if row.op == "x" else value + amount if row.op == "+" else value - amount
+
+
 def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
     ctx = context(inputs, selected)
     net, lines, trail = Decimal(0), [], []
@@ -94,9 +99,8 @@ def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
             row = next((r for r in step.rows if r.condition is None or evaluate(r.condition, ctx)), None)
             if row is None:
                 continue
-            amount = value(row.amount)
-            net = net * amount if row.op == "x" else net + amount if row.op == "+" else net - amount
-            trail.append(Trail(step.label, f"{row.op} {amount}", net))
+            net = apply_row(net, row, ctx)
+            trail.append(Trail(step.label, f"{row.op} {evaluate(row.amount, ctx)}", net))
         elif step.kind == "add":
             amount = value(step.amount)
             net += amount
@@ -139,6 +143,7 @@ class RenewalOffer:
     invite_date: date
     premium: Decimal
     uncapped: Decimal
+    inputs: dict  # the answers the offer was priced on, after indexation
     declined: str | None = None
 
 
@@ -238,9 +243,12 @@ class Policy:
 
     def renew(self) -> RenewalOffer:
         lc = self.product.lifecycle
-        ctx = context(self.inputs, self.selected, claims_in_term=len(self.claims))
-        new = pence(self.quote.total * self.claims_loading())
-        offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new)
+        inputs = dict(self.inputs)
+        for name, rise in lc.renewal_index:
+            inputs[name] = pence(inputs[name] * (1 + rise))
+        ctx = context(inputs, self.selected, claims_in_term=len(self.claims))
+        new = pence(rate(self.product, inputs, self.selected).total * self.claims_loading())
+        offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
         if lc.renewal_cap is not None:
             offer.premium = min(offer.premium, pence(self.expiring_premium * (1 + lc.renewal_cap)))
         if lc.renewal_collar is not None:
@@ -273,7 +281,11 @@ class Policy:
         for r in rules.decline:
             if evaluate(r.condition, ctx):
                 return ClaimResult("declined", reason=r.reason)
-        payout = min(claimed, state.limit) if state.limit is not None else claimed
+        settlement = claimed
+        row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
+        if row is not None:
+            settlement = apply_row(settlement, row, ctx)
+        payout = min(settlement, state.limit) if state.limit is not None else settlement
         if rules.less_excess:
             excess = self.product.cover(cover).excess
             amount = Decimal(evaluate(excess.amount, ctx)) if excess.amount is not None else Decimal(0)
@@ -289,6 +301,7 @@ class Policy:
         if offer.declined:
             raise ValueError(f"renewal declined: {offer.declined}")
         self.previous_terms.append((self.inception, self.expiry))
+        self.inputs = offer.inputs
         self.inception = self.paid_on = self.expiry
         self.expiring_premium = offer.premium
         self.claims = []
