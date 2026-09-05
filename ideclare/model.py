@@ -103,7 +103,7 @@ class Lifecycle:
     renewal_invite_days: int = 0
     renewal_cap: Decimal | None = None
     renewal_collar: Decimal | None = None
-    renewal_index: list[tuple[str, Decimal]] = field(default_factory=list)  # (input, rise)
+    renewal_index: list[tuple[str, str, Decimal]] = field(default_factory=list)  # (input, "%" or "+", amount)
     renewal_decline: list[Rule] = field(default_factory=list)
 
 

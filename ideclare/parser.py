@@ -306,10 +306,10 @@ def parse_renewal(line: Line, product: Product) -> None:
             lc.renewal_collar = Decimal(toks[3]) / 100
         elif toks[:1] == ["decline"]:
             lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
-        elif toks[:1] == ["index"] and toks[2:3] == ["by"] and toks[4:] == ["%"]:
-            if toks[1] not in product.inputs or product.inputs[toks[1]].kind not in ("money", "number"):
-                raise child.error(f"index needs a money or number input, not {toks[1]!r}")
-            lc.renewal_index.append((toks[1], Decimal(toks[3]) / 100))
+        elif toks[:1] == ["index"] and toks[2:3] == ["by"] and len(toks) in (4, 5) and toks[4:] in ([], ["%"]):
+            if toks[1] not in product.inputs or product.inputs[toks[1]].kind not in ("money", "number", "integer"):
+                raise child.error(f"index needs a money, number or integer input, not {toks[1]!r}")
+            lc.renewal_index.append((toks[1], "%" if len(toks) == 5 else "+", Decimal(toks[3])))
         else:
             raise child.error(f"unknown renewal setting {child.text!r}")
 

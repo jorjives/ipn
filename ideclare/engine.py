@@ -244,8 +244,8 @@ class Policy:
     def renew(self) -> RenewalOffer:
         lc = self.product.lifecycle
         inputs = dict(self.inputs)
-        for name, rise in lc.renewal_index:
-            inputs[name] = pence(inputs[name] * (1 + rise))
+        for name, how, amount in lc.renewal_index:
+            inputs[name] = pence(inputs[name] * (1 + amount / 100)) if how == "%" else inputs[name] + amount
         ctx = context(inputs, self.selected, claims_in_term=len(self.claims))
         new = pence(rate(self.product, inputs, self.selected).total * self.claims_loading())
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
