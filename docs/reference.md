@@ -16,7 +16,8 @@ what the engine actually produced. You can also price a single risk from the ter
 python3 -m ideclare quote my-product.idl bike_value=2000 rider_age=22 security=gold racing=yes previous_claims=0 select=Racing
 ```
 
-See `examples/cycle.idl` for a complete product with thirty scenarios.
+See `examples/cycle.idl` for a complete single-bike product and `examples/family.idl` for a
+policy covering several bikes.
 
 ## Writing conventions
 
@@ -70,6 +71,33 @@ What you ask at quote. Each line is `name: type`.
 | `yes/no` | `yes` or `no` |
 | `choice of a, b, c` | exactly one of the listed words |
 | `text` | free text, never used in rules; scenarios may leave it out |
+| `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
+
+#### Repeatable items
+
+```
+inputs
+  rider_age: integer
+  bikes: collection of bike, 1 to 4
+    value: money
+    age: integer
+    security: choice of bronze, silver, gold
+```
+
+The plural (`bikes`) names the collection, the singular (`bike`) names one item. Bounds
+are optional: `, 1 to 4`, `, at least 1` or `, at most 4`. A quote outside the bounds is
+declined with the reason `bikes: at least 1 required` or `bikes: at most 4 allowed`. A
+field may not share its name with an input.
+
+Items appear in conditions and amounts like this:
+
+| Write | Meaning |
+|---|---|
+| `count of bikes` | how many items |
+| `total value of bikes`, `highest value of bikes`, `lowest value of bikes` | aggregate of one field |
+| `any bike where value > 5000` | true if one item matches |
+| `every bike where security is gold` | true if all items match |
+| `value`, `age` on their own | the current item's field, inside `for each`, a cover, a claim or a `where` |
 
 ### eligibility
 
@@ -127,6 +155,26 @@ rating
 
 Steps run top to bottom, so the order you write is the order of calculation.
 
+To rate repeatable items, put the per-item steps under `for each bike`. Each item is
+rated on its own running net using its fields, the results are added together, and the
+steps after the block continue on that total:
+
+```
+rating
+  for each bike
+    base 3% of value
+    factor "Bike age"
+      age < 1: x 1.00
+      otherwise: x 0.90
+  factor "Multi-bike discount"
+    count of bikes >= 3: x 0.85
+    otherwise: x 1.00
+  tax IPT 12%
+```
+
+`tax`, `fee` and `round` belong outside the block. The quote trail shows each item's steps
+as `bike 1 base`, `bike 1 Bike age` and so on.
+
 | Step | Effect on the net premium |
 |---|---|
 | `base <amount>` | sets it |
@@ -175,7 +223,8 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
   After an adjustment the customer's annual premium is the new one.
 - **Lapse**: a policy bound but unpaid lapses after this many days until it is paid.
 - **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
-  insured, `by N` to add a fixed amount, such as a year of age. The offer is the product
+  insured, `by N` to add a fixed amount, such as a year of age. `index bike value by 5%`
+  moves a field on every item. The offer is the product
   repriced on those answers, times any claims loading (see `claims`), then held within the
   cap and collar: no more than the current annual premium plus the cap percentage, no less
   than it minus the collar percentage. `decline when` rules use the indexed answers and
@@ -198,8 +247,11 @@ claims
   after 2 claims in term: renewal load x 1.25
 ```
 
+A cover whose `limit`, `excess` or `excludes` uses item fields is resolved per item, so
+claims on it name the item: `when claim Theft on bike 2 for 900 on 2026-03-01`.
+
 A claim on a cover is declined, with the reason, when the policy is not live on the loss
-date, the cover is not included for that risk, a required item is missing, or a `decline
+date, the cover is not included for that risk or item, a required item is missing, or a `decline
 when` rule fires. Otherwise the claimed amount is first written down by the `depreciation` table (same
 shape as a rating factor: the first matching row applies), then capped at the cover's
 limit, then reduced by the cover's excess if `less excess` is written. A percentage excess
@@ -219,7 +271,9 @@ scenario "Customer cancels mid term"
   expect status cancelled
 ```
 
-`given` supplies every input; `select` chooses optional covers. Then `when` lines happen
+`given` supplies every input; `select` chooses optional covers. Repeatable items are given
+one per line using the singular name, with every field: `given bike value 2000, age 0,
+security gold`. Then `when` lines happen
 in order and `expect` lines check the state at that point.
 
 Events:
@@ -230,7 +284,9 @@ Events:
 | `when paid on DATE` | payment received |
 | `when cancelled by customer\|insurer on DATE` | cancellation; the refund is available to `expect refund` |
 | `when adjusted on DATE with input value, input value` | mid-term change |
-| `when claim Cover for AMOUNT on DATE [reported DATE] [with item, item]` | a loss on DATE, notified on the reported date, with the listed evidence |
+| `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
+| `when adjusted on DATE removing bike 2` | remove the second item |
+| `when claim Cover [on bike N] for AMOUNT on DATE [reported DATE] [with item, item]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence |
 | `when renewed on DATE` | accept the renewal offer (fails if it is declined) |
 
 Expectations:
@@ -238,8 +294,8 @@ Expectations:
 | Expectation | Checks |
 |---|---|
 | `expect eligible` / `expect referred ["reason"]` / `expect declined ["reason"]` | eligibility outcome |
-| `expect cover Name included\|excluded\|"not selected"\|"not available" ["reason"]` | cover state |
-| `expect cover Name limit AMOUNT` | the resolved limit |
+| `expect cover Name [on bike N] included\|excluded\|"not selected"\|"not available" ["reason"]` | cover state, for item N if per item |
+| `expect cover Name [on bike N] limit AMOUNT` | the resolved limit |
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
 | `expect factor "Label" x 1.40` | what a factor applied |
@@ -254,4 +310,5 @@ Expectations:
 ## Not yet supported
 
 Short-rate cancellation, instalments, commission, multi-currency, more than one product per
-file, new-for-old versus indemnity as a named settlement basis (use a depreciation table). Each is a small addition to the engine; say which you need.
+file, new-for-old versus indemnity as a named settlement basis (use a depreciation table).
+The `quote` command takes scalar inputs only; price a policy with items through a scenario. Each is a small addition to the engine; say which you need.
