@@ -56,7 +56,7 @@ The cell decides, so a column may mix forms:
 | `gold`, `12`, `yes` | that value exactly |
 | `17-20` | a number from 17 to 20 inclusive |
 | `65+` | a number of 65 or more |
-| `*` | anything |
+| `*` | anything; a row with fewer `*` cells beats one with more, so `*` rows are the fallback |
 
 Bands are inclusive at both ends because that is how tables are written (`0-999`,
 `1000-1999`). A value that falls between bands has no row, and that is an error the
