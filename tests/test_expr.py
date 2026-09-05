@@ -134,3 +134,34 @@ class Lookups(unittest.TestCase):
         node, rest = parse_expr(["age", "from"], stop={"from"})
         self.assertEqual(node, ("name", "age"))
         self.assertEqual(rest, ["from"])
+
+
+class Functions(unittest.TestCase):
+    def test_power_is_right_associative_and_binds_tightly(self):
+        self.assertEqual(ev("2 ^ 3 ^ 2"), Decimal(512))
+        self.assertEqual(ev("2 * 3 ^ 2"), Decimal(18))
+        self.assertEqual(ev("- 2 ^ 2"), Decimal(-4))
+        self.assertEqual(ev("4 ^ 0.5"), Decimal(2))
+
+    def test_functions(self):
+        self.assertEqual(ev("sqrt ( 16 )"), Decimal(4))
+        self.assertEqual(ev("min ( 3 , 1 , 2 )"), Decimal(1))
+        self.assertEqual(ev("max ( a , 10 )", a=Decimal(3)), Decimal(10))
+        self.assertEqual(ev("round ( 2 / 3 , 0.01 )"), Decimal("0.67"))
+        self.assertEqual(ev("round ( 2.5 , 1 )"), Decimal(3))
+        self.assertEqual(ev("round ( exp ( 1 ) , 0.0001 )"), Decimal("2.7183"))
+        self.assertEqual(ev("round ( ln ( exp ( 2 ) ) , 0.0001 )"), Decimal("2.0000"))
+
+    def test_functions_are_not_names(self):
+        node, _ = parse_expr("min ( age , 30 )".split())
+        self.assertEqual(names(node), {"age"})
+
+    def test_function_arity(self):
+        with self.assertRaisesRegex(ExprError, "sqrt takes 1 argument"):
+            ev("sqrt ( 1 , 2 )")
+        with self.assertRaisesRegex(ExprError, "min takes at least 2 arguments"):
+            ev("min ( 1 )")
+
+    def test_unknown_function(self):
+        with self.assertRaisesRegex(ExprError, "unknown function 'sin'"):
+            ev("sin ( 1 )")

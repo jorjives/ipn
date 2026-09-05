@@ -62,7 +62,7 @@ def build_tree(text: str) -> list[Line]:
 # --- statement tokens -------------------------------------------------------
 
 DATE_TOKEN = re.compile(r'\d{4}-\d{2}-\d{2}')
-TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>co-payment|[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/]))')
+TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>co-payment|[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/^]))')
 
 
 def tokens(line: Line) -> list[str]:

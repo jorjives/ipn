@@ -747,3 +747,14 @@ class Tables(unittest.TestCase):
     def test_unknown_column_in_expression(self):
         with self.assertRaisesRegex(ParseError, "line 20: 'Age and lock' has no column 'fee'; its values are rate, excess"):
             parse(TABLES + 'rating\n  base fee from "Age and lock"\n')
+
+
+class Formulas(unittest.TestCase):
+    def test_power_and_functions_in_a_step(self):
+        p = parse(HEADER + 'rating\n  base 100 * ( rider_age / 30 ) ^ 2\n  add round ( exp ( 0.01 * bike_value ) , 0.01 )\n')
+        self.assertEqual(p.rating[0].amount, ("*", ("num", Decimal(100)), ("^", ("/", ("name", "rider_age"), ("num", Decimal(30))), ("num", Decimal(2)))))
+        self.assertEqual(p.rating[1].amount[0], "fn")
+
+    def test_unknown_function_reports_line(self):
+        with self.assertRaisesRegex(ParseError, "line 14: unknown function 'sin'"):
+            parse(HEADER + 'rating\n  base sin ( rider_age )\n')

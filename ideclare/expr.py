@@ -6,7 +6,7 @@ Nodes are plain tuples so they are easy to print and test.
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 
 class ExprError(Exception):
@@ -14,6 +14,8 @@ class ExprError(Exception):
 
 
 CMP = {"<", "<=", ">", ">=", "is"}
+
+FUNCTIONS = {"exp": 1, "ln": 1, "sqrt": 1, "round": 2, "min": -2, "max": -2}  # arity; negative = at least
 
 
 def parse_expr(toks: list[str], stop: set[str] = frozenset()) -> tuple[tuple, list[str]]:
@@ -84,7 +86,14 @@ class _Parser:
         if self.peek() == "-":
             self.take()
             return ("neg", self.unary())
-        return self.postfix()
+        return self.power()
+
+    def power(self):
+        node = self.postfix()
+        if self.peek() == "^":
+            self.take()
+            node = ("^", node, self.unary())  # right-associative: 2 ^ 3 ^ 2 is 2 ^ 9
+        return node
 
     def postfix(self):
         node = self.primary()
@@ -118,6 +127,8 @@ class _Parser:
             if self.take() != ")":
                 raise ExprError("expected )")
             return node
+        if t[0].isalpha() and self.toks[self.i:self.i + 1] == ["("]:
+            return self.call(t)
         if len(t) == 10 and t[4] == "-" and t[7] == "-":
             return ("date", date.fromisoformat(t))
         if t[0].isdigit():
@@ -131,6 +142,24 @@ class _Parser:
         if t[0].isalpha() or t[0] == "_":
             return ("name", t)
         raise ExprError(f"unexpected {t!r}")
+
+
+    def call(self, name):
+        """name ( arg, arg ): a fixed set of functions; commas are read even where they would otherwise stop."""
+        if name not in FUNCTIONS:
+            raise ExprError(f"unknown function {name!r}")
+        self.i += 1
+        args = [self.or_()]
+        while self.i < len(self.toks) and self.toks[self.i] == ",":
+            self.i += 1
+            args.append(self.or_())
+        if self.i >= len(self.toks) or self.toks[self.i] != ")":
+            raise ExprError(f"expected ) after the arguments of {name}")
+        self.i += 1
+        arity = FUNCTIONS[name]
+        if (arity >= 0 and len(args) != arity) or (arity < 0 and len(args) < -arity):
+            raise ExprError(f"{name} takes {'at least ' if arity < 0 else ''}{abs(arity)} argument{'s' if abs(arity) != 1 else ''}")
+        return ("fn", name, args)
 
 
 def names(node: tuple) -> set[str]:
@@ -150,6 +179,8 @@ def names(node: tuple) -> set[str]:
         return {node[1]} | names(node[2])
     if kind == "lookup":
         return set()
+    if kind == "fn":
+        return set().union(*(names(a) for a in node[2]))
     return set().union(*(names(c) for c in node[1:]))
 
 
@@ -157,6 +188,8 @@ def lookups(node: tuple) -> set[tuple[str, str]]:
     """Every (column, table) the expression takes from a lookup table."""
     if node[0] == "lookup":
         return {(node[1], node[2])}
+    if node[0] == "fn":
+        return set().union(*(lookups(a) for a in node[2]))
     return set().union(*(lookups(c) for c in node[1:] if isinstance(c, tuple)))
 
 
@@ -190,6 +223,16 @@ def evaluate(node: tuple, ctx: dict):
         return -_num(node[1], ctx)
     if kind == "pct":
         return _num(node[1], ctx) / 100
+    if kind == "^":
+        return _num(node[1], ctx) ** _num(node[2], ctx)
+    if kind == "fn":
+        args = [_num(a, ctx) for a in node[2]]
+        name = node[1]
+        if name == "exp": return args[0].exp()
+        if name == "ln": return args[0].ln()
+        if name == "sqrt": return args[0].sqrt()
+        if name == "round": return args[0].quantize(args[1], ROUND_HALF_UP)
+        return min(args) if name == "min" else max(args)
     if kind == "and":
         return evaluate(node[1], ctx) and evaluate(node[2], ctx)
     if kind == "or":
