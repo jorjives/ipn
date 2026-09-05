@@ -231,6 +231,7 @@ class Policy:
     def __init__(self, product: Product, inputs: dict, selected: set[str]):
         self.product, self.inputs, self.selected = product, dict(inputs), set(selected)
         self.inception: date | None = None
+        self.first_inception: date | None = None  # the original start, kept across renewals for waiting periods
         self.paid_on: date | None = None
         self.cancelled_on: date | None = None
         self.expiring_premium = Decimal(0)  # the annual total the customer is currently on
@@ -290,7 +291,7 @@ class Policy:
     # -- events -------------------------------------------------------------
 
     def bind(self, on: date, paid: bool = True) -> None:
-        self.inception = on
+        self.inception = self.first_inception = on
         self.paid_on = on if paid else None
         self.expiring_premium = self.quote.total
 
@@ -379,6 +380,12 @@ class Policy:
         state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
+        window = self.product.cover(cover)
+        ctx = context(self.product, self.inputs, self.selected, item)
+        if (window.from_ is not None and on < evaluate(window.from_, ctx)) or (window.until is not None and on >= evaluate(window.until, ctx)):
+            return ClaimResult("declined", reason=f"{cover} is not in force on {on.isoformat()}")
+        if (on - self.first_inception).days < window.waiting_days:
+            return ClaimResult("declined", reason=f"{cover} is within the {window.waiting_days} day waiting period")
         for name in rules.requires:
             if name not in evidence:
                 return ClaimResult("declined", reason=f"{name} is required")

@@ -488,3 +488,28 @@ class CalculatedInputs(unittest.TestCase):
         from tests.test_parser import CalculatedInputs as T
         ctx = context(parse(T.SRC), {"height_cm": Decimal(200), "weight_kg": Decimal(100)}, set())
         self.assertEqual(ctx["bmi"], Decimal(25))
+
+
+class CoverWindows(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import TRAVEL
+        self.p = parse(TRAVEL + 'claims\n  claim Cancellation\n    pays claimed amount up to limit\n  claim Medical\n    pays claimed amount up to limit\n  claim "Vet fees"\n    pays claimed amount up to limit\n')
+        self.pol = Policy(self.p, {"departure_date": date(2026, 6, 10), "return_date": date(2026, 6, 24)}, set())
+        self.pol.bind(date(2026, 3, 1))
+
+    def claim(self, cover, on):
+        return self.pol.claim(cover, Decimal(100), on, on, set())
+
+    def test_cancellation_before_departure_only(self):
+        self.assertEqual(self.claim("Cancellation", date(2026, 5, 1)).status, "paid")
+        r = self.claim("Cancellation", date(2026, 6, 12))
+        self.assertEqual((r.status, r.reason), ("declined", "Cancellation is not in force on 2026-06-12"))
+
+    def test_medical_from_departure_only(self):
+        self.assertEqual(self.claim("Medical", date(2026, 5, 1)).status, "declined")
+        self.assertEqual(self.claim("Medical", date(2026, 6, 10)).status, "paid")
+
+    def test_waiting_period_runs_from_first_inception(self):
+        r = self.claim("Vet fees", date(2026, 3, 10))
+        self.assertEqual((r.status, r.reason), ("declined", "Vet fees is within the 14 day waiting period"))
+        self.assertEqual(self.claim("Vet fees", date(2026, 3, 15)).status, "paid")

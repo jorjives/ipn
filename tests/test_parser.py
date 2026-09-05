@@ -479,3 +479,40 @@ class CalculatedInputs(unittest.TestCase):
     def test_needs_steps(self):
         with self.assertRaises(ParseError):
             parse('product "X"\ninputs\n  bmi: calculated\n')
+
+
+TRAVEL = '''
+product "Trip"
+  term until return_date
+
+inputs
+  departure_date: date
+  return_date: date
+
+cover Cancellation
+  limit 2000
+  in force until departure_date
+
+cover Medical
+  limit 5000000
+  in force from departure_date
+
+cover "Vet fees"
+  limit 7000
+  waiting period 14 days
+
+rating
+  base 100
+'''
+
+
+class CoverWindows(unittest.TestCase):
+    def test_in_force_from_and_until(self):
+        p = parse(TRAVEL)
+        self.assertEqual(p.cover("Cancellation").until, ("name", "departure_date"))
+        self.assertIsNone(p.cover("Cancellation").from_)
+        self.assertEqual(p.cover("Medical").from_, ("name", "departure_date"))
+
+    def test_waiting_period(self):
+        self.assertEqual(parse(TRAVEL).cover("Vet fees").waiting_days, 14)
+        self.assertEqual(parse(TRAVEL).cover("Medical").waiting_days, 0)

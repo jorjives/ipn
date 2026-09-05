@@ -251,6 +251,12 @@ def parse_cover(line: Line, product: Product) -> None:
             rest = []
         elif key == "available" and toks[1:2] == ["when"]:
             cover.available, rest = expression(child, toks[2:], product)
+        elif toks[:3] == ["in", "force", "from"]:
+            cover.from_, rest = expression(child, toks[3:], product)
+        elif toks[:3] == ["in", "force", "until"]:
+            cover.until, rest = expression(child, toks[3:], product)
+        elif toks[:2] == ["waiting", "period"] and toks[3:] == ["days"]:
+            cover.waiting_days, rest = int(toks[2]), []
         else:
             raise child.error(f"unknown cover setting {child.text!r}")
         if rest:
