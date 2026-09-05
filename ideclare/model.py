@@ -25,7 +25,7 @@ class Product:
     name: str
     territory: str = ""
     currency: str = ""
-    term_months: int = 12
+    term: tuple = (("num", Decimal(12)), "months")  # (amount expression, days | months | years | until)
     inputs: dict[str, Input] = field(default_factory=dict)
     eligibility: list["Rule"] = field(default_factory=list)
     covers: list["Cover"] = field(default_factory=list)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import re
+from datetime import date
 from decimal import Decimal
 from dataclasses import dataclass, field
 
@@ -58,6 +59,7 @@ def build_tree(text: str) -> list[Line]:
 
 # --- statement tokens -------------------------------------------------------
 
+DATE_TOKEN = re.compile(r'\d{4}-\d{2}-\d{2}')
 TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/]))')
 
 
@@ -78,7 +80,7 @@ def unquote(tok: str) -> str:
 
 # --- blocks -----------------------------------------------------------------
 
-INPUT_KINDS = {"money", "integer", "number", "text", "yes/no"}
+INPUT_KINDS = {"money", "integer", "number", "text", "yes/no", "date"}
 
 
 def parse_product_header(line: Line, product: Product) -> None:
@@ -89,8 +91,10 @@ def parse_product_header(line: Line, product: Product) -> None:
             product.territory = toks[1]
         elif key == "currency" and len(toks) == 2:
             product.currency = toks[1]
-        elif key == "term" and len(toks) == 3 and toks[2] == "months":
-            product.term_months = int(toks[1])
+        elif key == "term" and len(toks) == 3 and toks[2] in ("days", "months", "years"):
+            product.term = (parse_expr([toks[1]])[0], toks[2])
+        elif key == "term" and toks[1:2] == ["until"] and len(toks) == 3:
+            product.term = (parse_expr([toks[2]])[0], "until")
         else:
             raise child.error(f"unknown product setting {child.text!r}")
 
@@ -455,6 +459,8 @@ def given_value(line: Line, inp: Input, tok: str):
         return tok
     if inp.kind == "text":
         return unquote(tok)
+    if inp.kind == "date" and DATE_TOKEN.fullmatch(tok):
+        return date.fromisoformat(tok)
     raise line.error(f"{inp.name} is {inp.kind}, cannot be {tok!r}")
 
 
@@ -580,4 +586,7 @@ def parse(text: str) -> Product:
         handler(line, product)
     if product is None:
         raise ParseError("empty file: expected product \"Name\"")
+    unknown = names(product.term[0]) - set(product.inputs)
+    if unknown:
+        raise ParseError(f"term refers to {sorted(unknown)[0]!r}, which is not an input")
     return product

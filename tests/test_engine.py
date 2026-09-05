@@ -459,3 +459,25 @@ class EnrichmentEngine(unittest.TestCase):
         policy.bind(date(2026, 1, 1))
         with self.assertRaises(ValueError):
             policy.adjust(date(2026, 3, 1), {"bikes": [{**inputs["bikes"][0], "category": "folding"}]})
+
+
+class Terms(unittest.TestCase):
+    def policy(self, term, inputs):
+        src = f'product "X"\n  term {term}\ninputs\n  a: integer\n  years: integer\n  back: date\nrating\n  base 100\n'
+        return Policy(parse(src), {"a": Decimal(1), "years": Decimal(3), "back": date(2026, 3, 15), **inputs}, set())
+
+    def test_days(self):
+        pol = self.policy("10 days", {})
+        pol.bind(date(2026, 3, 1))
+        self.assertEqual(pol.expiry, date(2026, 3, 11))
+
+    def test_years_from_input(self):
+        pol = self.policy("years years", {})
+        pol.bind(date(2026, 3, 1))
+        self.assertEqual(pol.expiry, date(2029, 3, 1))
+
+    def test_until_date_input(self):
+        pol = self.policy("until back", {})
+        pol.bind(date(2026, 3, 1))
+        self.assertEqual(pol.expiry, date(2026, 3, 15))
+        self.assertEqual(pol.status(date(2026, 3, 15)), "expired")

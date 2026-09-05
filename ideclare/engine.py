@@ -247,7 +247,13 @@ class Policy:
 
     @property
     def expiry(self) -> date:
-        return add_months(self.inception, self.product.term_months)
+        amount, unit = self.product.term
+        value = evaluate(amount, context(self.product, self.inputs, self.selected))
+        if unit == "until":
+            return value
+        if unit == "days":
+            return self.inception + timedelta(days=int(value))
+        return add_months(self.inception, int(value) * (12 if unit == "years" else 1))
 
     def term_days(self) -> int:
         return (self.expiry - self.inception).days

@@ -1,4 +1,5 @@
 import unittest
+from datetime import date
 from decimal import Decimal
 
 from ideclare.expr import parse_expr, evaluate, names, ExprError
@@ -92,3 +93,13 @@ class Collections(unittest.TestCase):
     def test_not_a_collection(self):
         with self.assertRaises(ExprError):
             ev("count of bikes", bikes=3)
+
+
+class Dates(unittest.TestCase):
+    def test_date_literal_and_comparison(self):
+        self.assertTrue(ev("start < 2026-06-01", start=date(2026, 3, 1)))
+        self.assertFalse(ev("start >= 2026-06-01", start=date(2026, 3, 1)))
+        self.assertTrue(ev("start is 2026-03-01", start=date(2026, 3, 1)))
+
+    def test_days_between_dates(self):
+        self.assertEqual(ev("back - out", out=date(2026, 3, 1), back=date(2026, 3, 15)), Decimal(14))

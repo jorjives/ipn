@@ -5,6 +5,7 @@ Nodes are plain tuples so they are easy to print and test.
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 
@@ -114,6 +115,8 @@ class _Parser:
             if self.take() != ")":
                 raise ExprError("expected )")
             return node
+        if len(t) == 10 and t[4] == "-" and t[7] == "-":
+            return ("date", date.fromisoformat(t))
         if t[0].isdigit():
             return ("num", Decimal(t))
         if t.startswith('"'):
@@ -132,7 +135,7 @@ def names(node: tuple) -> set[str]:
     kind = node[0]
     if kind == "name":
         return {node[1]}
-    if kind in ("num", "bool", "str"):
+    if kind in ("num", "bool", "str", "date"):
         return set()
     if kind == "selected":
         return {node[1][1]}
@@ -147,7 +150,7 @@ def names(node: tuple) -> set[str]:
 
 def evaluate(node: tuple, ctx: dict):
     kind = node[0]
-    if kind in ("num", "bool", "str"):
+    if kind in ("num", "bool", "str", "date"):
         return node[1]
     if kind == "name":
         # Unbound words are choice values: `security is gold` compares against "gold".
@@ -178,7 +181,12 @@ def evaluate(node: tuple, ctx: dict):
         return evaluate(node[1], ctx) == evaluate(node[2], ctx)
     if kind == "is not":
         return evaluate(node[1], ctx) != evaluate(node[2], ctx)
-    left, right = _num(node[1], ctx), _num(node[2], ctx)
+    left, right = evaluate(node[1], ctx), evaluate(node[2], ctx)
+    if isinstance(left, date) and isinstance(right, date):
+        if kind == "-":
+            return Decimal((left - right).days)
+    else:
+        left, right = _num(node[1], ctx), _num(node[2], ctx)
     if kind == "<": return left < right
     if kind == "<=": return left <= right
     if kind == ">": return left > right

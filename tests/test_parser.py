@@ -1,4 +1,5 @@
 import unittest
+from datetime import date
 from decimal import Decimal
 
 from ideclare.parser import parse, ParseError
@@ -25,7 +26,7 @@ class HeaderAndInputs(unittest.TestCase):
         self.assertEqual(p.name, "Cycle Cover")
         self.assertEqual(p.territory, "UK")
         self.assertEqual(p.currency, "GBP")
-        self.assertEqual(p.term_months, 12)
+        self.assertEqual(p.term, (("num", Decimal(12)), "months"))
 
     def test_inputs(self):
         p = parse(HEADER)
@@ -39,7 +40,7 @@ class HeaderAndInputs(unittest.TestCase):
     def test_comments_and_blank_lines_ignored(self):
         p = parse("# a comment\n\nproduct \"X\"  # trailing\n  term 6 months\n")
         self.assertEqual(p.name, "X")
-        self.assertEqual(p.term_months, 6)
+        self.assertEqual(p.term, (("num", Decimal(6)), "months"))
 
     def test_unknown_block_reports_line(self):
         with self.assertRaises(ParseError) as cm:
@@ -438,3 +439,27 @@ class Enrichments(unittest.TestCase):
 
     def test_scenario_may_omit_provided_item_fields(self):
         parse(ENRICHED + 'scenario "s"\n  given rider_age 30\n  given bike value 1, age 0, security gold\n  expect eligible\n')
+
+
+class Terms(unittest.TestCase):
+    def test_term_in_days_and_years(self):
+        self.assertEqual(parse('product "X"\n  term 10 days\n').term, (("num", Decimal(10)), "days"))
+        self.assertEqual(parse('product "X"\n  term 25 years\n').term, (("num", Decimal(25)), "years"))
+
+    def test_term_from_an_input(self):
+        p = parse('product "X"\n  term term_years years\ninputs\n  term_years: integer\n')
+        self.assertEqual(p.term, (("name", "term_years"), "years"))
+
+    def test_term_until_a_date_input(self):
+        p = parse('product "X"\n  term until return_date\ninputs\n  return_date: date\n')
+        self.assertEqual(p.term, (("name", "return_date"), "until"))
+        self.assertEqual(p.inputs["return_date"].kind, "date")
+
+    def test_term_must_name_a_known_input(self):
+        with self.assertRaises(ParseError) as cm:
+            parse('product "X"\n  term until return_date\n')
+        self.assertIn("return_date", str(cm.exception))
+
+    def test_date_given_in_scenario(self):
+        p = parse('product "X"\ninputs\n  start: date\nscenario "s"\n  given start 2026-03-01\n')
+        self.assertEqual(p.scenarios[0].given["start"], date(2026, 3, 1))
