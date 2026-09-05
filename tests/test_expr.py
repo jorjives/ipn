@@ -103,3 +103,34 @@ class Dates(unittest.TestCase):
 
     def test_days_between_dates(self):
         self.assertEqual(ev("back - out", out=date(2026, 3, 1), back=date(2026, 3, 15)), Decimal(14))
+
+
+class Lookups(unittest.TestCase):
+    def setUp(self):
+        from ideclare.tables import load_table
+        self.tables = {"Rates": load_table("Rates", ["age", "area"], ["age, area, rate", "17-20, *, 2.5", "21+, 1, 1.1"])}
+
+    def test_parses_column_from_table(self):
+        node, rest = parse_expr(["rate", "from", '"Rates"', "when"], stop={"when"})
+        self.assertEqual(node, ("lookup", "rate", "Rates"))
+        self.assertEqual(rest, ["when"])
+
+    def test_evaluates_against_the_context(self):
+        node, _ = parse_expr(["rate", "from", '"Rates"', "*", "2"])
+        self.assertEqual(evaluate(node, {"age": Decimal(19), "area": Decimal(3), "tables": self.tables}), Decimal(5))
+
+    def test_unknown_table(self):
+        node, _ = parse_expr(["rate", "from", '"Other"'])
+        with self.assertRaisesRegex(ExprError, "no table called 'Other'"):
+            evaluate(node, {"tables": self.tables})
+
+    def test_names_and_lookups(self):
+        from ideclare.expr import lookups
+        node, _ = parse_expr(["rate", "from", '"Rates"', "+", "base"])
+        self.assertEqual(names(node), {"base"})
+        self.assertEqual(lookups(node), {("rate", "Rates")})
+
+    def test_from_without_a_table_name_is_left_alone(self):
+        node, rest = parse_expr(["age", "from"], stop={"from"})
+        self.assertEqual(node, ("name", "age"))
+        self.assertEqual(rest, ["from"])

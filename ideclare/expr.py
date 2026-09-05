@@ -97,6 +97,9 @@ class _Parser:
         if self.peek() == "selected":
             self.take()
             node = ("selected", node)
+        if node[0] == "name" and self.peek() == "from" and self.toks[self.i + 1:self.i + 2] and self.toks[self.i + 1].startswith('"'):
+            self.take()
+            node = ("lookup", node[1], self.take()[1:-1])  # rate from "Motor rates"
         return node
 
     def primary(self):
@@ -145,7 +148,16 @@ def names(node: tuple) -> set[str]:
         return {node[2], node[3]}
     if kind in ("any", "every"):
         return {node[1]} | names(node[2])
+    if kind == "lookup":
+        return set()
     return set().union(*(names(c) for c in node[1:]))
+
+
+def lookups(node: tuple) -> set[tuple[str, str]]:
+    """Every (column, table) the expression takes from a lookup table."""
+    if node[0] == "lookup":
+        return {(node[1], node[2])}
+    return set().union(*(lookups(c) for c in node[1:] if isinstance(c, tuple)))
 
 
 def evaluate(node: tuple, ctx: dict):
@@ -157,6 +169,11 @@ def evaluate(node: tuple, ctx: dict):
         return ctx.get(node[1], node[1])
     if kind == "selected":
         return node[1][1] in ctx.get("selected", set())
+    if kind == "lookup":
+        table = ctx.get("tables", {}).get(node[2])
+        if table is None:
+            raise ExprError(f"no table called {node[2]!r}")
+        return table.lookup(ctx)[node[1]]
     if kind == "count":
         return Decimal(len(_items(node[1], ctx)))
     if kind == "agg":
