@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from .expr import evaluate
-from .model import Cover, Input, Product
+from .model import Cover, Input, Lifecycle, Product
 
 
 def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
@@ -255,8 +255,14 @@ class Policy:
     def days_remaining(self, on: date) -> int:
         return max(0, (self.expiry - on).days)
 
+    @property
+    def terms(self) -> "Lifecycle":
+        """The lifecycle in force: the product's own, or the last set of terms imposed by paid claims."""
+        imposed = [terms for count, terms in self.product.claims_terms if len(self.claims) >= count]
+        return imposed[-1] if imposed else self.product.lifecycle
+
     def status(self, on: date) -> str:
-        lc = self.product.lifecycle
+        lc = self.terms
         if self.inception is None:
             return "quoted"
         if self.cancelled_on is not None and on >= self.cancelled_on:
@@ -283,7 +289,7 @@ class Policy:
         self.paid_on = on
 
     def cancel(self, on: date, by: str) -> Decimal:
-        lc = self.product.lifecycle
+        lc = self.terms
         terms = lc.cancellation.get(by)
         if terms is None:
             raise ValueError(f"cancellation by {by} is not declared in the lifecycle")
@@ -300,7 +306,7 @@ class Policy:
 
     def adjust(self, on: date, changes: dict) -> Decimal:
         """Applies changes; returns the amount to charge (negative = return premium)."""
-        lc = self.product.lifecycle
+        lc = self.terms
         if not lc.adjustment_allowed:
             raise ValueError("adjustment is not allowed")
         before = self.refundable
@@ -324,7 +330,7 @@ class Policy:
         return pence(difference + lc.adjustment_fee)
 
     def renew(self) -> RenewalOffer:
-        lc = self.product.lifecycle
+        lc = self.terms
         inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in self.inputs.items()}
 
         def indexed(v, how, amount):

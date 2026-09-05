@@ -212,6 +212,26 @@ class PolicyLifecycle(unittest.TestCase):
 from tests.test_parser import CLAIMS
 
 
+class ImposedTerms(unittest.TestCase):
+    def setUp(self):
+        src = CLAIMS.replace("  after 2 claims in term: renewal load x 1.25\n",
+                             "  after 1 claim in term\n    cancellation by customer: no refund\n    adjustment: not allowed\n  after 2 claims in term: renewal load x 1.25\n")
+        self.pol = Policy(parse(src), risk(), set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def test_refund_and_adjustment_stop_after_a_paid_claim(self):
+        self.assertGreater(self.pol.cancel(date(2026, 7, 1), "customer"), 0)
+        self.pol.cancelled_on = None
+        self.pol.claim("Theft", Decimal(1500), date(2026, 3, 1), date(2026, 3, 1), {"police_report", "crime_reference"})
+        self.assertEqual(self.pol.cancel(date(2026, 7, 1), "customer"), Decimal(0))
+        with self.assertRaises(ValueError):
+            self.pol.adjust(date(2026, 7, 1), {"rider_age": Decimal(40)})
+
+    def test_declined_claim_imposes_nothing(self):
+        self.pol.claim("Theft", Decimal(1500), date(2026, 3, 1), date(2026, 3, 1), set())
+        self.assertGreater(self.pol.cancel(date(2026, 7, 1), "customer"), 0)
+
+
 class ClaimsEngine(unittest.TestCase):
     def setUp(self):
         self.pol = Policy(parse(CLAIMS), risk(), set())

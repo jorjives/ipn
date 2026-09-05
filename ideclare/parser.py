@@ -1,6 +1,7 @@
 """Turns .idl text into a Product. Line-oriented, indentation-based."""
 from __future__ import annotations
 
+import copy
 import re
 from decimal import Decimal
 from dataclasses import dataclass, field
@@ -416,8 +417,16 @@ def parse_claims(line: Line, product: Product) -> None:
             product.claims[name] = parse_claim(child, name, product)
         elif toks[:1] == ["after"] and toks[2:9] == ["claims", "in", "term", ":", "renewal", "load", "x"] and len(toks) == 10:
             product.claims_loading.append((int(toks[1]), Decimal(toks[9])))
+        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:] == ["in", "term"] and child.children:
+            # Terms imposed once that many claims have been paid: lifecycle lines that override the product's own.
+            original, product.lifecycle = product.lifecycle, copy.deepcopy(product.lifecycle)
+            try:
+                parse_lifecycle(child, product)
+                product.claims_terms.append((int(toks[1]), product.lifecycle))
+            finally:
+                product.lifecycle = original
         else:
-            raise child.error("expected 'claim Cover' or 'after N claims in term: renewal load x M'")
+            raise child.error("expected 'claim Cover', 'after N claims in term: renewal load x M' or 'after N claims in term' with lifecycle lines below")
 
 
 def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:

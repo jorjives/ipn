@@ -33,6 +33,7 @@ class Product:
     lifecycle: "Lifecycle" = field(default_factory=lambda: Lifecycle())
     claims: dict[str, "ClaimRule"] = field(default_factory=dict)
     claims_loading: list[tuple[int, Decimal]] = field(default_factory=list)  # (claims in term, multiplier)
+    claims_terms: list[tuple[int, "Lifecycle"]] = field(default_factory=list)  # (paid claims in term, lifecycle in force from then)
     scenarios: list["Scenario"] = field(default_factory=list)
     enrichments: list["Enrichment"] = field(default_factory=list)
 

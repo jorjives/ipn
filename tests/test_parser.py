@@ -260,6 +260,18 @@ class Claims(unittest.TestCase):
         self.assertEqual(theft.decline[1].condition, (">", ("name", "claimed"), ("name", "bike_value")))
         self.assertFalse(p.claims["Accidental Damage"].less_excess)
 
+    def test_terms_imposed_after_a_claim(self):
+        src = CLAIMS.replace("  after 2 claims in term: renewal load x 1.25\n",
+                             "  after 1 claim in term\n    cancellation by customer: no refund\n    adjustment: not allowed\n  after 2 claims in term: renewal load x 1.25\n")
+        p = parse(src)
+        (count, terms), = p.claims_terms
+        self.assertEqual(count, 1)
+        self.assertEqual((terms.cancellation["customer"].refund, terms.adjustment_allowed), ("none", False))
+        # only the stated settings change; the product's own lifecycle is untouched
+        self.assertEqual(terms.cooling_off_days, p.lifecycle.cooling_off_days)
+        self.assertNotEqual(p.lifecycle.cancellation["customer"].refund, "none")
+        self.assertTrue(p.lifecycle.adjustment_allowed)
+
     def test_claims_loading(self):
         p = parse(CLAIMS)
         self.assertEqual(p.claims_loading, [(2, Decimal("1.25")), (3, Decimal("1.50"))])
