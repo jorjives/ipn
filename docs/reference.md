@@ -119,6 +119,7 @@ rating
   discount 10% when security is gold
   load 25% when rider_age < 21
   minimum 60
+  maximum 800
   tax IPT 12%
   fee "Admin fee" 10
   round to 0.01
@@ -133,6 +134,7 @@ Steps run top to bottom, so the order you write is the order of calculation.
 | `add ["Label"] <amount> [when ...]` | adds a flat amount |
 | `discount N% [when ...]`, `load N% [when ...]` | multiplies by (1 - N%) or (1 + N%) |
 | `minimum <amount>` | raises it to at least this |
+| `maximum <amount>` | lowers it to at most this |
 | `tax Name N%` | adds a tax line of N% of the rounded net |
 | `fee "Label" <amount>` | adds a flat fee line |
 | `round to 0.01` | rounding unit for every figure, half up (default 0.01) |
@@ -152,6 +154,9 @@ lifecycle
   renewal
     invite 21 days before expiry
     increase capped at 20%
+    decrease collared at 10%
+    index bike_value by 5%
+    index rider_age by 1
     decline when claims in term >= 3 because "Three or more claims in the year"
 ```
 
@@ -169,10 +174,13 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
   A negative result is a return premium. Write `adjustment: not allowed` to forbid it.
   After an adjustment the customer's annual premium is the new one.
 - **Lapse**: a policy bound but unpaid lapses after this many days until it is paid.
-- **Renewal**: the offer is the product repriced with the policy's current answers, times
-  any claims loading (see `claims`), then capped at the current annual premium plus the
-  cap percentage. `decline when` rules use the current answers and `claims in term`.
-  Accepting a renewal starts a new term at expiry and resets the claims count.
+- **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
+  insured, `by N` to add a fixed amount, such as a year of age. The offer is the product
+  repriced on those answers, times any claims loading (see `claims`), then held within the
+  cap and collar: no more than the current annual premium plus the cap percentage, no less
+  than it minus the collar percentage. `decline when` rules use the indexed answers and
+  `claims in term`. Accepting a renewal starts a new term at expiry with the indexed
+  answers and resets the claims count.
 
 ### claims
 
@@ -183,13 +191,19 @@ claims
     pays claimed amount up to limit, less excess
     decline when reported after 30 days because "Theft must be reported within 30 days"
     decline when claimed > bike_value because "Claim exceeds the insured value"
+    depreciation
+      bike_age < 1: x 1.00
+      bike_age < 3: x 0.85
+      otherwise: x 0.70
   after 2 claims in term: renewal load x 1.25
 ```
 
 A claim on a cover is declined, with the reason, when the policy is not live on the loss
 date, the cover is not included for that risk, a required item is missing, or a `decline
-when` rule fires. Otherwise it pays the claimed amount capped at the cover's limit, less
-the cover's excess if `less excess` is written. Only paid claims count towards
+when` rule fires. Otherwise the claimed amount is first written down by the `depreciation` table (same
+shape as a rating factor: the first matching row applies), then capped at the cover's
+limit, then reduced by the cover's excess if `less excess` is written. A percentage excess
+is of the amount claimed, before depreciation. Only paid claims count towards
 `claims in term`. `after N claims in term: renewal load x M` multiplies the renewal
 premium when the paid claim count reaches N; the highest matching line wins.
 
@@ -240,4 +254,4 @@ Expectations:
 ## Not yet supported
 
 Short-rate cancellation, instalments, commission, multi-currency, more than one product per
-file. Each is a small addition to the engine; say which you need.
+file, new-for-old versus indemnity as a named settlement basis (use a depreciation table). Each is a small addition to the engine; say which you need.
