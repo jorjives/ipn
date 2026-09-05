@@ -82,5 +82,45 @@ class Lookup(unittest.TestCase):
             self.look(driver_age="young", area=1, vehicle_group=1)
 
 
+class Interpolation(unittest.TestCase):
+    def setUp(self):
+        self.t = load_table("Mortality", ["age", "smoker"], [
+            "age, smoker, rate", "30, no, 1.00", "40, no, 2.00", "50, no, 8.00", "30, yes, 2.00", "40, yes, 4.00", "50, yes, 16.00"])
+
+    def test_on_a_knot(self):
+        self.assertEqual(self.t.interpolate({"age": Decimal(40), "smoker": False}, "rate", "age", "linearly"), Decimal("2.00"))
+        self.assertEqual(self.t.interpolate({"age": Decimal(40), "smoker": True}, "rate", "age", "geometrically"), Decimal("4.00"))
+
+    def test_linear_between_knots(self):
+        self.assertEqual(self.t.interpolate({"age": Decimal(45), "smoker": False}, "rate", "age", "linearly"), Decimal("5.00"))
+
+    def test_geometric_between_knots(self):
+        # halfway from 2 to 8 by ratio is 4, not 5
+        self.assertEqual(self.t.interpolate({"age": Decimal(45), "smoker": False}, "rate", "age", "geometrically"), Decimal("4.00"))
+
+    def test_outside_the_knots(self):
+        with self.assertRaisesRegex(TableError, "age 29 is outside Mortality, whose knots run from 30 to 50"):
+            self.t.interpolate({"age": Decimal(29), "smoker": False}, "rate", "age", "linearly")
+
+    def test_other_keys_must_match(self):
+        with self.assertRaisesRegex(TableError, "no rows in Mortality for smoker maybe"):
+            self.t.interpolate({"age": Decimal(35), "smoker": "maybe"}, "rate", "age", "linearly")
+
+    def test_knots_must_be_numbers(self):
+        t = load_table("T", ["age"], ["age, v", "30-39, 1", "40+, 2"])
+        with self.assertRaisesRegex(TableError, "T cannot be interpolated on age: the cell '30-39' is not a single number"):
+            t.interpolate({"age": Decimal(35)}, "v", "age", "linearly")
+
+    def test_needs_two_knots(self):
+        t = load_table("T", ["age"], ["age, v", "30, 1"])
+        with self.assertRaisesRegex(TableError, "T needs at least two knots on age"):
+            t.interpolate({"age": Decimal(30)}, "v", "age", "linearly")
+
+    def test_geometric_needs_positive_values(self):
+        t = load_table("T", ["age"], ["age, v", "30, 0", "40, 1"])
+        with self.assertRaisesRegex(TableError, "T cannot be interpolated geometrically: v is 0 at age 30"):
+            t.interpolate({"age": Decimal(35)}, "v", "age", "geometrically")
+
+
 if __name__ == "__main__":
     unittest.main()

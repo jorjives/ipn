@@ -68,6 +68,38 @@ class Table:
             raise TableError(f"{self.name} is ambiguous for {where}")
         return hits[0]
 
+    def interpolate(self, ctx: dict, column: str, key: str, method: str):
+        """The column's value at ctx[key], between the two knots that bracket it on the rows whose other keys match."""
+        others = [k for k in self.keys if k != key]
+        rows = [r for r in self.rows if all(matches(r[k], ctx.get(k)) for k in others)]
+        if not rows:
+            raise TableError(f"no rows in {self.name} for " + ", ".join(f"{k} {ctx.get(k)}" for k in others))
+        for r in rows:
+            if not isinstance(r[key], Decimal):
+                raise TableError(f"{self.name} cannot be interpolated on {key}: the cell {_show(r[key])!r} is not a single number")
+        if len(rows) < 2:
+            raise TableError(f"{self.name} needs at least two knots on {key}")
+        knots = sorted((r[key], r[column]) for r in rows)
+        x = ctx.get(key)
+        if not isinstance(x, Decimal) or not knots[0][0] <= x <= knots[-1][0]:
+            raise TableError(f"{key} {x} is outside {self.name}, whose knots run from {knots[0][0]} to {knots[-1][0]}")
+        (x0, y0), (x1, y1) = next((a, b) for a, b in zip(knots, knots[1:]) if a[0] <= x <= b[0])
+        if x == x0:
+            return y0
+        t = (x - x0) / (x1 - x0)
+        if method == "linearly":
+            return y0 + (y1 - y0) * t
+        for kx, ky in ((x0, y0), (x1, y1)):
+            if ky <= 0:
+                raise TableError(f"{self.name} cannot be interpolated geometrically: {column} is {ky} at {key} {kx}")
+        return y0 * (y1 / y0) ** t
+
+
+def _show(cell_value) -> str:
+    if isinstance(cell_value, tuple):
+        return "*" if cell_value[0] == "any" else f"{cell_value[1]}-{cell_value[2]}" if cell_value[2] is not None else f"{cell_value[1]}+"
+    return str(cell_value)
+
 
 def load_table(name: str, keys: list[str], lines: list[str], line: int = 0) -> Table:
     """Builds a Table from CSV lines, header first. Every non-key column is a value column."""
