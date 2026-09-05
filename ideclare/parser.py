@@ -220,7 +220,19 @@ def expression(line: Line, toks: list[str], product: Product, stop: set[str] = f
             raise line.error(f"unknown table {table!r}")
         if column not in product.tables[table].values:
             raise line.error(f"{table!r} has no column {column!r}; its values are {', '.join(product.tables[table].values)}")
+    for table, key in interpolations(node):
+        if key not in product.tables[table].keys:
+            raise line.error(f"{table!r} is not keyed on {key}; its keys are {', '.join(product.tables[table].keys)}")
     return node, rest
+
+
+def interpolations(node: tuple) -> set[tuple[str, str]]:
+    """Every (table, key) the expression interpolates on."""
+    if node[0] == "interp":
+        return {(node[2], node[3])}
+    if node[0] == "fn":
+        return set().union(*(interpolations(a) for a in node[2]))
+    return set().union(*(interpolations(c) for c in node[1:] if isinstance(c, tuple)))
 
 
 def rule(line: Line, kind: str, toks: list[str], product: Product, extra: set[str] = frozenset()) -> Rule:

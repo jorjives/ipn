@@ -165,3 +165,27 @@ class Functions(unittest.TestCase):
     def test_unknown_function(self):
         with self.assertRaisesRegex(ExprError, "unknown function 'sin'"):
             ev("sin ( 1 )")
+
+
+class Interpolated(unittest.TestCase):
+    def setUp(self):
+        from ideclare.tables import load_table
+        self.tables = {"Curve": load_table("Curve", ["age"], ["age, rate", "30, 1", "40, 3"])}
+
+    def test_parses_default_and_named_methods(self):
+        node, rest = parse_expr(["rate", "from", '"Curve"', "interpolated", "on", "age", "when"], stop={"when"})
+        self.assertEqual(node, ("interp", "rate", "Curve", "age", "linearly"))
+        self.assertEqual(rest, ["when"])
+        node, _ = parse_expr(["rate", "from", '"Curve"', "interpolated", "geometrically", "on", "age"])
+        self.assertEqual(node, ("interp", "rate", "Curve", "age", "geometrically"))
+
+    def test_unknown_method(self):
+        with self.assertRaisesRegex(ExprError, "interpolated linearly or geometrically, not 'wildly'"):
+            parse_expr(["rate", "from", '"Curve"', "interpolated", "wildly", "on", "age"])
+
+    def test_evaluates(self):
+        from ideclare.expr import lookups
+        node, _ = parse_expr(["rate", "from", '"Curve"', "interpolated", "on", "age"])
+        self.assertEqual(evaluate(node, {"age": Decimal(35), "tables": self.tables}), Decimal(2))
+        self.assertEqual(lookups(node), {("rate", "Curve")})
+        self.assertEqual(names(node), set())

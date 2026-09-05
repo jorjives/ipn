@@ -758,3 +758,15 @@ class Formulas(unittest.TestCase):
     def test_unknown_function_reports_line(self):
         with self.assertRaisesRegex(ParseError, "line 14: unknown function 'sin'"):
             parse(HEADER + 'rating\n  base sin ( rider_age )\n')
+
+
+class Interpolation(unittest.TestCase):
+    CURVE = HEADER + '\ntable "Curve" keyed on rider_age, security\n  rider_age, security, rate\n  20, *, 1\n  40, *, 2\n'
+
+    def test_interpolated_lookup(self):
+        p = parse(self.CURVE + 'rating\n  base rate from "Curve" interpolated geometrically on rider_age\n')
+        self.assertEqual(p.rating[0].amount, ("interp", "rate", "Curve", "rider_age", "geometrically"))
+
+    def test_key_must_be_a_table_key(self):
+        with self.assertRaisesRegex(ParseError, "line 19: 'Curve' is not keyed on bike_value; its keys are rider_age, security"):
+            parse(self.CURVE + 'rating\n  base rate from "Curve" interpolated on bike_value\n')

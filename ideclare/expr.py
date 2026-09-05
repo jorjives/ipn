@@ -109,6 +109,16 @@ class _Parser:
         if node[0] == "name" and self.peek() == "from" and self.toks[self.i + 1:self.i + 2] and self.toks[self.i + 1].startswith('"'):
             self.take()
             node = ("lookup", node[1], self.take()[1:-1])  # rate from "Motor rates"
+            if self.peek() == "interpolated":
+                self.take()
+                method = "linearly"
+                if self.peek() != "on":
+                    method = self.take()
+                    if method not in ("linearly", "geometrically"):
+                        raise ExprError(f"interpolated linearly or geometrically, not {method!r}")
+                if self.take() != "on":
+                    raise ExprError("expected 'interpolated [linearly | geometrically] on <key>'")
+                node = ("interp", node[1], node[2], self.take(), method)
         return node
 
     def primary(self):
@@ -177,7 +187,7 @@ def names(node: tuple) -> set[str]:
         return {node[2], node[3]}
     if kind in ("any", "every"):
         return {node[1]} | names(node[2])
-    if kind == "lookup":
+    if kind in ("lookup", "interp"):
         return set()
     if kind == "fn":
         return set().union(*(names(a) for a in node[2]))
@@ -186,7 +196,7 @@ def names(node: tuple) -> set[str]:
 
 def lookups(node: tuple) -> set[tuple[str, str]]:
     """Every (column, table) the expression takes from a lookup table."""
-    if node[0] == "lookup":
+    if node[0] in ("lookup", "interp"):
         return {(node[1], node[2])}
     if node[0] == "fn":
         return set().union(*(lookups(a) for a in node[2]))
@@ -202,10 +212,12 @@ def evaluate(node: tuple, ctx: dict):
         return ctx.get(node[1], node[1])
     if kind == "selected":
         return node[1][1] in ctx.get("selected", set())
-    if kind == "lookup":
+    if kind in ("lookup", "interp"):
         table = ctx.get("tables", {}).get(node[2])
         if table is None:
             raise ExprError(f"no table called {node[2]!r}")
+        if kind == "interp":
+            return table.interpolate(ctx, node[1], node[3], node[4])
         return table.lookup(ctx)[node[1]]
     if kind == "count":
         return Decimal(len(_items(node[1], ctx)))
