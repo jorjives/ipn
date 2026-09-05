@@ -463,3 +463,19 @@ class Terms(unittest.TestCase):
     def test_date_given_in_scenario(self):
         p = parse('product "X"\ninputs\n  start: date\nscenario "s"\n  given start 2026-03-01\n')
         self.assertEqual(p.scenarios[0].given["start"], date(2026, 3, 1))
+
+
+class CalculatedInputs(unittest.TestCase):
+    SRC = 'product "X"\ninputs\n  height_cm: number\n  weight_kg: number\n  bmi: calculated\n    base weight_kg / ( height_cm / 100 * height_cm / 100 )\n'
+
+    def test_top_level_calculated_input_has_steps(self):
+        p = parse(self.SRC)
+        self.assertEqual(p.inputs["bmi"].kind, "calculated")
+        self.assertEqual(p.inputs["bmi"].steps[0].kind, "base")
+
+    def test_scenario_need_not_give_it(self):
+        parse(self.SRC + 'eligibility\n  decline when bmi > 40 because "BMI"\nscenario "s"\n  given height_cm 180, weight_kg 80\n  expect eligible\n')
+
+    def test_needs_steps(self):
+        with self.assertRaises(ParseError):
+            parse('product "X"\ninputs\n  bmi: calculated\n')

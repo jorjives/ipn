@@ -249,3 +249,10 @@ scenario "bad"
   expect cover Theft on bike 2 included
 ''')
         self.assertIn("no bike 2", res["bad"][0])
+
+
+class CalculatedInputs(unittest.TestCase):
+    def test_scenario_runs_without_giving_calculated_input(self):
+        from tests.test_parser import CalculatedInputs as T
+        p = parse(T.SRC + 'eligibility\n  decline when bmi > 40 because "BMI"\nscenario "s"\n  given height_cm 150, weight_kg 100\n  expect declined "BMI"\n')
+        self.assertEqual(run_all(p)[0].failures, [])

@@ -49,7 +49,7 @@ class Run:
                 self.inputs.setdefault(inp.name, "")
             elif inp.kind == "collection":  # bounds are checked by eligibility
                 self.inputs.setdefault(inp.name, [])
-        missing = [n for n, inp in self.product.inputs.items() if n not in self.inputs and not inp.provided]  # a missing provided field is an unavailable lookup
+        missing = [n for n, inp in self.product.inputs.items() if n not in self.inputs and not inp.provided and inp.kind != "calculated"]  # a missing provided field is an unavailable lookup
         if missing:
             self.fail(self.scenario.line, f"given is missing {', '.join(missing)}")
             return self.result

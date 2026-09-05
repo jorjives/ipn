@@ -481,3 +481,10 @@ class Terms(unittest.TestCase):
         pol.bind(date(2026, 3, 1))
         self.assertEqual(pol.expiry, date(2026, 3, 15))
         self.assertEqual(pol.status(date(2026, 3, 15)), "expired")
+
+
+class CalculatedInputs(unittest.TestCase):
+    def test_context_fills_in_calculated_input(self):
+        from tests.test_parser import CalculatedInputs as T
+        ctx = context(parse(T.SRC), {"height_cm": Decimal(200), "weight_kg": Decimal(100)}, set())
+        self.assertEqual(ctx["bmi"], Decimal(25))

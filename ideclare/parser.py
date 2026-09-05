@@ -107,12 +107,19 @@ def parse_inputs(line: Line, product: Product) -> None:
             raise line.error(f"{coll.name} field {sorted(clash)[0]!r} has the same name as an input")
     # Calculated fields are parsed once every input is known, so their steps can use the other fields.
     for child in line.children:
+        toks = tokens(child)
+        if toks[2:] == ["calculated"]:
+            product.inputs[toks[0]].steps = calculated_steps(child, product)
         for sub in child.children:
             toks = tokens(sub)
             if toks[2:] == ["calculated"]:
-                if not sub.children:
-                    raise sub.error(f"{toks[0]} needs its steps indented below it, e.g. base value")
-                product.inputs[tokens(child)[0]].fields[toks[0]].steps = parse_rating_steps(sub.children, product, per_item=True)
+                product.inputs[tokens(child)[0]].fields[toks[0]].steps = calculated_steps(sub, product)
+
+
+def calculated_steps(line: Line, product: Product) -> list[RatingStep]:
+    if not line.children:
+        raise line.error(f"{tokens(line)[0]} needs its steps indented below it, e.g. base value")
+    return parse_rating_steps(line.children, product, per_item=True)
 
 
 def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Input]:
@@ -130,7 +137,7 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
             inputs[name] = parse_collection(child, name, toks[3:])
         elif kind in INPUT_KINDS and len(toks) == 3:
             inputs[name] = Input(name, kind)
-        elif kind == "calculated" and nested and len(toks) == 3:
+        elif kind == "calculated" and len(toks) == 3:
             inputs[name] = Input(name, "calculated")
         else:
             raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
@@ -488,8 +495,8 @@ def parse_scenario(line: Line, product: Product) -> None:
             if len(pairs) % 2:
                 raise child.error("expected 'given name value, name value'")
             for name, value in zip(pairs[::2], pairs[1::2]):
-                if name not in product.inputs:
-                    raise child.error(f"unknown input {name!r}")
+                if name not in product.inputs or product.inputs[name].kind == "calculated":
+                    raise child.error(f"unknown input {name!r}" if name not in product.inputs else f"{name} is calculated, not given")
                 sc.given[name] = given_value(child, product.inputs[name], value)
         elif toks[0] == "select":
             for name in toks[1:]:

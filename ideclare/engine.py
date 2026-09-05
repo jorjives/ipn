@@ -14,6 +14,9 @@ def context(product: Product, inputs: dict, selected: set[str], item: dict | Non
     """Evaluation context: inputs, singular aliases for collections, the current item's fields."""
     inputs, _ = enriched(product, inputs)
     ctx = {**inputs, "selected": selected, **extra}
+    for inp in product.inputs.values():
+        if inp.kind == "calculated":
+            ctx[inp.name], _ = run_steps(product, inp.steps, ctx, Decimal(0), [], [])
     for coll in product.collections:
         ctx[coll.name] = ctx[coll.singular] = [calculated(product, coll, i, ctx) for i in ctx.get(coll.name, [])]
         if item and set(item) >= {f.name for f in coll.fields.values() if f.kind not in ("text", "calculated")}:

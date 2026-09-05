@@ -37,7 +37,7 @@ def quote(path: str, args: list[str]) -> int:
         else:
             print(f"unknown input {name!r}; expected one of {', '.join(product.inputs)}")
             return 2
-    missing = [n for n in product.inputs if n not in inputs and product.inputs[n].kind != "text"]
+    missing = [n for n in product.inputs if n not in inputs and product.inputs[n].kind not in ("text", "calculated")]
     if missing:
         print(f"missing: {' '.join(f'{n}=...' for n in missing)}")
         return 2
