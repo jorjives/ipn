@@ -260,3 +260,21 @@ class ClaimsEngine(unittest.TestCase):
         self.assertEqual(offer.declined, "Too many claims")
         self.assertEqual(offer.uncapped, Decimal("96.50"))  # 77.20 x 1.25
         self.assertEqual(offer.premium, Decimal("92.64"))  # capped at 20%
+
+
+class CapAndCollar(unittest.TestCase):
+    def test_maximum_caps_net_premium(self):
+        p = parse(FULL + "rating\n  base 500\n  maximum 300\n  tax IPT 10%\n")
+        q = rate(p, risk(), set())
+        self.assertEqual((q.net, q.total), (Decimal("300.00"), Decimal("330.00")))
+        self.assertEqual((q.trail[-1].label, q.trail[-1].applied), ("maximum", "300"))
+
+    def test_renewal_decrease_is_collared(self):
+        p = parse(LIFECYCLE.replace("increase capped at 20%", "increase capped at 20%\n    decrease collared at 10%"))
+        pol = Policy(p, risk(), set())
+        pol.bind(date(2026, 1, 1))  # 77.20
+        pol.inputs["bike_value"] = Decimal(500)  # reprices to minimum 60 -> 77.20? no: net 60 floor -> same
+        pol.product.rating[6].amount = ("num", Decimal(0))  # drop the minimum so the price really falls
+        offer = pol.renew()
+        self.assertLess(offer.uncapped, Decimal("69.48"))
+        self.assertEqual(offer.premium, Decimal("69.48"))  # 77.20 x 0.90

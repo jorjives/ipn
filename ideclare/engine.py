@@ -106,10 +106,10 @@ def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
             mult = (1 - pct) if step.kind == "discount" else (1 + pct)
             net *= mult
             trail.append(Trail(step.label or step.kind, f"x {mult}", net))
-        elif step.kind == "minimum":
-            floor = value(step.amount)
-            net = max(net, floor)
-            trail.append(Trail(step.label or "minimum", str(floor), net))
+        elif step.kind in ("minimum", "maximum"):
+            bound = value(step.amount)
+            net = max(net, bound) if step.kind == "minimum" else min(net, bound)
+            trail.append(Trail(step.label or step.kind, str(bound), net))
         elif step.kind in ("tax", "fee"):
             lines.append((step.kind, step.label, value(step.amount)))
         elif step.kind == "round":
@@ -242,7 +242,9 @@ class Policy:
         new = pence(self.quote.total * self.claims_loading())
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new)
         if lc.renewal_cap is not None:
-            offer.premium = min(new, pence(self.expiring_premium * (1 + lc.renewal_cap)))
+            offer.premium = min(offer.premium, pence(self.expiring_premium * (1 + lc.renewal_cap)))
+        if lc.renewal_collar is not None:
+            offer.premium = max(offer.premium, pence(self.expiring_premium * (1 - lc.renewal_collar)))
         for r in lc.renewal_decline:
             if evaluate(r.condition, ctx):
                 offer.declined = r.reason

@@ -229,7 +229,7 @@ def parse_rating(line: Line, product: Product) -> None:
         step = RatingStep(kind, label, line=child.number)
         if kind == "factor":
             step = parse_factor(child, label, product)
-        elif kind in ("base", "add", "discount", "load", "minimum"):
+        elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
             step.amount, rest = expression(child, rest, product, stop={"when"})
             if rest[:1] == ["when"]:
                 step.condition, rest = expression(child, rest[1:], product)
@@ -302,6 +302,8 @@ def parse_renewal(line: Line, product: Product) -> None:
             lc.renewal_invite_days = int(toks[1])
         elif toks[:3] == ["increase", "capped", "at"] and toks[4:] == ["%"]:
             lc.renewal_cap = Decimal(toks[3]) / 100
+        elif toks[:3] == ["decrease", "collared", "at"] and toks[4:] == ["%"]:
+            lc.renewal_collar = Decimal(toks[3]) / 100
         elif toks[:1] == ["decline"]:
             lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
         else:

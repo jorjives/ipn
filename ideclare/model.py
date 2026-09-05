@@ -79,7 +79,7 @@ class FactorRow:
 
 @dataclass
 class RatingStep:
-    kind: str  # base | factor | add | discount | load | minimum | tax | fee | round
+    kind: str  # base | factor | add | discount | load | minimum | maximum | tax | fee | round
     label: str = ""
     amount: tuple | None = None
     condition: tuple | None = None
@@ -102,6 +102,7 @@ class Lifecycle:
     lapse_days: int | None = None
     renewal_invite_days: int = 0
     renewal_cap: Decimal | None = None
+    renewal_collar: Decimal | None = None
     renewal_decline: list[Rule] = field(default_factory=list)
 
 
