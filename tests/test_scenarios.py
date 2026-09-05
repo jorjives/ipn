@@ -269,3 +269,19 @@ class ClaimFacts(unittest.TestCase):
         from tests.test_parser import LIFE
         p = parse(LIFE + 'rating\n  base 100\nscenario "s"\n  given sum_assured 100000, term_years 20, pet_age 3\n  when bound on 2026-01-01\n  when claim Death for 0 on 2026-06-01 with death_certificate, cause suicide\n  expect claim declined "Suicide in the first year"\n  when claim Death for 0 on 2028-06-01 with cause natural, death_certificate\n  expect payout 100000\n  when claim Vet for 1000 on 2026-06-01 with condition "sore paw"\n  expect payout 400\n')
         self.assertEqual(run_all(p)[0].failures, [])
+
+
+class RefusedEvents(unittest.TestCase):
+    SRC = 'product "X"\ninputs\n  a: money\nrating\n  base a\nlifecycle\n  adjustment: not allowed\n  cancellation by customer: no refund\n'
+
+    def test_expect_refused_passes_when_the_event_is_refused(self):
+        p = parse(self.SRC + 'scenario "s"\n  given a 100\n  when bound on 2026-01-01\n  when adjusted on 2026-02-01 with a 200\n  expect refused "adjustment is not allowed"\n  when cancelled by insurer on 2026-03-01\n  expect refused\n  expect premium 100\n')
+        self.assertEqual(run_all(p)[0].failures, [])
+
+    def test_unexpected_refusal_still_fails(self):
+        p = parse(self.SRC + 'scenario "s"\n  given a 100\n  when bound on 2026-01-01\n  when adjusted on 2026-02-01 with a 200\n  expect premium 200\n')
+        self.assertEqual(len(run_all(p)[0].failures), 2)
+
+    def test_expect_refused_fails_when_the_event_went_through(self):
+        p = parse(self.SRC + 'scenario "s"\n  given a 100\n  when bound on 2026-01-01\n  when cancelled by customer on 2026-03-01\n  expect refused\n')
+        self.assertIn("was not refused", run_all(p)[0].failures[0])

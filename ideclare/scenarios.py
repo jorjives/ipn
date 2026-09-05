@@ -42,6 +42,7 @@ class Run:
         self.last_date: date | None = None
         self.last_amount: Decimal | None = None
         self.last_claim: engine.ClaimResult | None = None
+        self.last_refusal: str | None = None
 
     def run(self) -> Result:
         for inp in self.product.inputs.values():
@@ -53,9 +54,19 @@ class Run:
         if missing:
             self.fail(self.scenario.line, f"given is missing {', '.join(missing)}")
             return self.result
-        for step in self.scenario.steps:
+        for i, step in enumerate(self.scenario.steps):
+            following = self.scenario.steps[i + 1].tokens[:2] if i + 1 < len(self.scenario.steps) else []
             try:
-                (self.when if step.tokens[0] == "when" else self.expect)(step)
+                if step.tokens[0] == "when":
+                    self.last_refusal = None
+                    self.when(step)
+                else:
+                    self.expect(step)
+            except ValueError as e:
+                if step.tokens[0] == "when" and following == ["expect", "refused"]:
+                    self.last_refusal = str(e)  # the scenario says this event should be refused
+                else:
+                    self.fail(step.line, f"do not understand {' '.join(step.tokens)!r} ({e})")
             except Exception as e:  # a bad step must not stop the other scenarios
                 self.fail(step.line, f"do not understand {' '.join(step.tokens)!r} ({e})")
         return self.result
@@ -165,6 +176,12 @@ class Run:
         if handler is None:
             raise ValueError("unknown expectation")
         handler(step, toks[1:])
+
+    def expect_refused(self, step, rest):
+        if self.last_refusal is None:
+            self.fail(step.line, "the last event was not refused")
+        elif rest and unquote(rest[0]) != self.last_refusal:
+            self.fail(step.line, f"expected refused {unquote(rest[0])!r}, got {self.last_refusal!r}")
 
     def expect_eligible(self, step, rest):
         self._eligibility(step, "eligible")
