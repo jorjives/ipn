@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from .tables import Table  # noqa: F401  (re-exported: a Product holds its tables)
+
 
 @dataclass
 class Input:
@@ -36,6 +38,8 @@ class Product:
     claims_terms: list[tuple[int, "Lifecycle"]] = field(default_factory=list)  # (paid claims in term, lifecycle in force from then)
     scenarios: list["Scenario"] = field(default_factory=list)
     enrichments: list["Enrichment"] = field(default_factory=list)
+    tables: dict[str, "Table"] = field(default_factory=dict)
+    base: str = field(default=".", repr=False)  # directory that table files are read from
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
 
     def cover(self, name: str) -> "Cover | None":

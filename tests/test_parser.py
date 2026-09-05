@@ -685,3 +685,65 @@ class FixedBenefitWithClauses(unittest.TestCase):
         p = parse('product "X"\ninputs\n  benefit: money\ncover I\n  limit benefit * 12 per term\nclaims\n  claim I\n    asks\n      months: integer\n    pays benefit * months, up to limit\n')
         self.assertEqual(p.claims["I"].pays_amount, ("*", ("name", "benefit"), ("name", "months")))
         self.assertEqual(p.claims["I"].pays, ["limit"])
+
+
+TABLES = HEADER + '''
+table "Age and lock" keyed on rider_age, security
+  rider_age, security, rate, excess
+  17-24, gold, 1.20, 50
+  17-24, *, 1.50, 100
+  25+, *, 1.00, 50
+'''
+
+
+class Tables(unittest.TestCase):
+    def test_inline_table(self):
+        p = parse(TABLES)
+        t = p.tables["Age and lock"]
+        self.assertEqual(t.keys, ["rider_age", "security"])
+        self.assertEqual(t.values, ["rate", "excess"])
+        self.assertEqual(len(t.rows), 3)
+        self.assertEqual(t.line, 14)
+
+    def test_table_from_file(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "rates.csv"), "w") as f:
+                f.write("rider_age,security,rate\n17-24,*,1.5\n25+,*,1.0\n")
+            p = parse(HEADER + '\ntable "Rates" from "rates.csv" keyed on rider_age, security\n', base=d)
+            self.assertEqual(len(p.tables["Rates"].rows), 2)
+
+    def test_missing_file_reports_line(self):
+        with self.assertRaisesRegex(ParseError, "line 14: cannot read 'nowhere.csv'"):
+            parse(HEADER + '\ntable "Rates" from "nowhere.csv" keyed on rider_age\n')
+
+    def test_key_must_be_an_input(self):
+        with self.assertRaisesRegex(ParseError, "line 14: unknown input 'postcode'"):
+            parse(HEADER + '\ntable "Rates" keyed on postcode\n  postcode, rate\n  M1, 1\n')
+
+    def test_table_errors_report_line(self):
+        with self.assertRaisesRegex(ParseError, "line 14: Rates has no column 'security'"):
+            parse(HEADER + '\ntable "Rates" keyed on rider_age, security\n  rider_age, rate\n  17-24, 1\n')
+
+    def test_duplicate_table_name(self):
+        with self.assertRaisesRegex(ParseError, "line 19: table 'Age and lock' is already declared"):
+            parse(TABLES + 'table "Age and lock" keyed on rider_age\n  rider_age, rate\n  17+, 1\n')
+
+    def test_single_row_factor_from_table(self):
+        p = parse(TABLES + 'rating\n  base 100\n  factor "Age and lock" x rate from "Age and lock" when racing is no\n')
+        step = p.rating[1]
+        self.assertEqual(step.kind, "factor")
+        self.assertEqual([(r.condition, r.op, r.amount) for r in step.rows], [(None, "x", ("lookup", "rate", "Age and lock"))])
+        self.assertEqual(step.condition, ("is", ("name", "racing"), ("bool", False)))
+
+    def test_lookup_anywhere_an_amount_goes(self):
+        p = parse(TABLES + 'cover Theft\n  limit bike_value\n  excess excess from "Age and lock"\n')
+        self.assertEqual(p.covers[0].excess.amount, ("lookup", "excess", "Age and lock"))
+
+    def test_unknown_table_in_expression(self):
+        with self.assertRaisesRegex(ParseError, "line 20: unknown table 'Other'"):
+            parse(TABLES + 'rating\n  base rate from "Other"\n')
+
+    def test_unknown_column_in_expression(self):
+        with self.assertRaisesRegex(ParseError, "line 20: 'Age and lock' has no column 'fee'; its values are rate, excess"):
+            parse(TABLES + 'rating\n  base fee from "Age and lock"\n')

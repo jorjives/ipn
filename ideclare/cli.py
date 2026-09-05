@@ -1,6 +1,7 @@
 """`python -m ideclare check FILE` runs a product's scenarios."""
 from __future__ import annotations
 
+import os
 import sys
 
 from .engine import check_eligibility, cover_states, rate
@@ -10,7 +11,7 @@ from .scenarios import run_all
 
 def check(path: str) -> int:
     try:
-        product = parse(open(path, encoding="utf-8").read())
+        product = parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
     except ParseError as e:
         print(f"{path}: {e}")
         return 1
@@ -26,7 +27,7 @@ def check(path: str) -> int:
 
 def quote(path: str, args: list[str]) -> int:
     """quote FILE name=value ... [select=Cover ...]"""
-    product = parse(open(path, encoding="utf-8").read())
+    product = parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
     inputs, selected = {}, set()
     for arg in args:
         name, _, value = arg.partition("=")

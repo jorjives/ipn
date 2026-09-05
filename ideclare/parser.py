@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import copy
+import os
 import re
 from datetime import date
 from decimal import Decimal
 from dataclasses import dataclass, field
 
-from .expr import ExprError, names, parse_expr
+from .expr import ExprError, lookups, names, parse_expr
+from .tables import TableError, load_table
 from .model import Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
 
 
@@ -213,6 +215,11 @@ def expression(line: Line, toks: list[str], product: Product, stop: set[str] = f
     unknown = names(node) - known_words(product) - extra
     if unknown:
         raise line.error(f"unknown word {sorted(unknown)[0]!r}")
+    for column, table in sorted(lookups(node)):
+        if table not in product.tables:
+            raise line.error(f"unknown table {table!r}")
+        if column not in product.tables[table].values:
+            raise line.error(f"{table!r} has no column {column!r}; its values are {', '.join(product.tables[table].values)}")
     return node, rest
 
 
@@ -366,6 +373,14 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
             elif toks[3:]:
                 raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
             step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True, extra=ITEM_WORDS), order=order, line=child.number)
+        elif kind == "factor" and rest and rest[0] in ("x", "+", "-"):  # one row: factor "Label" x <amount> [when ...]
+            op, rest = rest[0], rest[1:]
+            amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
+            step.rows = [FactorRow(None, op, amount)]
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=extra)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind == "factor":
             step = parse_factor(child, label, product, extra)
         elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
@@ -664,9 +679,43 @@ def parse_enrichment(line: Line, product: Product) -> None:
     product.enrichments.append(e)
 
 
+def parse_table(line: Line, product: Product) -> None:
+    """table "Name" [from "file.csv"] keyed on input, input; rows indented below when there is no file."""
+    toks = tokens(line)
+    if len(toks) < 5 or not toks[1].startswith('"'):
+        raise line.error('expected table "Name" [from "file.csv"] keyed on <input>, ...')
+    name, rest = unquote(toks[1]), toks[2:]
+    if name in product.tables:
+        raise line.error(f"table {name!r} is already declared")
+    path = None
+    if rest[:1] == ["from"] and rest[1:2] and rest[1].startswith('"'):
+        path, rest = os.path.join(product.base, unquote(rest[1])), rest[2:]
+    if rest[:2] != ["keyed", "on"]:
+        raise line.error("expected 'keyed on <input>, ...'")
+    keys = [t for t in rest[2:] if t != ","]
+    for k in keys:
+        if k not in known_words(product):
+            raise line.error(f"unknown input {k!r}; table keys must be inputs")
+    if path is not None and line.children:
+        raise line.error("a table comes from a file or from the rows below it, not both")
+    if path is not None:
+        try:
+            with open(path, encoding="utf-8") as f:
+                rows = f.read().splitlines()
+        except OSError:
+            raise line.error(f"cannot read {os.path.relpath(path, product.base)!r}")
+    else:
+        rows = [c.text for c in line.children]
+    try:
+        product.tables[name] = load_table(name, keys, rows, line.number)
+    except TableError as e:
+        raise line.error(str(e))
+
+
 BLOCKS = {
     "inputs": parse_inputs,
     "enrichment": parse_enrichment,
+    "table": parse_table,
     "eligibility": parse_eligibility,
     "cover": parse_cover,
     "rating": parse_rating,
@@ -676,14 +725,15 @@ BLOCKS = {
 }
 
 
-def parse(text: str) -> Product:
+def parse(text: str, base: str = ".") -> Product:
+    """Parses a product. Table files named in it are read relative to base."""
     product = None
     for line in build_tree(text):
         toks = tokens(line)
         if toks[0] == "product":
             if len(toks) != 2:
                 raise line.error('expected: product "Name"')
-            product = Product(unquote(toks[1]))
+            product = Product(unquote(toks[1]), base=base)
             parse_product_header(line, product)
             continue
         if product is None:
