@@ -18,7 +18,12 @@ python3 -m ideclare quote my-product.idl bike_value=2000 rider_age=22 security=g
 
 See `examples/cycle.idl` for a complete single-bike product, `examples/family.idl` for a
 policy covering several bikes and `examples/multibike.idl` for a fleet where the first bike
-takes the full rate.
+takes the full rate. The other examples take the same language across the industry:
+`travel.idl` (people, trip dates, sections that start on different days), `pet.idl` (an
+annual limit eroded by claims, waiting period, co-payment), `motor.idl` (named drivers, no
+claims discount, an excess that depends on who was driving), `life.idl` (a fixed benefit
+over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit) and
+`home.idl` (specified items, the average clause).
 
 ## Writing conventions
 
@@ -27,6 +32,8 @@ takes the full rate.
 - Names of inputs are single words joined with underscores: `bike_value`, `rider_age`.
 - Cover names, labels and reasons that contain spaces go in double quotes: `"Accidental Damage"`.
 - Money and numbers are written plainly: `2000`, `3.5`, `12%`. Dates are `2026-01-31`.
+- Words that stand for the same thing may be singular or plural where English wants it:
+  `after 1 claim in term`, `after 2 claims in term`.
 - The file starts with the `product` block. The other blocks can come in any order.
 
 ## Conditions
@@ -42,10 +49,14 @@ values and can be combined:
 | `( ... )` | group |
 | `Racing selected` | the customer chose the optional cover Racing |
 | `10% of bike_value`, `bike_value * 2`, `+ - /` | arithmetic, used in amounts |
+| `return_date - departure_date` | the days between two dates |
+| `work_date < retroactive_date`, `start is 2026-01-01` | dates compare like numbers |
 
 Words available inside conditions: every input you declared, every choice value, every
-cover name, and in claim rules `claimed` (the amount claimed). In renewal rules
-`claims in term` is the number of paid claims this policy year.
+cover name, and in claim rules `claimed` (the amount claimed) and any facts the claim asks
+for. In renewal and claim rules `claims in term` is the number of paid claims this policy
+year that count (see `claims`). In claim rules `within N days of inception` and `within N
+months of inception` are true when the loss is that soon after the policy first started.
 
 ## Blocks
 
@@ -58,8 +69,10 @@ product "Cycle Cover"
   term 12 months
 ```
 
-`term` is the length of one policy period. A policy bound on 31 January with a 1 month
-term expires on 28 February.
+`term` is the length of one policy period: `term 12 months`, `term 10 days`, `term 25
+years`. A policy bound on 31 January with a 1 month term expires on 28 February. The
+number may be an input the customer chooses, `term term_years years`, and a product that
+ends on a date the customer gives says `term until return_date`.
 
 ### inputs
 
@@ -72,8 +85,9 @@ What you ask at quote. Each line is `name: type`.
 | `yes/no` | `yes` or `no` |
 | `choice of a, b, c` | exactly one of the listed words |
 | `text` | free text; compare it to a quoted value, `make is "Brompton"`; scenarios may leave it out |
+| `date` | a calendar date, `2026-07-10` |
 | `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
-| `calculated` | an item field worked out from the others by the steps indented below it |
+| `calculated` | an input or item field worked out from the others by the steps indented below it |
 
 #### Repeatable items
 
@@ -165,6 +179,24 @@ cover Racing optional
 - `excludes when` removes the cover for this risk and records the reason.
 - `limit` and `excess` are amounts; `claim` inside an excess means the amount claimed.
   `minimum` floors a percentage excess.
+- `limit 7000 per term` is an aggregate limit: the most the insurer pays on this cover in
+  the whole term. Each paid claim eats into it and it is restored at renewal. A plain
+  `limit` applies to any one claim.
+- An excess may be a table instead of one amount, in the shape of a rating factor without
+  the `x`. Its rows may use facts the claim asks for (see `claims`), so the excess can
+  depend on who was driving or what caused the loss:
+
+  ```
+  excess
+    driver_age < 25: 550 + voluntary_excess
+    otherwise: 250 + voluntary_excess
+  ```
+- `in force from departure_date` and `in force until departure_date` make a section of
+  cover start or stop on a date of its own rather than with the policy. A loss outside the
+  window is declined as "not in force". Travel cancellation cover runs from purchase until
+  departure; medical cover from departure.
+- `waiting period 14 days`: losses this soon after the policy *first* started are declined.
+  Renewing does not restart it.
 
 The engine reports each cover as *included*, *excluded*, *not selected* or *not available*.
 
@@ -248,7 +280,16 @@ rating
 ```
 
 Calculated fields are filled in before anything else runs, so eligibility, covers and
-claims can use them too.
+claims can use them too. A top-level input can be calculated in the same way; the customer
+is never asked for it:
+
+```
+inputs
+  height_cm: number
+  weight_kg: number
+  bmi: calculated
+    base weight_kg / ( height_cm / 100 * height_cm / 100 )
+```
 
 | Step | Effect on the net premium |
 |---|---|
@@ -261,6 +302,8 @@ claims can use them too.
 | `tax Name N%` | adds a tax line of N% of the rounded net |
 | `fee "Label" <amount>` | adds a flat fee line |
 | `round to 0.01` | rounding unit for every figure, half up (default 0.01) |
+
+A product with no tax simply has no `tax` line (life premiums, for example).
 
 The result is the net premium, one line per tax and fee, and the total. The `quote`
 command prints the full trail of applied steps.
@@ -283,6 +326,9 @@ lifecycle
     decline when claims in term >= 3 because "Three or more claims in the year"
 ```
 
+A product that simply ends, such as single-trip travel or term life, says `renewal: none`
+instead of a `renewal` block; the offer is then declined with "The policy is not renewable".
+
 Policy status on any date is one of *quoted*, *bound* (before inception), *live*,
 *lapsed*, *cancelled*, *expired* or *renewed* (a past policy year).
 
@@ -298,7 +344,9 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
   After an adjustment the customer's annual premium is the new one.
 - **Lapse**: a policy bound but unpaid lapses after this many days until it is paid.
 - **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
-  insured, `by N` to add a fixed amount, such as a year of age. `index bike value by 5%`
+  insured, `by N` to add a fixed amount, such as a year of age, `by -N` to take one away.
+  `, at least 0` and `, at most 9` keep the result within bounds, so a no claims discount
+  grows to nine years and never falls below none. `index bike value by 5%`
   moves a field on every item. The offer is the product
   repriced on those answers, times any claims loading (see `claims`), then held within the
   cap and collar: no more than the current annual premium plus the cap percentage, no less
@@ -319,19 +367,54 @@ claims
       bike_age < 1: x 1.00
       bike_age < 3: x 0.85
       otherwise: x 0.70
+  claim Death
+    asks
+      cause: choice of natural, accident, suicide
+    requires death_certificate
+    pays sum_assured
+    decline when cause is suicide and within 12 months of inception because "Suicide in the first year"
+  claim "Vet Fees"
+    asks
+      condition: text
+    co-payment 20% when pet_age >= 9
+    pays claimed amount, less excess, less co-payment, up to limit
+  claim Windscreen
+    pays claimed amount up to limit, less excess
+    does not count towards claims in term
   after 2 claims in term: renewal load x 1.25
 ```
+
+- `requires` lists evidence that must accompany the claim.
+- `asks` declares facts only known when the claim is made, typed like inputs: the cause of
+  death, who was driving, the true value of the contents. A claim without them is declined
+  as "cause is required". They may be used in this claim's `decline when`, `co-payment`,
+  `settlement` and in the cover's excess table.
+- `pays claimed amount` followed by clauses **in the order they apply**: `up to limit`,
+  `less excess`, `less co-payment`. A sum insured is usually capped then the excess
+  deducted (`up to limit, less excess`); a liability or aggregate limit caps what the
+  insurer pays after the excess (`less excess, up to limit`). Write what the wording says.
+- `pays <amount>` is a fixed benefit instead of the amount claimed: `pays sum_assured`,
+  `pays 50% of sum_assured`, `pays purchase_price`.
+- `co-payment N% [when ...]` is a share the customer bears, applied where `less co-payment`
+  sits in the `pays` line.
+- `depreciation` (or `settlement`, the same table under a name that suits an average clause)
+  scales the amount claimed first, before any `pays` clause: `x contents_sum / true_value`.
+- `counts towards claims in term when fault is yes` and `does not count towards claims in
+  term`: the claim is paid but does not add to the record that drives renewal loading,
+  renewal decline rules and terms imposed after claims. Glass and non-fault motor claims
+  are the usual case. Every paid claim still erodes an aggregate limit.
 
 A cover whose `limit`, `excess` or `excludes` uses item fields is resolved per item, so
 claims on it name the item: `when claim Theft on bike 2 for 900 on 2026-03-01`.
 
 A claim on a cover is declined, with the reason, when the policy is not live on the loss
-date, the cover is not included for that risk or item, a required item is missing, or a `decline
-when` rule fires. Otherwise the claimed amount is first written down by the `depreciation` table (same
-shape as a rating factor: the first matching row applies), then capped at the cover's
-limit, then reduced by the cover's excess if `less excess` is written. A percentage excess
-is of the amount claimed, before depreciation. Only paid claims count towards
-`claims in term`. `after N claims in term: renewal load x M` multiplies the renewal
+date, the cover is not included for that risk or item, the cover is not in force on that
+date or is within its waiting period, a required item or asked fact is missing, an
+aggregate limit is used up, or a `decline when` rule fires. Otherwise the amount (claimed,
+or the fixed benefit) is first scaled by the `depreciation` or `settlement` table (same
+shape as a rating factor: the first matching row applies), then the `pays` clauses apply in
+the order written. A percentage excess is of the amount claimed, before depreciation. Only
+paid claims that count go towards `claims in term`. `after N claims in term: renewal load x M` multiplies the renewal
 premium when the paid claim count reaches N; the highest matching line wins.
 
 A paid claim can also change the terms of the policy for the rest of the term. Write
@@ -358,10 +441,10 @@ scenario "Customer cancels mid term"
   expect status cancelled
 ```
 
-`given` supplies every input; `select` chooses optional covers. Repeatable items are given
-one per line using the singular name, with every field: `given bike value 2000, age 0,
-security gold`. Then `when` lines happen
-in order and `expect` lines check the state at that point.
+`given` supplies every input except calculated ones; `select` chooses optional covers.
+Repeatable items are given one per line using the singular name, with every field: `given
+bike value 2000, age 0, security gold`. Dates are given as `given departure_date 2026-07-10`.
+Then `when` lines happen in order and `expect` lines check the state at that point.
 
 Events:
 
@@ -373,7 +456,7 @@ Events:
 | `when adjusted on DATE with input value, input value` | mid-term change |
 | `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
 | `when adjusted on DATE removing bike 2` | remove the second item |
-| `when claim Cover [on bike N] for AMOUNT on DATE [reported DATE] [with item, item]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence |
+| `when claim Cover [on bike N] for AMOUNT on DATE [reported DATE] [with item, fact value, ...]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence words and asked facts (`with death_certificate, cause suicide`) |
 | `when renewed on DATE` | accept the renewal offer (fails if it is declined) |
 
 Expectations:
@@ -383,12 +466,14 @@ Expectations:
 | `expect eligible` / `expect referred ["reason"]` / `expect declined ["reason"]` | eligibility outcome |
 | `expect cover Name [on bike N] included\|excluded\|"not selected"\|"not available" ["reason"]` | cover state, for item N if per item |
 | `expect cover Name [on bike N] limit AMOUNT` | the resolved limit |
+| `expect cover Name remaining AMOUNT` | what is left of an aggregate limit this term |
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
 | `expect factor "Label" x 1.40` | what a factor applied |
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
 | `expect expiry DATE` | end of the current term |
 | `expect refund AMOUNT` | refund from the last cancellation |
+| `expect refused ["reason"]` | the event just before was rightly refused (an adjustment when `adjustment: not allowed`, cancellation by a party with no terms) |
 | `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment |
 | `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
 | `expect claims in term N` | paid claims this policy year |
@@ -397,5 +482,8 @@ Expectations:
 ## Not yet supported
 
 Short-rate cancellation, instalments, commission, multi-currency, more than one product per
-file, new-for-old versus indemnity as a named settlement basis (use a depreciation table).
-The `quote` command takes scalar inputs only; price a policy with items through a scenario. Each is a small addition to the engine; say which you need.
+file, new-for-old versus indemnity as a named settlement basis (use a depreciation table),
+per-condition limits within an aggregate (pet), protected no claims discount as an add-on
+that switches off the step-back, run-off cover after a claims-made policy ends, benefits
+paid per day or per month over time. The `quote` command takes scalar inputs only; price a
+policy with items through a scenario. Each is a small addition to the engine; say which you need.
