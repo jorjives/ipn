@@ -158,6 +158,7 @@ def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lin
                 items.sort(key=lambda pair: evaluate(key, {**ctx, **pair[1]}), reverse=descending)
             for position, (i, item) in enumerate(items, start=1):
                 sub, _ = run_steps(product, step.steps, {**ctx, **item, "position": position}, Decimal(0), trail, lines, f"{prefix}{step.label} {i} ")
+                trail.append(Trail(f"{prefix}{step.label} {i}", "net", sub))  # the item's own share
                 total += sub
             net += total
             record(coll.name, f"{total:.2f}")

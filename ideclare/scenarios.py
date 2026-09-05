@@ -227,7 +227,15 @@ class Run:
     def expect_premium(self, step, rest):
         self.check(step, "premium", money(Decimal(rest[0])), money(self.quote().total))
 
-    def expect_net(self, step, rest):
+    def expect_net(self, step, rest):  # net X | net for <item> N X
+        if rest[:1] == ["for"]:
+            label = f"{rest[1]} {rest[2]}"
+            hit = next((t for t in self.quote().trail if t.label == label and t.applied == "net"), None)
+            if hit is None:
+                self.fail(step.line, f"no {label} was rated")
+            else:
+                self.check(step, f"net for {label}", money(Decimal(rest[3])), money(hit.net))
+            return
         self.check(step, "net", money(Decimal(rest[0])), money(self.quote().net))
 
     def expect_tax(self, step, rest):

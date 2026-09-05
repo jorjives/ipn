@@ -285,3 +285,9 @@ class RefusedEvents(unittest.TestCase):
     def test_expect_refused_fails_when_the_event_went_through(self):
         p = parse(self.SRC + 'scenario "s"\n  given a 100\n  when bound on 2026-01-01\n  when cancelled by customer on 2026-03-01\n  expect refused\n')
         self.assertIn("was not refused", run_all(p)[0].failures[0])
+
+
+class PerItemNet(unittest.TestCase):
+    def test_expect_net_for_item(self):
+        p = parse('product "X"\ninputs\n  bikes: collection of bike\n    value: money\nrating\n  for each bike\n    base 10% of value\n  discount 50%\nscenario "s"\n  given bike value 1000\n  given bike value 500\n  expect net for bike 1 100\n  expect net for bike 2 50\n  expect net 75\n')
+        self.assertEqual(run_all(p)[0].failures, [])

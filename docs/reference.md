@@ -23,7 +23,7 @@ takes the full rate. The other examples take the same language across the indust
 annual limit eroded by claims, waiting period, co-payment), `motor.idl` (named drivers, no
 claims discount, an excess that depends on who was driving), `life.idl` (a fixed benefit
 over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit) and
-`home.idl` (specified items, the average clause) and `income.idl` (a benefit paid over time).
+`home.idl` (specified items, the average clause), `income.idl` (a benefit paid over time) and `leasing.idl` (a group scheme whose members join and leave).
 
 ## Writing conventions
 
@@ -469,6 +469,7 @@ Expectations:
 | `expect cover Name [on bike N] limit AMOUNT` | the resolved limit |
 | `expect cover Name remaining AMOUNT` | what is left of an aggregate limit this term |
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium |
+| `expect net for bike 2 AMOUNT` | one item's share of the net, before the steps after `for each` |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
 | `expect factor "Label" x 1.40` | what a factor applied |
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |

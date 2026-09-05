@@ -388,8 +388,8 @@ class CollectionEngine(unittest.TestCase):
         # bike 1: 60 x 1.00 = 60; bike 2: 30 x 0.90 = 27; total 87 x 0.95 = 82.65
         self.assertEqual(q.net, Decimal("82.65"))
         self.assertEqual([(t.label, t.applied) for t in q.trail], [
-            ("bike 1 base", "60.00"), ("bike 1 Bike age", "x 1.00"),
-            ("bike 2 base", "30.00"), ("bike 2 Bike age", "x 0.90"),
+            ("bike 1 base", "60.00"), ("bike 1 Bike age", "x 1.00"), ("bike 1", "net"),
+            ("bike 2 base", "30.00"), ("bike 2 Bike age", "x 0.90"), ("bike 2", "net"),
             ("bikes", "87.00"), ("Fleet", "x 0.95"), ("minimum", "40")])
 
     def test_ordered_items_and_position(self):
@@ -397,9 +397,9 @@ class CollectionEngine(unittest.TestCase):
         q = rate(parse(src), fleet((1000, 0, "gold"), (2000, 0, "gold")), set())
         # bike 2 is rated first at full rate (60), bike 1 second at half (15); total 75 x 0.95 = 71.25
         self.assertEqual(q.net, Decimal("71.25"))
-        self.assertEqual([t.label for t in q.trail][:6], [
-            "bike 2 base", "bike 2 Bike age", "bike 2 Position",
-            "bike 1 base", "bike 1 Bike age", "bike 1 Position"])
+        self.assertEqual([t.label for t in q.trail][:8], [
+            "bike 2 base", "bike 2 Bike age", "bike 2 Position", "bike 2",
+            "bike 1 base", "bike 1 Bike age", "bike 1 Position", "bike 1"])
 
     def test_calculated_field_orders_items(self):
         src = FLEET.replace("    security: choice of bronze, silver, gold\n",
