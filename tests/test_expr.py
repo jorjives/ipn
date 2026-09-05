@@ -43,6 +43,16 @@ class Expressions(unittest.TestCase):
         node, _ = parse_expr(['"Accidental Damage"', "selected"])
         self.assertTrue(evaluate(node, {"selected": {"Accidental Damage"}}))
 
+    def test_quoted_string_is_a_literal(self):
+        node, _ = parse_expr(['make', 'is', '"Brompton"'])
+        self.assertEqual(node, ("is", ("name", "make"), ("str", "Brompton")))
+        self.assertTrue(evaluate(node, {"make": "Brompton"}))
+        self.assertEqual(names(node), {"make"})
+
+    def test_selected_still_names_the_cover(self):
+        node, _ = parse_expr(['"Accidental Damage"', "selected"])
+        self.assertEqual(names(node), {"Accidental Damage"})
+
     def test_stops_at_keyword(self):
         node, rest = parse_expr("rider_age < 25 because".split(), stop={"because"})
         self.assertEqual(rest, ["because"])

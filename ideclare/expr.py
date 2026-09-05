@@ -117,7 +117,7 @@ class _Parser:
         if t[0].isdigit():
             return ("num", Decimal(t))
         if t.startswith('"'):
-            return ("name", t[1:-1])
+            return ("str", t[1:-1])
         if t == "yes":
             return ("bool", True)
         if t == "no":
@@ -132,8 +132,10 @@ def names(node: tuple) -> set[str]:
     kind = node[0]
     if kind == "name":
         return {node[1]}
-    if kind in ("num", "bool"):
+    if kind in ("num", "bool", "str"):
         return set()
+    if kind == "selected":
+        return {node[1][1]}
     if kind == "count":
         return {node[1]}
     if kind == "agg":
@@ -145,7 +147,7 @@ def names(node: tuple) -> set[str]:
 
 def evaluate(node: tuple, ctx: dict):
     kind = node[0]
-    if kind == "num" or kind == "bool":
+    if kind in ("num", "bool", "str"):
         return node[1]
     if kind == "name":
         # Unbound words are choice values: `security is gold` compares against "gold".
