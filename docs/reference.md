@@ -115,6 +115,22 @@ Items appear in conditions and amounts like this:
 | `every bike where security is gold` | true if all items match |
 | `value`, `age` on their own | the current item's field, inside `for each`, a cover, a claim or a `where` |
 
+#### Formulas
+
+Amounts and conditions are expressions: `+ - * /`, `N% of x`, `a ^ b` (power, so
+`( bmi / 25 ) ^ 2` is a power law and `x ^ 0.5` a square root), parentheses, comparisons,
+`and`, `or`, `not`, and these functions:
+
+| Function | Gives |
+|---|---|
+| `exp ( x )`, `ln ( x )`, `sqrt ( x )` | the exponential, natural log and square root, so a GLM term is `exp ( 0.021 * annual_mileage / 1000 )` |
+| `min ( a, b, ... )`, `max ( a, b, ... )` | the smallest or largest |
+| `round ( x, 0.0001 )` | x to that unit, half up; use it so a curve's value reads sensibly in the trail and can be expected in a scenario |
+
+All arithmetic is in decimal, not floating point, so a curve prices the same on every
+machine. A long formula is better given a name as a `calculated` input (see repeatable
+items above) than written in one line.
+
 ### enrichment
 
 Products depend on lookups they do not perform themselves: postcode risk, a bike or
@@ -178,6 +194,30 @@ table "Theft excess" keyed on area, use
   | `17-20` | a number from 17 to 20, both inclusive |
   | `65+` | a number of 65 or more |
   | `*` | anything; a row with fewer `*` cells beats one with more, so `*` rows are the fallback |
+
+A stepped table becomes a curve with `interpolated [linearly | geometrically] on <key>`
+(linearly is the default). The named key's cells are then single numbers, the knots; the
+other keys match as in a plain lookup. On a knot the value is the knot's, between two knots
+it is interpolated, and outside the knots it is an error, never a clamp:
+
+```
+table "Mortality" keyed on age, smoker
+  age, smoker, rate
+  40, no, 1.30
+  45, no, 2.05
+
+rating
+  base sum_assured / 1000 * rate from "Mortality" interpolated geometrically on age
+```
+
+| Method | Between knots (x0, y0) and (x1, y1), t = (x - x0) / (x1 - x0) | Right for |
+|---|---|---|
+| `linearly` | y0 + (y1 - y0) * t | additive quantities: an expense, a sum-insured loading |
+| `geometrically` | y0 * (y1 / y0) ^ t | rates that grow by a ratio: mortality, claims frequency. Knot values must be positive |
+
+At 42 the curve above gives 1.5598 geometrically and 1.60 linearly. A cubic spline
+(`smoothly`) and interpolation across two keys are not provided; each is one more branch
+in the same place. `examples/mortality.idl` prices a term life product from such a curve.
 
 A value is taken with `<column> from "<table>"` anywhere an amount can go: a factor, a
 `base`, an `add`, a `limit`, an `excess`, a benefit. Inside `for each` the lookup uses the
