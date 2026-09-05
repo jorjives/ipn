@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 
 from ideclare.parser import parse
-from ideclare.engine import check_eligibility, cover_states
+from ideclare.engine import check_eligibility, cover_state, cover_states
 from tests.test_parser import FULL
 
 
@@ -340,3 +340,55 @@ class DepreciationAndIndexation(unittest.TestCase):
         pol = Policy(p, {"item_value": Decimal(1000), "item_age": Decimal(2)}, set())
         pol.bind(date(2026, 1, 1))
         self.assertEqual(pol.renew().inputs["item_age"], Decimal(3))
+
+
+from tests.test_parser import FLEET
+
+
+def fleet(*bikes, rider_age=30):
+    return {"rider_age": Decimal(rider_age), "bikes": [dict(value=Decimal(v), age=Decimal(a), security=s) for v, a, s in bikes]}
+
+
+class CollectionEngine(unittest.TestCase):
+    def setUp(self):
+        self.p = parse(FLEET)
+
+    def test_bounds_are_eligibility_declines(self):
+        self.assertEqual(check_eligibility(self.p, fleet()).reasons, ["bikes: at least 1 required"])
+        four = fleet(*[(100, 0, "gold")] * 4)
+        self.assertEqual(check_eligibility(self.p, four).reasons, ["bikes: at most 3 allowed"])
+        self.assertEqual(check_eligibility(self.p, fleet((100, 0, "gold"))).outcome, "eligible")
+
+    def test_item_rules(self):
+        self.assertEqual(check_eligibility(self.p, fleet((12000, 0, "gold"))).reasons, ["Too valuable"])
+        self.assertEqual(check_eligibility(self.p, fleet((7000, 0, "gold"), (6000, 0, "gold"))).outcome, "referred")
+
+    def test_per_item_rating_then_fleet_factor(self):
+        q = rate(self.p, fleet((2000, 0, "gold"), (1000, 3, "silver")), set())
+        # bike 1: 60 x 1.00 = 60; bike 2: 30 x 0.90 = 27; total 87 x 0.95 = 82.65
+        self.assertEqual(q.net, Decimal("82.65"))
+        self.assertEqual([(t.label, t.applied) for t in q.trail], [
+            ("bike 1 base", "60.00"), ("bike 1 Bike age", "x 1.00"),
+            ("bike 2 base", "30.00"), ("bike 2 Bike age", "x 0.90"),
+            ("bikes", "87.00"), ("Fleet", "x 0.95"), ("minimum", "40")])
+
+    def test_cover_state_for_an_item(self):
+        inputs = fleet((2000, 0, "gold"), (3000, 1, "bronze"))
+        states = [cover_state(self.p, self.p.cover("Theft"), inputs, set(), item=b) for b in inputs["bikes"]]
+        self.assertEqual((states[0].status, states[0].limit), ("included", Decimal(2000)))
+        self.assertEqual((states[1].status, states[1].reason), ("excluded", "Better lock needed"))
+
+    def test_claim_on_an_item(self):
+        pol = Policy(self.p, fleet((2000, 0, "gold"), (3000, 1, "bronze")), set())
+        pol.bind(date(2026, 1, 1))
+        paid = pol.claim("Theft", Decimal(1500), date(2026, 2, 1), date(2026, 2, 1), set(), item=pol.inputs["bikes"][0])
+        self.assertEqual(paid.amount, Decimal("1350.00"))
+        declined = pol.claim("Theft", Decimal(1500), date(2026, 2, 1), date(2026, 2, 1), set(), item=pol.inputs["bikes"][1])
+        self.assertEqual(declined.reason, "Theft is excluded: Better lock needed")
+
+    def test_index_item_field_at_renewal(self):
+        pol = Policy(self.p, fleet((2000, 0, "gold"), (1000, 3, "silver")), set())
+        pol.bind(date(2026, 1, 1))
+        offer = pol.renew()
+        self.assertEqual([b["value"] for b in offer.inputs["bikes"]], [Decimal("2200.00"), Decimal("1100.00")])
+        self.assertEqual(pol.inputs["bikes"][0]["value"], Decimal(2000))

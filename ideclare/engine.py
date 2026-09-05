@@ -10,8 +10,14 @@ from .expr import evaluate
 from .model import Cover, Product
 
 
-def context(inputs: dict, selected: set[str], **extra) -> dict:
-    return {**inputs, "selected": selected, **extra}
+def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
+    """Evaluation context: inputs, singular aliases for collections, the current item's fields."""
+    ctx = {**inputs, "selected": selected, **extra}
+    for coll in product.collections:
+        ctx[coll.singular] = ctx.get(coll.name, [])
+    if item:
+        ctx.update(item)
+    return ctx
 
 
 @dataclass
@@ -21,12 +27,23 @@ class Eligibility:
 
 
 def check_eligibility(product: Product, inputs: dict) -> Eligibility:
-    ctx = context(inputs, set())
-    fired = [r for r in product.eligibility if evaluate(r.condition, ctx)]
-    if any(r.kind == "decline" for r in fired):
-        return Eligibility("declined", [r.reason for r in fired])
-    if fired:
-        return Eligibility("referred", [r.reason for r in fired])
+    ctx = context(product, inputs, set())
+    reasons, declined = [], False
+    for coll in product.collections:
+        count = len(inputs.get(coll.name, []))
+        if count < coll.min_items:
+            reasons.append(f"{coll.name}: at least {coll.min_items} required")
+        elif coll.max_items is not None and count > coll.max_items:
+            reasons.append(f"{coll.name}: at most {coll.max_items} allowed")
+    declined = bool(reasons)
+    for r in product.eligibility:
+        if evaluate(r.condition, ctx):
+            reasons.append(r.reason)
+            declined = declined or r.kind == "decline"
+    if declined:
+        return Eligibility("declined", reasons)
+    if reasons:
+        return Eligibility("referred", reasons)
     return Eligibility("eligible")
 
 
@@ -38,8 +55,8 @@ class CoverState:
     limit: Decimal | None = None
 
 
-def cover_state(cover: Cover, inputs: dict, selected: set[str]) -> CoverState:
-    ctx = context(inputs, selected)
+def cover_state(product: Product, cover: Cover, inputs: dict, selected: set[str], item: dict | None = None) -> CoverState:
+    ctx = context(product, inputs, selected, item)
     if cover.optional and cover.name not in selected:
         return CoverState(cover.name, "not selected")
     if cover.available is not None and not evaluate(cover.available, ctx):
@@ -52,7 +69,7 @@ def cover_state(cover: Cover, inputs: dict, selected: set[str]) -> CoverState:
 
 
 def cover_states(product: Product, inputs: dict, selected: set[str]) -> list[CoverState]:
-    return [cover_state(c, inputs, selected) for c in product.covers]
+    return [cover_state(product, c, inputs, selected) for c in product.covers]
 
 
 # --- rating -----------------------------------------------------------------
@@ -76,49 +93,65 @@ class Quote:
     trail: list[Trail] = field(default_factory=list)
 
 
+def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lines: list, prefix: str = "") -> tuple[Decimal, Decimal]:
+    """Runs rating steps in order against a running net. Returns the net and the rounding unit."""
+    quantum = Decimal("0.01")
+
+    def value(node):
+        return Decimal(evaluate(node, ctx))
+
+    def record(label, applied):
+        trail.append(Trail(prefix + label, applied, net))
+
+    for step in steps:
+        if step.condition is not None and not evaluate(step.condition, ctx):
+            continue
+        if step.kind == "base":
+            net = value(step.amount)
+            record("base", f"{net:.2f}")
+        elif step.kind == "each":
+            coll = product.collection_for(step.label)
+            total = Decimal(0)
+            for i, item in enumerate(ctx.get(coll.name, []), start=1):
+                sub, _ = run_steps(product, step.steps, {**ctx, **item}, Decimal(0), trail, lines, f"{prefix}{step.label} {i} ")
+                total += sub
+            net += total
+            record(coll.name, f"{total:.2f}")
+        elif step.kind == "factor":
+            row = next((r for r in step.rows if r.condition is None or evaluate(r.condition, ctx)), None)
+            if row is None:
+                continue
+            net = apply_row(net, row, ctx)
+            record(step.label, f"{row.op} {evaluate(row.amount, ctx)}")
+        elif step.kind == "add":
+            amount = value(step.amount)
+            net += amount
+            record(step.label or "add", f"+ {amount}")
+        elif step.kind in ("discount", "load"):
+            pct = value(step.amount)
+            mult = (1 - pct) if step.kind == "discount" else (1 + pct)
+            net *= mult
+            record(step.label or step.kind, f"x {mult}")
+        elif step.kind in ("minimum", "maximum"):
+            bound = value(step.amount)
+            net = max(net, bound) if step.kind == "minimum" else min(net, bound)
+            record(step.label or step.kind, str(bound))
+        elif step.kind in ("tax", "fee"):
+            lines.append((step.kind, step.label, value(step.amount)))
+        elif step.kind == "round":
+            quantum = value(step.amount)
+    return net, quantum
+
+
 def apply_row(value: Decimal, row, ctx: dict) -> Decimal:
     amount = Decimal(evaluate(row.amount, ctx))
     return value * amount if row.op == "x" else value + amount if row.op == "+" else value - amount
 
 
 def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
-    ctx = context(inputs, selected)
-    net, lines, trail = Decimal(0), [], []
-    quantum = Decimal("0.01")
-
-    def value(node):
-        return Decimal(evaluate(node, ctx))
-
-    for step in product.rating:
-        if step.condition is not None and not evaluate(step.condition, ctx):
-            continue
-        if step.kind == "base":
-            net = value(step.amount)
-            trail.append(Trail("base", f"{net:.2f}", net))
-        elif step.kind == "factor":
-            row = next((r for r in step.rows if r.condition is None or evaluate(r.condition, ctx)), None)
-            if row is None:
-                continue
-            net = apply_row(net, row, ctx)
-            trail.append(Trail(step.label, f"{row.op} {evaluate(row.amount, ctx)}", net))
-        elif step.kind == "add":
-            amount = value(step.amount)
-            net += amount
-            trail.append(Trail(step.label or "add", f"+ {amount}", net))
-        elif step.kind in ("discount", "load"):
-            pct = value(step.amount)
-            mult = (1 - pct) if step.kind == "discount" else (1 + pct)
-            net *= mult
-            trail.append(Trail(step.label or step.kind, f"x {mult}", net))
-        elif step.kind in ("minimum", "maximum"):
-            bound = value(step.amount)
-            net = max(net, bound) if step.kind == "minimum" else min(net, bound)
-            trail.append(Trail(step.label or step.kind, str(bound), net))
-        elif step.kind in ("tax", "fee"):
-            lines.append((step.kind, step.label, value(step.amount)))
-        elif step.kind == "round":
-            quantum = value(step.amount)
-
+    ctx = context(product, inputs, selected)
+    lines, trail = [], []
+    net, quantum = run_steps(product, product.rating, ctx, Decimal(0), trail, lines)
     net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
     lines = [(kind, label, (net * amount if kind == "tax" else amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
     taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
@@ -243,10 +276,19 @@ class Policy:
 
     def renew(self) -> RenewalOffer:
         lc = self.product.lifecycle
-        inputs = dict(self.inputs)
+        inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in self.inputs.items()}
+
+        def indexed(v, how, amount):
+            return pence(v * (1 + amount / 100)) if how == "%" else v + amount
+
         for name, how, amount in lc.renewal_index:
-            inputs[name] = pence(inputs[name] * (1 + amount / 100)) if how == "%" else inputs[name] + amount
-        ctx = context(inputs, self.selected, claims_in_term=len(self.claims))
+            if "." in name:
+                singular, field_ = name.split(".")
+                for item in inputs.get(self.product.collection_for(singular).name, []):
+                    item[field_] = indexed(item[field_], how, amount)
+            else:
+                inputs[name] = indexed(inputs[name], how, amount)
+        ctx = context(self.product, inputs, self.selected, claims_in_term=len(self.claims))
         new = pence(rate(self.product, inputs, self.selected).total * self.claims_loading())
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
         if lc.renewal_cap is not None:
@@ -263,20 +305,20 @@ class Policy:
         applicable = [m for count, m in self.product.claims_loading if len(self.claims) >= count]
         return applicable[-1] if applicable else Decimal(1)
 
-    def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str]) -> "ClaimResult":
+    def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None) -> "ClaimResult":
         rules = self.product.claims.get(cover)
         if rules is None:
             return ClaimResult("declined", reason=f"claims on {cover} are not declared")
         status = self.status(on)
         if status != "live":
             return ClaimResult("declined", reason=f"policy was {status} on {on.isoformat()}")
-        state = cover_state(self.product.cover(cover), self.inputs, self.selected)
+        state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
         for name in rules.requires:
             if name not in evidence:
                 return ClaimResult("declined", reason=f"{name} is required")
-        ctx = context(self.inputs, self.selected, claim=claimed, claimed=claimed,
+        ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed,
                       days_to_report=(reported - on).days, claims_in_term=len(self.claims))
         for r in rules.decline:
             if evaluate(r.condition, ctx):

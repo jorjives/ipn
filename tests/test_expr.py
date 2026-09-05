@@ -62,3 +62,23 @@ class Expressions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Collections(unittest.TestCase):
+    bikes = [{"value": Decimal(2000), "age": 0}, {"value": Decimal(500), "age": 3}]
+
+    def test_count_and_aggregates(self):
+        self.assertEqual(ev("count of bikes", bikes=self.bikes), Decimal(2))
+        self.assertEqual(ev("total value of bikes", bikes=self.bikes), Decimal(2500))
+        self.assertEqual(ev("highest value of bikes", bikes=self.bikes), Decimal(2000))
+        self.assertEqual(ev("lowest value of bikes", bikes=self.bikes), Decimal(500))
+        self.assertEqual(ev("total value of bikes", bikes=[]), Decimal(0))
+
+    def test_any_and_every(self):
+        self.assertTrue(ev("any bike where age > 2", bike=self.bikes))
+        self.assertFalse(ev("every bike where age > 2", bike=self.bikes))
+        self.assertTrue(ev("every bike where value >= 500 and age <= 3", bike=self.bikes))
+
+    def test_not_a_collection(self):
+        with self.assertRaises(ExprError):
+            ev("count of bikes", bikes=3)
