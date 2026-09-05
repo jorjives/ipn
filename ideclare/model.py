@@ -134,7 +134,10 @@ class Lifecycle:
 class ClaimRule:
     cover: str
     requires: list[str] = field(default_factory=list)
-    pays: list[str] = field(default_factory=lambda: ["limit"])  # clauses in the order written: limit | excess
+    asks: dict[str, Input] = field(default_factory=dict)  # facts asked when the claim is made
+    pays: list[str] = field(default_factory=lambda: ["limit"])  # clauses in the order written: limit | excess | co-payment
+    pays_amount: tuple | None = None  # a fixed benefit instead of the amount claimed
+    co_payments: list["RatingStep"] = field(default_factory=list)  # amount is the percentage, condition optional
     decline: list[Rule] = field(default_factory=list)
     depreciation: list[FactorRow] = field(default_factory=list)
 

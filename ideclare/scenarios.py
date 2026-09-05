@@ -135,8 +135,19 @@ class Run:
         cover, amount = unquote(toks[1]), Decimal(toks[toks.index("for") + 1])
         item = self.item(toks)[1] if toks[2] == "on" else None
         reported = date.fromisoformat(toks[toks.index("reported") + 1]) if "reported" in toks else on
-        evidence = {t for t in toks[toks.index("with") + 1:] if t != ","} if "with" in toks else set()
-        self.last_claim = self.policy.claim(cover, amount, on, reported, evidence, item)
+        evidence, facts = set(), {}
+        asks = self.product.claims[cover].asks if cover in self.product.claims else {}
+        groups = [[]]
+        for t in toks[toks.index("with") + 1:] if "with" in toks else []:
+            groups.append([]) if t == "," else groups[-1].append(t)
+        for words in filter(None, groups):
+            if len(words) == 2 and words[0] in asks:
+                facts[words[0]] = given_value(Line(step.line, 0, ""), asks[words[0]], words[1])
+            elif len(words) == 1:
+                evidence.add(words[0])
+            else:
+                raise ValueError(f"expected an evidence word or 'fact value' after with, not {' '.join(words)!r}")
+        self.last_claim = self.policy.claim(cover, amount, on, reported, evidence, item, facts)
         self.last_amount = self.last_claim.amount
 
     def when_renewed(self, step, on, toks):

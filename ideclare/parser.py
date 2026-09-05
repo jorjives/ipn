@@ -60,7 +60,7 @@ def build_tree(text: str) -> list[Line]:
 # --- statement tokens -------------------------------------------------------
 
 DATE_TOKEN = re.compile(r'\d{4}-\d{2}-\d{2}')
-TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/]))')
+TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>co-payment|[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/]))')
 
 
 def tokens(line: Line) -> list[str]:
@@ -170,7 +170,7 @@ def parse_collection(line: Line, name: str, toks: list[str]) -> Input:
 # --- expressions and rules ---------------------------------------------------
 
 # Words an expression may use besides inputs, choices and cover names.
-CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term", "days_to_report"}
+CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term", "days_to_report", "days_since_inception", "months_since_inception"}
 
 
 def fold_phrases(toks: list[str]) -> list[str]:
@@ -183,6 +183,9 @@ def fold_phrases(toks: list[str]) -> list[str]:
         elif toks[i:i + 2] == ["reported", "after"] and toks[i + 3:i + 4] == ["days"]:
             out += ["days_to_report", ">", toks[i + 2]]
             i += 4
+        elif toks[i:i + 1] == ["within"] and toks[i + 2:i + 3] in (["days"], ["months"]) and toks[i + 3:i + 5] == ["of", "inception"]:
+            out += [f"{toks[i + 2]}_since_inception", "<", toks[i + 1]]
+            i += 5
         else:
             out.append(toks[i])
             i += 1
@@ -213,11 +216,11 @@ def expression(line: Line, toks: list[str], product: Product, stop: set[str] = f
     return node, rest
 
 
-def rule(line: Line, kind: str, toks: list[str], product: Product) -> Rule:
+def rule(line: Line, kind: str, toks: list[str], product: Product, extra: set[str] = frozenset()) -> Rule:
     """`<kind> when <condition> because "reason"`; toks start after <kind>."""
     if toks[:1] != ["when"]:
         raise line.error(f"expected '{kind} when ...'")
-    cond, rest = expression(line, toks[1:], product, stop={"because"})
+    cond, rest = expression(line, toks[1:], product, stop={"because"}, extra=extra)
     if len(rest) != 2 or rest[0] != "because" or not rest[1].startswith('"'):
         raise line.error('expected because "reason"')
     return Rule(kind, cond, unquote(rest[1]), line.number)
@@ -450,22 +453,44 @@ def parse_claims(line: Line, product: Product) -> None:
 
 def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
     rule_ = ClaimRule(name)
+    for child in line.children:  # facts first, so the other lines can use them
+        if tokens(child) == ["asks"]:
+            rule_.asks = parse_input_lines(child.children, nested=True)
+            for f in rule_.asks.values():
+                if f.kind in ("calculated", "collection") or f.name in known_words(product):
+                    raise child.error(f"{f.name!r} cannot be asked in a claim; it is already known or not a plain type")
+    facts = set(rule_.asks) | {c for f in rule_.asks.values() for c in f.choices}
     for child in line.children:
         toks = tokens(child)
+        if toks == ["asks"]:
+            continue
         if toks[:1] == ["requires"]:
             rule_.requires = [t for t in toks[1:] if t != ","]
         elif toks[:3] == ["pays", "claimed", "amount"]:
             rule_.pays = parse_pays(child, toks[3:])
+        elif toks[:1] == ["pays"]:
+            rule_.pays_amount, rest = expression(child, toks[1:], product, extra=facts)
+            rule_.pays = []
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif toks[:1] == ["co-payment"]:
+            step = RatingStep("co-payment", line=child.number)
+            step.amount, rest = expression(child, toks[1:], product, stop={"when"}, extra=facts)
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=facts)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+            rule_.co_payments.append(step)
         elif toks[:1] == ["decline"]:
-            rule_.decline.append(rule(child, "decline", toks[1:], product))
-        elif toks == ["depreciation"]:
-            rule_.depreciation = parse_factor(child, "depreciation", product).rows
+            rule_.decline.append(rule(child, "decline", toks[1:], product, extra=facts))
+        elif toks in (["depreciation"], ["settlement"]):
+            rule_.depreciation = parse_factor(child, toks[0], product, extra=facts).rows
         else:
             raise child.error(f"unknown claim setting {child.text!r}")
     return rule_
 
 
-PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess"}
+PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess", ("less", "co-payment"): "co-payment"}
 
 
 def parse_pays(line: Line, toks: list[str]) -> list[str]:
@@ -474,7 +499,7 @@ def parse_pays(line: Line, toks: list[str]) -> list[str]:
     while rest:
         hit = next((words for words in PAYS_CLAUSES if tuple(rest[:len(words)]) == words), None)
         if hit is None:
-            raise line.error(f"expected 'up to limit' or 'less excess', not {' '.join(rest)!r}")
+            raise line.error(f"expected 'up to limit', 'less excess' or 'less co-payment', not {' '.join(rest)!r}")
         clauses.append(PAYS_CLAUSES[hit])
         rest = rest[len(hit):]
     return clauses

@@ -262,3 +262,10 @@ class AggregateLimit(unittest.TestCase):
     def test_expect_remaining(self):
         p = parse('product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term\nrating\n  base 100\nclaims\n  claim Vet\n    pays claimed amount up to limit\nscenario "s"\n  given a 1\n  when bound on 2026-01-01\n  when claim Vet for 3000 on 2026-02-01\n  expect cover Vet remaining 4000\n  when claim Vet for 5000 on 2026-03-01\n  expect payout 4000\n  expect cover Vet remaining 0\n')
         self.assertEqual(run_all(p)[0].failures, [])
+
+
+class ClaimFacts(unittest.TestCase):
+    def test_with_mixes_evidence_and_facts(self):
+        from tests.test_parser import LIFE
+        p = parse(LIFE + 'rating\n  base 100\nscenario "s"\n  given sum_assured 100000, term_years 20, pet_age 3\n  when bound on 2026-01-01\n  when claim Death for 0 on 2026-06-01 with death_certificate, cause suicide\n  expect claim declined "Suicide in the first year"\n  when claim Death for 0 on 2028-06-01 with cause natural, death_certificate\n  expect payout 100000\n  when claim Vet for 1000 on 2026-06-01 with condition "sore paw"\n  expect payout 400\n')
+        self.assertEqual(run_all(p)[0].failures, [])

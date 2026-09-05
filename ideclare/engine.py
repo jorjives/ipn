@@ -378,7 +378,8 @@ class Policy:
         applicable = [m for count, m in self.product.claims_loading if len(self.claims) >= count]
         return applicable[-1] if applicable else Decimal(1)
 
-    def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None) -> "ClaimResult":
+    def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None, facts: dict | None = None) -> "ClaimResult":
+        facts = facts or {}
         rules = self.product.claims.get(cover)
         if rules is None:
             return ClaimResult("declined", reason=f"claims on {cover} are not declared")
@@ -394,15 +395,18 @@ class Policy:
             return ClaimResult("declined", reason=f"{cover} is not in force on {on.isoformat()}")
         if (on - self.first_inception).days < window.waiting_days:
             return ClaimResult("declined", reason=f"{cover} is within the {window.waiting_days} day waiting period")
-        for name in rules.requires:
+        for name in rules.requires + [f for f in rules.asks if f not in facts]:
             if name not in evidence:
                 return ClaimResult("declined", reason=f"{name} is required")
-        ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed,
-                      days_to_report=(reported - on).days, claims_in_term=len(self.claims))
+        since = on - self.first_inception
+        months = (on.year - self.first_inception.year) * 12 + on.month - self.first_inception.month - (on.day < self.first_inception.day)
+        ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed, **facts,
+                      days_to_report=(reported - on).days, claims_in_term=len(self.claims),
+                      days_since_inception=since.days, months_since_inception=months)
         for r in rules.decline:
             if evaluate(r.condition, ctx):
                 return ClaimResult("declined", reason=r.reason)
-        payout = claimed
+        payout = Decimal(evaluate(rules.pays_amount, ctx)) if rules.pays_amount is not None else claimed
         row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
         if row is not None:
             payout = apply_row(payout, row, ctx)
@@ -418,6 +422,10 @@ class Policy:
                 if excess.minimum is not None:
                     amount = max(amount, Decimal(evaluate(excess.minimum, ctx)))
                 payout -= amount
+            elif clause == "co-payment":
+                for cp in rules.co_payments:
+                    if cp.condition is None or evaluate(cp.condition, ctx):
+                        payout *= 1 - Decimal(evaluate(cp.amount, ctx))
         result = ClaimResult("paid", pence(max(Decimal(0), payout)), cover=cover)
         self.claims.append(result)
         return result

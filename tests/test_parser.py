@@ -534,3 +534,70 @@ class PaysClauses(unittest.TestCase):
     def test_unknown_clause_is_error(self):
         with self.assertRaises(ParseError):
             parse('product "X"\ninputs\n  a: money\ncover V\n  limit a\nclaims\n  claim V\n    pays claimed amount, less tax\n')
+
+
+LIFE = '''
+product "Life"
+  term term_years years
+
+inputs
+  sum_assured: money
+  term_years: integer
+  pet_age: integer
+
+cover Death
+  limit sum_assured
+
+cover Vet
+  limit 7000 per term
+  excess 100
+
+claims
+  claim Death
+    asks
+      cause: choice of natural, accident, suicide
+    requires death_certificate
+    pays sum_assured
+    decline when cause is suicide and within 12 months of inception because "Suicide in the first year"
+  claim Vet
+    asks
+      condition: text
+    co-payment 20% when pet_age >= 9
+    pays claimed amount, less excess, less co-payment, up to limit
+    settlement
+      otherwise: x 0.5
+'''
+
+
+class ClaimFacts(unittest.TestCase):
+    def test_asks_declares_claim_facts(self):
+        p = parse(LIFE)
+        self.assertEqual(p.claims["Death"].asks["cause"].choices, ["natural", "accident", "suicide"])
+        self.assertEqual(p.claims["Death"].requires, ["death_certificate"])
+
+    def test_within_months_of_inception_folds(self):
+        p = parse(LIFE)
+        cond = p.claims["Death"].decline[0].condition
+        self.assertEqual(cond, ("and", ("is", ("name", "cause"), ("name", "suicide")), ("<", ("name", "months_since_inception"), ("num", Decimal(12)))))
+
+    def test_fixed_benefit(self):
+        p = parse(LIFE)
+        self.assertEqual(p.claims["Death"].pays_amount, ("name", "sum_assured"))
+        self.assertIsNone(p.claims["Vet"].pays_amount)
+
+    def test_co_payment_and_settlement(self):
+        p = parse(LIFE)
+        vet = p.claims["Vet"]
+        self.assertEqual(vet.pays, ["excess", "co-payment", "limit"])
+        self.assertEqual(vet.co_payments[0].amount, ("pct", ("num", Decimal(20))))
+        self.assertEqual(vet.co_payments[0].condition, (">=", ("name", "pet_age"), ("num", Decimal(9))))
+        self.assertEqual(vet.depreciation[0].op, "x")
+
+    def test_claim_fact_usable_only_in_its_own_claim(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(LIFE.replace('    asks\n      condition: text\n', '    decline when cause is suicide because "x"\n'))
+        self.assertIn("cause", str(cm.exception))
+
+    def test_scenario_with_facts(self):
+        p = parse(LIFE + 'rating\n  base 100\nscenario "s"\n  given sum_assured 100000, term_years 20, pet_age 3\n  when bound on 2026-01-01\n  when claim Death for 0 on 2026-06-01 with death_certificate, cause suicide\n  expect claim declined "Suicide in the first year"\n')
+        self.assertEqual(p.scenarios[0].steps[1].tokens[-3:], ["death_certificate", ",", "cause", "suicide"][-3:])

@@ -535,3 +535,36 @@ class AggregateLimit(unittest.TestCase):
         self.claim(7000)
         self.pol.accept_renewal()
         self.assertEqual(self.pol.remaining("Vet"), Decimal(7000))
+
+
+class ClaimFacts(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import LIFE
+        self.p = parse(LIFE + 'rating\n  base 100\n')
+
+    def policy(self, pet_age=3):
+        pol = Policy(self.p, {"sum_assured": Decimal(100000), "term_years": Decimal(20), "pet_age": Decimal(pet_age)}, set())
+        pol.bind(date(2026, 1, 1))
+        return pol
+
+    def test_fixed_benefit_pays_the_sum_assured(self):
+        r = self.policy().claim("Death", Decimal(0), date(2027, 6, 1), date(2027, 6, 1), {"death_certificate"}, facts={"cause": "natural"})
+        self.assertEqual((r.status, r.amount), ("paid", Decimal(100000)))
+
+    def test_suicide_within_twelve_months_declined_after_not(self):
+        pol = self.policy()
+        r = pol.claim("Death", Decimal(0), date(2026, 12, 31), date(2026, 12, 31), {"death_certificate"}, facts={"cause": "suicide"})
+        self.assertEqual((r.status, r.reason), ("declined", "Suicide in the first year"))
+        r = pol.claim("Death", Decimal(0), date(2027, 1, 1), date(2027, 1, 1), {"death_certificate"}, facts={"cause": "suicide"})
+        self.assertEqual(r.status, "paid")
+
+    def test_missing_fact_is_required(self):
+        r = self.policy().claim("Death", Decimal(0), date(2027, 6, 1), date(2027, 6, 1), {"death_certificate"})
+        self.assertEqual((r.status, r.reason), ("declined", "cause is required"))
+
+    def test_co_payment_after_excess_before_limit(self):
+        # 1000 x 0.5 settlement = 500, less 100 excess = 400, less 20% = 320
+        r = self.policy(pet_age=10).claim("Vet", Decimal(1000), date(2026, 3, 1), date(2026, 3, 1), set(), facts={"condition": "ear"})
+        self.assertEqual(r.amount, Decimal(320))
+        r = self.policy(pet_age=3).claim("Vet", Decimal(1000), date(2026, 3, 1), date(2026, 3, 1), set(), facts={"condition": "ear"})
+        self.assertEqual(r.amount, Decimal(400))
