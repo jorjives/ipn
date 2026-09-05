@@ -198,3 +198,54 @@ scenario "wrong"
   expect payout 1500.00
 ''')
         self.assertIn("expected payout 1500.00, got 1350.00", res["wrong"][0])
+
+
+from tests.test_parser import FLEET
+
+
+def fleeted(extra):
+    return {r.scenario.name: r.failures for r in run_all(parse(FLEET + extra))}
+
+
+class CollectionSteps(unittest.TestCase):
+    def test_items_through_the_lifecycle(self):
+        res = fleeted('''
+scenario "fleet"
+  given rider_age 30
+  given bike value 2000, age 0, security gold
+  given bike value 3000, age 1, security bronze
+  expect eligible
+  expect cover Theft on bike 1 included
+  expect cover Theft on bike 1 limit 2000
+  expect cover Theft on bike 2 excluded "Better lock needed"
+  # bike 1: 60, bike 2: 90 x 0.90 = 81, total 141 x 0.95 = 133.95
+  expect net 133.95
+  when bound on 2026-01-01
+  when claim Theft on bike 1 for 1500 on 2026-02-01
+  expect payout 1350.00
+  when claim Theft on bike 2 for 1500 on 2026-02-01
+  expect claim declined "Theft is excluded: Better lock needed"
+  when adjusted on 2026-01-01 removing bike 2
+  expect net 60.00
+  when adjusted on 2026-01-01 adding bike value 1000, age 3, security silver
+  expect net 82.65
+  expect renewal offered
+''')
+        self.assertEqual(res["fleet"], [])
+
+    def test_too_few_items_is_declined(self):
+        res = fleeted('''
+scenario "empty"
+  given rider_age 30
+  expect declined "bikes: at least 1 required"
+''')
+        self.assertEqual(res["empty"], [])
+
+    def test_unknown_item_number(self):
+        res = fleeted('''
+scenario "bad"
+  given rider_age 30
+  given bike value 2000, age 0, security gold
+  expect cover Theft on bike 2 included
+''')
+        self.assertIn("no bike 2", res["bad"][0])

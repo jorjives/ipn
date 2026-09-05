@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from datetime import date
 from decimal import Decimal
 
 from . import engine
 from .model import Product, Scenario, Step
 from .parser import Line, given_value, unquote
+
+
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 @dataclass
@@ -40,9 +44,11 @@ class Run:
         self.last_claim: engine.ClaimResult | None = None
 
     def run(self) -> Result:
-        for inp in self.product.inputs.values():  # free text is informational only
-            if inp.kind == "text":
+        for inp in self.product.inputs.values():
+            if inp.kind == "text":  # free text is informational only
                 self.inputs.setdefault(inp.name, "")
+            elif inp.kind == "collection":  # bounds are checked by eligibility
+                self.inputs.setdefault(inp.name, [])
         missing = [n for n in self.product.inputs if n not in self.inputs]
         if missing:
             self.fail(self.scenario.line, f"given is missing {', '.join(missing)}")
@@ -68,7 +74,10 @@ class Run:
         handler = getattr(self, "when_" + toks[0], None)
         if handler is None:
             raise ValueError("unknown event")
-        on = date.fromisoformat(toks[toks.index("on") + 1])
+        dates = [t for t in toks if DATE.fullmatch(t)]
+        if not dates:
+            raise ValueError("every event needs 'on YYYY-MM-DD'")
+        on = date.fromisoformat(dates[0])
         self.last_date = on
         handler(step, on, toks)
 
@@ -81,19 +90,53 @@ class Run:
     def when_cancelled(self, step, on, toks):
         self.last_amount = self.policy.cancel(on, toks[toks.index("by") + 1])
 
+    def item(self, toks: list[str]) -> tuple[str, dict]:
+        """`... on bike 2 ...` -> (collection name, that item)."""
+        singular = toks[toks.index("on") + 1]
+        coll = self.product.collection_for(singular)
+        if coll is None:
+            raise ValueError(f"{singular!r} is not an item")
+        number = int(toks[toks.index("on") + 2])
+        items = self.policy.inputs[coll.name]
+        if not 1 <= number <= len(items):
+            raise ValueError(f"there is no {singular} {number}; the policy has {len(items)}")
+        return coll.name, items[number - 1]
+
     def when_adjusted(self, step, on, toks):
-        pairs = [t for t in toks[toks.index("with") + 1:] if t != ","]
+        # adjusted on DATE with a 1, b 2 | adding <item> a 1, b 2 | removing <item> N
+        line = Line(step.line, 0, "")
+        how = next((t for t in toks if t in ("with", "adding", "removing")), None)
+        if how is None:
+            raise ValueError("expected 'with ...', 'adding <item> ...' or 'removing <item> N'")
+        rest = toks[toks.index(how) + 1:]
         changes = {}
-        for name, value in zip(pairs[::2], pairs[1::2]):
-            changes[name] = given_value(Line(step.line, 0, ""), self.product.inputs[name], value)
+        if how == "with":
+            pairs = [t for t in rest if t != ","]
+            for name, value in zip(pairs[::2], pairs[1::2]):
+                changes[name] = given_value(line, self.product.inputs[name], value)
+        else:
+            coll = self.product.collection_for(rest[0])
+            if coll is None:
+                raise ValueError(f"{rest[0]!r} is not an item")
+            items = self.policy.inputs[coll.name]
+            if how == "adding":
+                pairs = [t for t in rest[1:] if t != ","]
+                item = {name: given_value(line, coll.fields[name], value) for name, value in zip(pairs[::2], pairs[1::2])}
+                changes[coll.name] = items + [item]
+            else:
+                number = int(rest[1])
+                if not 1 <= number <= len(items):
+                    raise ValueError(f"there is no {rest[0]} {number}; the policy has {len(items)}")
+                changes[coll.name] = items[:number - 1] + items[number:]
         self.last_amount = self.policy.adjust(on, changes)
 
     def when_claim(self, step, on, toks):
-        # claim <Cover> for <amount> on <date> [reported <date>] [with a, b]
+        # claim <Cover> [on <item> N] for <amount> on <date> [reported <date>] [with a, b]
         cover, amount = unquote(toks[1]), Decimal(toks[toks.index("for") + 1])
+        item = self.item(toks)[1] if toks[2] == "on" else None
         reported = date.fromisoformat(toks[toks.index("reported") + 1]) if "reported" in toks else on
         evidence = {t for t in toks[toks.index("with") + 1:] if t != ","} if "with" in toks else set()
-        self.last_claim = self.policy.claim(cover, amount, on, reported, evidence)
+        self.last_claim = self.policy.claim(cover, amount, on, reported, evidence, item)
         self.last_amount = self.last_claim.amount
 
     def when_renewed(self, step, on, toks):
@@ -131,7 +174,10 @@ class Run:
 
     def expect_cover(self, step, rest):
         name = unquote(rest[0])
-        state = next(s for s in engine.cover_states(self.product, self.inputs, self.selected) if s.name == name)
+        item = None
+        if rest[1:2] == ["on"]:
+            item, rest = self.item(rest)[1], rest[:1] + rest[4:]
+        state = engine.cover_state(self.product, self.product.cover(name), self.policy.inputs, self.selected, item)
         if rest[1] == "limit":
             self.check(step, f"{name} limit", Decimal(rest[2]), state.limit)
             return
