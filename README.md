@@ -13,5 +13,6 @@ python3 -m ideclare quote examples/cycle.idl bike_value=2000 rider_age=22 securi
 - `docs/reference.md`: the language, block by block.
 - `examples/cycle.idl`: a complete product with scenarios covering every language feature.
 - `examples/family.idl`: several bikes on one policy, showing repeatable items.
+- `examples/multibike.idl`: bikes rated in a chosen order, the first at full rate and the rest at half.
 - `ideclare/`: the sidecar engine. Python 3.12, standard library only.
 - `python3 -m unittest`: the engine's own tests.

@@ -16,8 +16,9 @@ what the engine actually produced. You can also price a single risk from the ter
 python3 -m ideclare quote my-product.idl bike_value=2000 rider_age=22 security=gold racing=yes previous_claims=0 select=Racing
 ```
 
-See `examples/cycle.idl` for a complete single-bike product and `examples/family.idl` for a
-policy covering several bikes.
+See `examples/cycle.idl` for a complete single-bike product, `examples/family.idl` for a
+policy covering several bikes and `examples/multibike.idl` for a fleet where the first bike
+takes the full rate.
 
 ## Writing conventions
 
@@ -70,7 +71,7 @@ What you ask at quote. Each line is `name: type`.
 | `integer` | a whole number |
 | `yes/no` | `yes` or `no` |
 | `choice of a, b, c` | exactly one of the listed words |
-| `text` | free text, never used in rules; scenarios may leave it out |
+| `text` | free text; compare it to a quoted value, `make is "Brompton"`; scenarios may leave it out |
 | `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
 
 #### Repeatable items
@@ -174,6 +175,24 @@ rating
 
 `tax`, `fee` and `round` belong outside the block. The quote trail shows each item's steps
 as `bike 1 base`, `bike 1 Bike age` and so on.
+
+To rate items in a chosen order, add `ordered by` with one or more keys. Each key is a field
+or an expression, ascending unless followed by `descending`; later keys break ties and items
+that still tie keep the order they were given. Inside the block `position` is the item's
+place in that order, starting at 1, so the first bike can take the full rate and the rest a
+share of theirs:
+
+```
+rating
+  for each bike, ordered by ebike descending, value descending
+    base 4% of value
+    factor "Position"
+      position is 1: x 1.00
+      otherwise: x 0.50
+```
+
+The ordering only decides the position. Items keep their given numbers in the trail and in
+claims, so `bike 2` always means the second bike declared.
 
 | Step | Effect on the net premium |
 |---|---|
