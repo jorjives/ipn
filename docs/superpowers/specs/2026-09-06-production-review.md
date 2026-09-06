@@ -76,8 +76,17 @@ the file in force when it is offered.
 
 ## Outcome
 
-Everything in the three tables shipped, one commit per item, tests first. The suite went
-from 236 to 285 tests; the 13 example products all pass their scenarios (219 in total).
+Everything in the three tables shipped, one commit per item, tests first; then the
+re-scoped items below them. The suite went from 236 to 316 tests; the 15 example products
+all pass their scenarios (240 in total).
+
+The re-scoping delivered: an aggregate excess (`excess X per term`, van), input defaults
+(motor), underwriter terms on a referral and a refusal to bind declined or unaccepted
+risks (home, leasing; two scenarios that had bound ineligible risks were corrected), a
+benefit paid month by month past the term (income), reinstatement of an eroded aggregate
+(PI), and a conditional cap in the pays clauses for sub-limits (travel). Run-off and a
+buildings-and-contents bundle needed no new language and are proved by `runoff.idl` and
+`household.idl`.
 
 What each example now proves beyond its original brief:
 
