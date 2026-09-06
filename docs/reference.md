@@ -366,7 +366,6 @@ rating
   maximum 800
   tax IPT 12%
   fee "Admin fee" 10
-  round to 0.01
 ```
 
 Steps run top to bottom, so the order you write is the order of calculation.
@@ -453,7 +452,7 @@ inputs
 | `tax Name N%` | adds a tax line of N% of the rounded net |
 | `fee "Label" <amount>` | adds a flat fee line |
 | `commission "Label" N%` | reports N% of the rounded net as owed to that intermediary; never added to the premium |
-| `round to 0.01` | rounding unit for every figure, half up (default 0.01) |
+| `round to 0.01` | rounding unit for every figure, half up; without it, the smallest unit of the currency (0.01 for GBP or EUR, 1 for JPY, 0.001 for KWD) |
 
 A product with no tax simply has no `tax` line (life premiums, for example).
 
