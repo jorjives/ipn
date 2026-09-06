@@ -242,6 +242,16 @@ class ImposedTerms(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.pol.adjust(date(2026, 7, 1), {"rider_age": Decimal(40)})
 
+    def test_terms_are_not_imposed_when_the_unless_condition_holds(self):
+        src = CLAIMS.replace("  after 2 claims in term: renewal load x 1.25\n",
+                             "  after 1 claim in term unless Racing selected\n    adjustment: not allowed\n  after 2 claims in term: renewal load x 1.25 unless Racing selected\n")
+        pol = Policy(parse(src), risk(racing=True), {"Racing"})
+        pol.bind(date(2026, 1, 1))
+        for _ in range(2):
+            pol.claim("Theft", Decimal(1500), date(2026, 3, 1), date(2026, 3, 1), {"police_report", "crime_reference"})
+        pol.adjust(date(2026, 7, 1), {"rider_age": Decimal(40)})  # still allowed
+        self.assertEqual(pol.claims_loading(), Decimal(1))
+
     def test_declined_claim_imposes_nothing(self):
         self.pol.claim("Theft", Decimal(1500), date(2026, 3, 1), date(2026, 3, 1), set())
         self.assertGreater(self.pol.cancel(date(2026, 7, 1), "customer"), 0)

@@ -529,18 +529,31 @@ def parse_claims(line: Line, product: Product) -> None:
             if product.cover(name) is None:
                 raise child.error(f"unknown cover {name!r}")
             product.claims[name] = parse_claim(child, name, product)
-        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:9] == ["in", "term", ":", "renewal", "load", "x"] and len(toks) == 10:
-            product.claims_loading.append((int(toks[1]), Decimal(toks[9])))
-        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:] == ["in", "term"] and child.children:
+        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:9] == ["in", "term", ":", "renewal", "load", "x"] and len(toks) >= 10:
+            product.claims_loading.append((int(toks[1]), Decimal(toks[9]), parse_unless(child, toks[10:], product)))
+        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:5] == ["in", "term"] and child.children:
             # Terms imposed once that many claims have been paid: lifecycle lines that override the product's own.
+            unless = parse_unless(child, toks[5:], product)
             original, product.lifecycle = product.lifecycle, copy.deepcopy(product.lifecycle)
             try:
                 parse_lifecycle(child, product)
-                product.claims_terms.append((int(toks[1]), product.lifecycle))
+                product.claims_terms.append((int(toks[1]), product.lifecycle, unless))
             finally:
                 product.lifecycle = original
         else:
-            raise child.error("expected 'claim Cover', 'after N claims in term: renewal load x M' or 'after N claims in term' with lifecycle lines below")
+            raise child.error("expected 'claim Cover', 'after N claims in term: renewal load x M [unless ...]' or 'after N claims in term [unless ...]' with lifecycle lines below")
+
+
+def parse_unless(line: Line, toks: list[str], product: Product) -> tuple | None:
+    """An optional `unless <condition>`: the line does not apply when the condition holds."""
+    if not toks:
+        return None
+    if toks[0] != "unless":
+        raise line.error(f"unexpected {' '.join(toks)!r}; use 'unless <condition>'")
+    cond, rest = expression(line, toks[1:], product)
+    if rest:
+        raise line.error(f"unexpected {' '.join(rest)!r}")
+    return cond
 
 
 def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:

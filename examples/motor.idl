@@ -56,6 +56,9 @@ cover Windscreen
 cover "Courtesy Car" optional
   limit 500
 
+cover "Protected NCD" optional
+  available when ncd_years >= 4
+
 rating
   base 400
   factor "Vehicle group"
@@ -92,6 +95,7 @@ rating
     ncd_years is 1: x 0.70
     otherwise: x 1.00
   add "Courtesy car" 30 when "Courtesy Car" selected
+  add "Protected NCD" 40 when "Protected NCD" selected
   minimum 100
   tax IPT 12%
   fee "Arrangement fee" 25
@@ -124,11 +128,12 @@ claims
   claim Windscreen
     pays claimed amount up to limit, less excess
     does not count towards claims in term
-  # The industry step-back: two years for the first fault claim, a further two for the second.
-  after 1 claim in term
+  # The industry step-back: two years for the first fault claim, a further two for the second,
+  # unless the customer bought protection.
+  after 1 claim in term unless "Protected NCD" selected
     renewal
       index ncd_years by -2, at least 0
-  after 2 claims in term
+  after 2 claims in term unless "Protected NCD" selected
     renewal
       index ncd_years by -4, at least 0
 
@@ -256,6 +261,24 @@ scenario "Glass and non-fault claims are paid but leave the discount alone"
   expect payout 5000.00
   expect claims in term 0
   expect renewal premium 169.26
+
+scenario "Protected no claims discount switches the step-back off"
+  given registration "AB12 CDE", vehicle_group 15, vehicle_value 12000, annual_mileage 8000, ncd_years 5, voluntary_excess 250, cover_type comprehensive
+  given driver age 35, licence_years 15, convictions 0
+  select "Protected NCD"
+  when bound on 2026-01-01
+  # 128.80 + 40 = 168.80, IPT 20.26, fee 25
+  expect premium 214.06
+  when claim "Accidental Damage" for 3000 on 2026-03-01 with driver_age 35, fault yes
+  expect claims in term 1
+  # five years become six, the factor stays at 0.35 and the price stands
+  expect renewal premium 214.06
+
+scenario "Protection is only offered once the discount is worth protecting"
+  given registration "AB12 CDE", vehicle_group 15, vehicle_value 12000, annual_mileage 8000, ncd_years 2, voluntary_excess 250, cover_type comprehensive
+  given driver age 35, licence_years 15, convictions 0
+  select "Protected NCD"
+  expect cover "Protected NCD" "not available"
 
 scenario "The discount never goes below nothing"
   given registration "AB12 CDE", vehicle_group 15, vehicle_value 12000, annual_mileage 8000, ncd_years 1, voluntary_excess 250, cover_type comprehensive

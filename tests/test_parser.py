@@ -271,8 +271,8 @@ class Claims(unittest.TestCase):
         src = CLAIMS.replace("  after 2 claims in term: renewal load x 1.25\n",
                              "  after 1 claim in term\n    cancellation by customer: no refund\n    adjustment: not allowed\n  after 2 claims in term: renewal load x 1.25\n")
         p = parse(src)
-        (count, terms), = p.claims_terms
-        self.assertEqual(count, 1)
+        (count, terms, unless), = p.claims_terms
+        self.assertEqual((count, unless), (1, None))
         self.assertEqual((terms.cancellation["customer"].refund, terms.adjustment_allowed), ("none", False))
         # only the stated settings change; the product's own lifecycle is untouched
         self.assertEqual(terms.cooling_off_days, p.lifecycle.cooling_off_days)
@@ -281,7 +281,14 @@ class Claims(unittest.TestCase):
 
     def test_claims_loading(self):
         p = parse(CLAIMS)
-        self.assertEqual(p.claims_loading, [(2, Decimal("1.25")), (3, Decimal("1.50"))])
+        self.assertEqual(p.claims_loading, [(2, Decimal("1.25"), None), (3, Decimal("1.50"), None)])
+
+    def test_unless_on_imposed_terms_and_loading(self):
+        src = CLAIMS.replace("  after 2 claims in term: renewal load x 1.25\n",
+                             '  after 1 claim in term unless Racing selected\n    adjustment: not allowed\n  after 2 claims in term: renewal load x 1.25 unless security is gold\n')
+        p = parse(src)
+        self.assertEqual(p.claims_terms[0][2], ("selected", ("name", "Racing")))
+        self.assertEqual(p.claims_loading[0], (2, Decimal("1.25"), ("is", ("name", "security"), ("name", "gold"))))
 
     def test_claim_on_unknown_cover(self):
         with self.assertRaises(ParseError):
@@ -677,7 +684,7 @@ class MotorFeatures(unittest.TestCase):
     def test_index_bounds_and_negative(self):
         p = parse(MOTOR)
         self.assertEqual(p.lifecycle.renewal_index[0], ("ncd_years", "+", ("num", Decimal(1)), None, Decimal(9)))
-        imposed = p.claims_terms[0][1]
+        imposed = p.claims_terms[0][1]  # (count, terms, unless)
         self.assertEqual(imposed.renewal_index, [("ncd_years", "+", ("neg", ("num", Decimal(2))), Decimal(0), None)])
 
     def test_counting(self):
@@ -689,7 +696,7 @@ class MotorFeatures(unittest.TestCase):
 class ClaimsLoadingSingular(unittest.TestCase):
     def test_after_one_claim_singular(self):
         p = parse('product "X"\ninputs\n  a: money\ncover V\n  limit a\nclaims\n  claim V\n    pays claimed amount\n  after 1 claim in term: renewal load x 1.30\n')
-        self.assertEqual(p.claims_loading, [(1, Decimal("1.30"))])
+        self.assertEqual(p.claims_loading, [(1, Decimal("1.30"), None)])
 
 
 class FixedBenefitWithClauses(unittest.TestCase):

@@ -301,8 +301,12 @@ class Policy:
     @property
     def terms(self) -> "Lifecycle":
         """The lifecycle in force: the product's own, or the last set of terms imposed by paid claims."""
-        imposed = [terms for count, terms in self.product.claims_terms if self.claims_in_term >= count]
+        imposed = [terms for count, terms, unless in self.product.claims_terms if self.claims_in_term >= count and not self.unless(unless)]
         return imposed[-1] if imposed else self.product.lifecycle
+
+    def unless(self, condition: tuple | None) -> bool:
+        """Whether an 'unless' condition switches a claims consequence off for this policy."""
+        return condition is not None and bool(evaluate(condition, context(self.product, self.inputs, self.selected)))
 
     def status(self, on: date) -> str:
         lc = self.terms
@@ -414,7 +418,7 @@ class Policy:
         return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover), Decimal(0)))
 
     def claims_loading(self) -> Decimal:
-        applicable = [m for count, m in self.product.claims_loading if self.claims_in_term >= count]
+        applicable = [m for count, m, unless in self.product.claims_loading if self.claims_in_term >= count and not self.unless(unless)]
         return applicable[-1] if applicable else Decimal(1)
 
     def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None, facts: dict | None = None) -> "ClaimResult":
