@@ -478,8 +478,10 @@ def parse_lifecycle(line: Line, product: Product) -> None:
     for child in line.children:
         toks = tokens(child)
         words = " ".join(toks)
-        if toks[:2] == ["cooling", "off"] and toks[3:] == ["days", ",", "full", "refund"]:
-            lc.cooling_off_days = int(toks[2])
+        if toks[:2] == ["cooling", "off"]:
+            lc.cooling_off, rest = expression(child, toks[2:], product, stop={","})
+            if rest != ["days", ",", "full", "refund"]:
+                raise child.error("expected 'cooling off <days> days, full refund'")
         elif toks[:2] == ["cancellation", "by"] and toks[2] in ("customer", "insurer") and toks[3] == ":":
             lc.cancellation[toks[2]] = parse_cancellation(child, toks[4:], product)
         elif toks[:2] == ["adjustment", ":"]:

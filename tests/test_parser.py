@@ -331,9 +331,16 @@ lifecycle
 
 
 class Lifecycle(unittest.TestCase):
+    def test_cooling_off_is_an_expression(self):
+        src = LIFECYCLE.replace("cooling off 14 days", "cooling off days from \"Cooling\" days")
+        src = src.replace("lifecycle\n", 'table "Cooling" keyed on security\n  security, days\n  gold, 30\n  *, 14\nlifecycle\n')
+        self.assertEqual(parse(src).lifecycle.cooling_off, ("lookup", "days", "Cooling"))
+        with self.assertRaises(ParseError):
+            parse(LIFECYCLE.replace("cooling off 14 days", "cooling off banana days"))
+
     def test_lifecycle_block(self):
         lc = parse(LIFECYCLE).lifecycle
-        self.assertEqual(lc.cooling_off_days, 14)
+        self.assertEqual(lc.cooling_off, ("num", Decimal(14)))
         self.assertEqual(lc.cancellation["customer"].refund, "pro rata")
         self.assertEqual(lc.cancellation["customer"].fee, Decimal(25))
         self.assertEqual(lc.cancellation["insurer"].fee, Decimal(0))
@@ -414,7 +421,7 @@ class Claims(unittest.TestCase):
         self.assertEqual((count, unless), (1, None))
         self.assertEqual((terms.cancellation["customer"].refund, terms.adjustment_allowed), ("none", False))
         # only the stated settings change; the product's own lifecycle is untouched
-        self.assertEqual(terms.cooling_off_days, p.lifecycle.cooling_off_days)
+        self.assertEqual(terms.cooling_off, p.lifecycle.cooling_off)
         self.assertNotEqual(p.lifecycle.cancellation["customer"].refund, "none")
         self.assertTrue(p.lifecycle.adjustment_allowed)
 

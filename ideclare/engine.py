@@ -403,7 +403,7 @@ class Policy:
         if terms is None:
             raise ValueError(f"cancellation by {by} is not declared in the lifecycle")
         self.cancelled_on = on
-        if (on - self.inception).days < lc.cooling_off_days:
+        if (on - self.inception).days < evaluate(lc.cooling_off, context(self.product, self.inputs, self.selected)):
             return pence(self.premium)
         if terms.refund == "full":
             refund = self.refundable

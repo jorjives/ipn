@@ -163,6 +163,13 @@ class PolicyLifecycle(unittest.TestCase):
         self.assertEqual(pol.status(date(2026, 1, 10)), "cancelled")
         self.assertEqual(pol.status(date(2026, 1, 5)), "live")
 
+    def test_cooling_off_from_a_table(self):
+        table = 'table "Cooling" keyed on security\n  security, days\n  gold, 30\n  *, 14\n'
+        src = LIFECYCLE.replace("lifecycle\n", table + "lifecycle\n").replace("cooling off 14 days", 'cooling off days from "Cooling" days')
+        pol = Policy(parse(src), risk(), set())
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.cancel(date(2026, 1, 25), "customer"), Decimal("77.20"))  # gold: 30 days
+
     def test_pro_rata_cancellation_less_fee(self):
         pol = self.policy
         pol.bind(date(2026, 1, 1))  # 365 day term

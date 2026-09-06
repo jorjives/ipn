@@ -142,7 +142,7 @@ class Cancellation:
 
 @dataclass
 class Lifecycle:
-    cooling_off_days: int = 0
+    cooling_off: tuple = ("num", Decimal(0))  # days, an expression evaluated against the risk
     cancellation: dict[str, Cancellation] = field(default_factory=dict)  # by customer | insurer
     adjustment_allowed: bool = True
     adjustment_fee: Decimal = Decimal(0)
