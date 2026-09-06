@@ -287,6 +287,9 @@ class Run:
             return
         self.check(step, "net", money(Decimal(rest[0])), money(self.quote().net))
 
+    def expect_currency(self, step, rest):
+        self.check(step, "currency", rest[0], self.quote().currency)
+
     def expect_tax(self, step, rest):
         self._line(step, "tax", rest)
 

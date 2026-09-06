@@ -76,6 +76,15 @@ class RatingEngine(unittest.TestCase):
     def setUp(self):
         self.p = parse(RATING)
 
+    def test_currency_is_a_fact_of_the_territory(self):
+        p = parse('product "X"\n  territory DE, CH\ninputs\n  v: money\nrating\n  base v\n')
+        self.assertEqual(rate(p, {"v": Decimal(1), "territory": "CH"}, set()).currency, "CHF")
+        self.assertEqual(rate(p, {"v": Decimal(1), "territory": "DE"}, set()).currency, "EUR")
+
+    def test_currency_line_overrides_the_territory(self):
+        p = parse('product "X"\n  territory CH\n  currency EUR\ninputs\n  v: money\nrating\n  base v\n')
+        self.assertEqual(rate(p, {"v": Decimal(1), "territory": "CH"}, set()).currency, "EUR")
+
     def test_full_breakdown(self):
         # base 70, age 30 -> x1.00, gold -> -10 = 60, no racing, discount 10% -> 54, no load, minimum 60 -> 60
         q = rate(self.p, risk(), set())

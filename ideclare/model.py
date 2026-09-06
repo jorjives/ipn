@@ -7,6 +7,14 @@ from decimal import Decimal
 from .tables import Table  # noqa: F401  (re-exported: a Product holds its tables)
 
 
+# The currency each territory quotes in: a fact, not a product setting. A product sold
+# somewhere not listed, or priced in another currency, says so with a `currency` line.
+EURO = "AT BE BG CY DE EE ES FI FR GR HR IE IT LT LU LV MC MT NL PT SI SK".split()
+CURRENCY = {**dict.fromkeys(EURO, "EUR"), "UK": "GBP", "GB": "GBP", "CH": "CHF", "LI": "CHF", "DK": "DKK", "NO": "NOK",
+            "SE": "SEK", "IS": "ISK", "PL": "PLN", "CZ": "CZK", "HU": "HUF", "RO": "RON", "US": "USD", "CA": "CAD",
+            "AU": "AUD", "NZ": "NZD", "JP": "JPY"}
+
+
 @dataclass
 class Input:
     name: str
@@ -42,6 +50,9 @@ class Product:
     tables: dict[str, "Table"] = field(default_factory=dict)
     base: str = field(default=".", repr=False)  # directory that table files are read from
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
+
+    def currency_for(self, territory: str) -> str:
+        return self.currency or CURRENCY.get(territory, "")
 
     def cover(self, name: str) -> "Cover | None":
         return next((c for c in self.covers if c.name == name), None)

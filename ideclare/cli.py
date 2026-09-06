@@ -81,7 +81,7 @@ def quote(path: str, args: list[str]) -> int:
     print(f"  {'net':<20} {'':>10}  = {q.net:.2f}")
     for label, amount in q.lines:
         print(f"  {label:<20} {'':>10}  + {amount:.2f}")
-    print(f"  {'total':<20} {'':>10}  = {q.total:.2f} {product.currency}")
+    print(f"  {'total':<20} {'':>10}  = {q.total:.2f} {q.currency}")
     for label, amount in q.commission:
         print(f"  of which {label} commission {amount:.2f}")
     lc = product.lifecycle
@@ -109,9 +109,9 @@ def batch(path: str, risks: str, out=None) -> int:
             return 2
         lines = [s.label for s in product.rating if s.kind in ("tax", "fee")]
         commission = [s.label for s in product.rating if s.kind == "commission"]
-        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", *commission, "error"])
+        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "currency", *commission, "error"])
         for n, record in enumerate(reader, start=1):
-            blank = [""] * (len(lines) + len(commission) + 4)
+            blank = [""] * (len(lines) + len(commission) + 5)
             try:
                 inputs, selected = risk_inputs(product, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()], Line(n, 0, f"row {n}"))
                 missing = missing_inputs(product, inputs)
@@ -123,7 +123,7 @@ def batch(path: str, risks: str, out=None) -> int:
                 writer.writerow([n, *blank, str(err).removeprefix(f"line {n}: ")])
                 continue
             by_label, split = dict(q.lines), dict(q.commission)
-            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:.2f}", *(f"{by_label.get(l, 0):.2f}" for l in lines), f"{q.total:.2f}",
+            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:.2f}", *(f"{by_label.get(l, 0):.2f}" for l in lines), f"{q.total:.2f}", q.currency,
                              *(f"{split.get(l, 0):.2f}" for l in commission), ""])
     return 0
 

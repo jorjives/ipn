@@ -71,18 +71,18 @@ class BatchCommand(unittest.TestCase):
     def test_one_row_per_risk_with_the_premium_breakdown(self):
         code, rows = self.batch("bike_value,rider_age,security,racing,select\n2000,22,gold,no,\n2000,30,gold,yes,Racing\n")
         self.assertEqual(code, 0)
-        self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "error"])
+        self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "currency", "error"])
         # 3.5% of 2000 = 70, x 1.40 = 98, - 10 gold = 88, less 10% = 79.20; IPT 9.50, fee 10
-        self.assertEqual(rows[1], ["1", "eligible", "", "79.20", "9.50", "10.00", "98.70", ""])
+        self.assertEqual(rows[1], ["1", "eligible", "", "79.20", "9.50", "10.00", "98.70", "GBP", ""])
         # 70 x 1.00 = 70, - 10 = 60, + 45 racing = 105, less 10% = 94.50; IPT 11.34
-        self.assertEqual(rows[2], ["2", "eligible", "", "94.50", "11.34", "10.00", "115.84", ""])
+        self.assertEqual(rows[2], ["2", "eligible", "", "94.50", "11.34", "10.00", "115.84", "GBP", ""])
 
     def test_commission_has_its_own_column(self):
         with open(os.path.join(self.d.name, "cycle.idl"), "a") as f:
             f.write('  commission "Broker" 15%\n')
         code, rows = self.batch("bike_value,rider_age,security,racing\n2000,22,gold,no\n")
-        self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "Broker", "error"])
-        self.assertEqual(rows[1][3:8], ["79.20", "9.50", "10.00", "98.70", "11.88"])
+        self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "currency", "Broker", "error"])
+        self.assertEqual(rows[1][3:9], ["79.20", "9.50", "10.00", "98.70", "GBP", "11.88"])
 
     def test_declined_and_referred_risks_are_priced_and_say_why(self):
         code, rows = self.batch("bike_value,rider_age,security,racing\n12000,15,gold,no\n")
@@ -93,7 +93,7 @@ class BatchCommand(unittest.TestCase):
         code, rows = self.batch("bike_value,rider_age,security,racing\n2000,22,gold,no\n2000,,gold,no\n2000,22,gold,no\n")
         self.assertEqual(code, 0)
         self.assertEqual([r[0] for r in rows[1:]], ["1", "2", "3"])
-        self.assertEqual(rows[2][1:], ["", "", "", "", "", "", "missing rider_age"])
+        self.assertEqual(rows[2][1:], ["", "", "", "", "", "", "", "missing rider_age"])
 
     def test_unknown_column_is_an_error_before_any_row_runs(self):
         code, rows = self.batch("bike_value,rider_age,security,racing,colour\n2000,22,gold,no,red\n")

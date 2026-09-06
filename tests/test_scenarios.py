@@ -92,6 +92,18 @@ scenario "priced"
 ''')
         self.assertEqual(res["priced"], [])
 
+    def test_currency(self):
+        res = rated('''
+scenario "in pounds"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  expect currency GBP
+scenario "not in euros"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  expect currency EUR
+''')
+        self.assertEqual(res["in pounds"], [])
+        self.assertIn("GBP", res["not in euros"][0])
+
     def test_commission_line(self):
         res = {r.scenario.name: r.failures for r in run_all(parse(RATING + '  commission "Broker" 15%\n' + '''
 scenario "split"

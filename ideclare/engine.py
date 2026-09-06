@@ -133,6 +133,7 @@ class Quote:
     earning: Decimal  # net plus taxes: the part that earns over the term and is refundable pro rata
     trail: list[Trail] = field(default_factory=list)
     commission: list[tuple[str, Decimal]] = field(default_factory=list)  # shares of the net owed to intermediaries; reported, never added
+    currency: str = ""
 
 
 def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lines: list, prefix: str = "") -> tuple[Decimal, Decimal]:
@@ -206,7 +207,7 @@ def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = 
     taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
     fees = sum((a for kind, _, a in lines if kind == "fee"), Decimal(0))
     return Quote(net, [(label, a) for kind, label, a in lines if kind != "commission"], net + taxes + fees, net + taxes, trail,
-                 [(label, a) for kind, label, a in lines if kind == "commission"])
+                 [(label, a) for kind, label, a in lines if kind == "commission"], product.currency_for(ctx.get("territory", "")))
 
 
 # --- lifecycle --------------------------------------------------------------

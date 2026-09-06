@@ -40,6 +40,12 @@ class HeaderAndInputs(unittest.TestCase):
         self.assertEqual(p.inputs["territory"].choices, ["DE", "FR", "CH"])
         self.assertIsNone(p.inputs["territory"].default)
 
+    def test_unknown_territory_must_say_its_currency(self):
+        with self.assertRaises(ParseError) as cm:
+            parse('product "X"\n  territory XX\n')
+        self.assertIn("currency", str(cm.exception))
+        self.assertEqual(parse('product "X"\n  territory XX\n  currency XXD\n').currency, "XXD")
+
     def test_territory_needs_at_least_one(self):
         with self.assertRaises(ParseError):
             parse('product "X"\n  territory\n')

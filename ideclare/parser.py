@@ -102,6 +102,9 @@ def parse_product_header(line: Line, product: Product) -> None:
             product.term = (parse_expr([toks[2]])[0], "until")
         else:
             raise child.error(f"unknown product setting {child.text!r}")
+    unknown = [t for t in product.territories if not product.currency_for(t)]
+    if unknown:
+        raise line.error(f"no known currency for territory {unknown[0]}; add a 'currency' line")
 
 
 def parse_inputs(line: Line, product: Product) -> None:
