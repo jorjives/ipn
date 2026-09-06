@@ -594,9 +594,7 @@ Expectations:
 
 ## Not yet supported
 
-Multi-currency, more than one product per
-file, new-for-old versus indemnity as a named settlement basis (use a depreciation table),
-protected no claims discount as an add-on
-that switches off the step-back, run-off cover after a claims-made policy ends, a benefit
-that continues to be paid across policy years. The `quote` command takes scalar inputs only; price a
-policy with items through a scenario. Each is a small addition to the engine; say which you need.
+Multi-currency, more than one product per file, new-for-old versus indemnity as a named
+settlement basis (use a depreciation table), run-off cover after a claims-made policy
+ends, a benefit that continues to be paid across policy years. Each is a small addition
+to the engine; say which you need.
