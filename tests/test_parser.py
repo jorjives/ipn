@@ -737,6 +737,16 @@ class Tables(unittest.TestCase):
         with self.assertRaisesRegex(ParseError, "line 14: unknown input 'postcode'"):
             parse(HEADER + '\ntable "Rates" keyed on postcode\n  postcode, rate\n  M1, 1\n')
 
+    def test_cells_are_checked_against_the_key_input(self):
+        with self.assertRaisesRegex(ParseError, "line 14: Rates row 3: 'glod' is not one of bronze, silver, gold"):
+            parse(HEADER + '\ntable "Rates" keyed on rider_age, security\n  rider_age, security, rate\n  17-24, gold, 1\n  25+, glod, 2\n')
+        with self.assertRaisesRegex(ParseError, "line 14: Rates row 2: 'young' is not a number"):
+            parse(HEADER + '\ntable "Rates" keyed on rider_age\n  rider_age, rate\n  young, 1\n')
+
+    def test_item_field_and_provided_field_cells_are_checked_too(self):
+        with self.assertRaisesRegex(ParseError, "line 48: T row 2: 'platinum' is not one of bronze, silver, gold"):
+            parse(FLEET + 'table "T" keyed on security\n  security, v\n  platinum, 1\n')
+
     def test_table_errors_report_line(self):
         with self.assertRaisesRegex(ParseError, "line 14: Rates has no column 'security'"):
             parse(HEADER + '\ntable "Rates" keyed on rider_age, security\n  rider_age, rate\n  17-24, 1\n')

@@ -194,6 +194,13 @@ def fold_phrases(toks: list[str]) -> list[str]:
     return out
 
 
+def find_input(product: Product, name: str) -> Input | None:
+    """An input, item field or enrichment-provided field by name."""
+    if name in product.inputs:
+        return product.inputs[name]
+    return next((c.fields[name] for c in product.collections if name in c.fields), None)
+
+
 def known_words(product: Product) -> set[str]:
     words = set(CONTEXT_WORDS) | set(product.inputs)
     for inp in product.inputs.values():
@@ -710,9 +717,12 @@ def parse_table(line: Line, product: Product) -> None:
     if rest[:2] != ["keyed", "on"]:
         raise line.error("expected 'keyed on <input>, ...'")
     keys = [t for t in rest[2:] if t != ","]
+    kinds = {}
     for k in keys:
-        if k not in known_words(product):
+        inp = find_input(product, k)
+        if inp is None:
             raise line.error(f"unknown input {k!r}; table keys must be inputs")
+        kinds[k] = inp.choices if inp.kind == "choice" else inp.kind
     if path is not None and line.children:
         raise line.error("a table comes from a file or from the rows below it, not both")
     if path is not None:
@@ -724,7 +734,7 @@ def parse_table(line: Line, product: Product) -> None:
     else:
         rows = [c.text for c in line.children]
     try:
-        product.tables[name] = load_table(name, keys, rows, line.number)
+        product.tables[name] = load_table(name, keys, rows, line.number, kinds)
     except TableError as e:
         raise line.error(str(e))
 
