@@ -35,7 +35,8 @@ annual limit eroded by claims, waiting period, co-payment), `motor.idl` (named d
 claims discount, an excess that depends on who was driving), `life.idl` (a fixed benefit
 over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit), `runoff.idl` (six years of
 run-off cover after that practice closes) and
-`home.idl` (specified items, the average clause), `income.idl` (a benefit paid over time) and `leasing.idl` (a group scheme whose members join and leave).
+`home.idl` (specified items, the average clause), `household.idl` (buildings and
+contents as sections of one policy), `income.idl` (a benefit paid over time) and `leasing.idl` (a group scheme whose members join and leave).
 
 ## Writing conventions
 
@@ -273,7 +274,11 @@ eligibility
 
 Every rule is checked. If any `decline` fires the outcome is *declined*; otherwise if any
 `refer` fires it is *referred*; otherwise *eligible*. All reasons that fired are reported.
-Rules may look at the chosen covers, `refer when Racing selected and rider_age > 60`.
+Rules may look at the chosen covers, `refer when Racing selected and rider_age > 60`;
+write the eligibility block after the covers it names. A bundle of sections sold as one
+policy (buildings and contents, say) is optional covers with a rule that at least one is
+taken, `decline when not Buildings selected and not Contents selected because "..."`, and
+a `discount N% when Buildings selected and Contents selected` in the rating.
 
 A declined risk cannot be bound. A referred risk is bound only once an underwriter has
 accepted it, on terms if they choose: a load or discount on the net (a final step in the
