@@ -120,6 +120,19 @@ scenario "An unknown postcode is referred"
 scenario "High flood risk is referred"
   given postcode "YO1 1AA", flood_risk high, theft_area low, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
   expect referred "Flood risk needs an underwriter"
+  when bound on 2026-01-01
+  expect refused "referred: Flood risk needs an underwriter; the underwriter must accept it first"
+
+scenario "The underwriter accepts the flood risk on terms"
+  given postcode "YO1 1AA", flood_risk high, theft_area low, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  select "Accidental Damage"
+  when accepted by underwriter on 2025-12-20 with load 25%, excess 1000 on Contents, excluding "Accidental Damage"
+  when bound on 2026-01-01
+  expect factor "Underwriter load" x 1.25
+  expect cover "Accidental Damage" excluded "underwriter terms"
+  when claim Contents for 6000 on 2026-02-10 with cause storm, true_value 40000
+  # the underwriter's 1,000 excess replaces the product's own
+  expect payout 5000.00
 
 scenario "Specified items that dominate the contents are referred"
   given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 20000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0

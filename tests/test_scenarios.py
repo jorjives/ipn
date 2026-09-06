@@ -308,6 +308,47 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(run_all(p)[0].failures, [])
 
 
+class UnderwriterTerms(unittest.TestCase):
+    def run_referred(self, extra):
+        from tests.test_parser import REFERRED
+        return run_all(parse(REFERRED + extra))[0].failures
+
+    def test_binding_a_referred_risk_is_refused_until_the_underwriter_accepts(self):
+        self.assertEqual(self.run_referred('''
+scenario "s"
+  given a 1000, risky yes
+  expect referred "Needs an underwriter"
+  when bound on 2026-01-01
+  expect refused "referred: Needs an underwriter; the underwriter must accept it first"
+  when accepted by underwriter on 2025-12-20 with load 20%, excess 200 on Main, excluding Extra
+  when bound on 2026-01-01
+  expect factor "Underwriter load" x 1.20
+  expect premium 1344.00
+  expect cover Extra excluded "underwriter terms"
+  when claim Main for 500 on 2026-03-01
+  expect payout 300.00
+  when claim Extra for 50 on 2026-03-01
+  expect claim declined "Extra is excluded: underwriter terms"
+'''), [])
+
+    def test_the_underwriter_may_decline(self):
+        self.assertEqual(self.run_referred('''
+scenario "s"
+  given a 100, risky yes
+  when declined by underwriter on 2025-12-20
+  when bound on 2026-01-01
+  expect refused "declined by the underwriter"
+'''), [])
+
+    def test_terms_must_be_well_formed(self):
+        failures = self.run_referred('''
+scenario "s"
+  given a 100, risky yes
+  when accepted by underwriter on 2025-12-20 with surcharge 20%
+''')
+        self.assertIn("surcharge", failures[0])
+
+
 class InputDefaults(unittest.TestCase):
     def test_an_input_left_out_takes_its_default_and_a_given_one_overrides(self):
         from tests.test_parser import DEFAULTS

@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 
 from ideclare.parser import parse
-from ideclare.engine import check_eligibility, context, cover_state, cover_states, instalments
+from ideclare.engine import Underwriting, check_eligibility, context, cover_state, cover_states, instalments
 from ideclare.scenarios import run_all
 from tests.test_parser import FULL
 
@@ -828,3 +828,49 @@ class Instalments(unittest.TestCase):
 
     def test_no_charge_splits_the_premium_exactly(self):
         self.assertEqual(instalments(Decimal("100.00"), 4, Decimal(0)), (Decimal("0.00"), [Decimal("25.00")] * 4))
+
+
+class UnderwriterTerms(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import REFERRED
+        self.product = parse(REFERRED)
+
+    def policy(self, a=100, risky=True):
+        return Policy(self.product, {"a": Decimal(a), "risky": risky}, set())
+
+    def test_a_referred_risk_cannot_be_bound_until_accepted(self):
+        pol = self.policy()
+        with self.assertRaises(ValueError) as e:
+            pol.bind(date(2026, 1, 1))
+        self.assertEqual(str(e.exception), "referred: Needs an underwriter; the underwriter must accept it first")
+        self.assertIsNone(pol.inception)
+
+    def test_a_declined_risk_cannot_be_bound_at_all(self):
+        with self.assertRaises(ValueError) as e:
+            self.policy(a=5000, risky=False).bind(date(2026, 1, 1))
+        self.assertEqual(str(e.exception), "declined: Too big")
+
+    def test_the_underwriter_may_decline(self):
+        pol = self.policy()
+        pol.decline_by_underwriter()
+        with self.assertRaises(ValueError) as e:
+            pol.bind(date(2026, 1, 1))
+        self.assertEqual(str(e.exception), "declined by the underwriter")
+
+    def test_accepted_terms_load_the_net_and_change_the_cover(self):
+        pol = self.policy(a=1000)
+        pol.accept(Underwriting(load=Decimal("0.20"), excess={"Main": Decimal(200)}, excluded={"Extra"}))
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.quote.net, Decimal("1200.00"))
+        self.assertEqual([t.label for t in pol.quote.trail][-1], "Underwriter load")
+        self.assertEqual(pol.premium, Decimal("1344.00"))
+        on = date(2026, 3, 1)
+        self.assertEqual(pol.claim("Main", Decimal(500), on, on, set()).amount, Decimal(300))
+        r = pol.claim("Extra", Decimal(50), on, on, set())
+        self.assertEqual((r.status, r.reason), ("declined", "Extra is excluded: underwriter terms"))
+        self.assertEqual((pol.cover_state("Extra").status, pol.cover_state("Extra").reason), ("excluded", "underwriter terms"))
+
+    def test_an_eligible_risk_binds_without_any_underwriting(self):
+        pol = self.policy(risky=False)
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.premium, Decimal("112.00"))

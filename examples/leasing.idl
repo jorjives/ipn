@@ -227,6 +227,8 @@ scenario "Five hundred and twenty members from a file are rated in one go and re
   expect net 43937.09
   expect tax IPT 5272.45
   expect premium 49309.54
+  # a scheme this size is bound only once the underwriter has accepted it
+  when accepted by underwriter on 2025-12-20
   when bound on 2026-01-01
   when claim Theft on member 520 for 2000 on 2026-12-15 with crime_reference
   # member 520 leases a 1,303 bike from 2026-04-01: capped at 1,303, less 10% of the 2,000 claimed

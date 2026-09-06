@@ -169,6 +169,7 @@ rating
 '''
 
 
+REFERRED = 'product "X"\ninputs\n  a: money\n  risky: yes/no\neligibility\n  refer when risky is yes because "Needs an underwriter"\n  decline when a > 1000 because "Too big"\ncover Main\n  limit a\n  excess 50\ncover Extra\n  limit 100\nrating\n  base a\n  tax IPT 12%\nclaims\n  claim Main\n    pays claimed amount, less excess, up to limit\n  claim Extra\n    pays claimed amount up to limit\n'
 AGGREGATE_EXCESS = 'product "X"\ninputs\n  a: money\ncover Fleet\n  limit 100000\n  excess 1000 per term\nrating\n  base 100\nclaims\n  claim Fleet\n    pays claimed amount, less excess, up to limit\n'
 PER_CONDITION = 'product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term per condition\n  excess 100\nrating\n  base 100\nclaims\n  claim Vet\n    asks\n      condition: text\n    pays claimed amount, less excess, up to limit\n'
 PER_TRAVELLER = 'product "X"\ninputs\n  travellers: collection of traveller, 1 to 4\n    age: integer\ncover Baggage\n  limit 1500 per term per traveller\nrating\n  for each traveller\n    base 10\nclaims\n  claim Baggage\n    pays claimed amount up to limit\n'

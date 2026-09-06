@@ -98,6 +98,32 @@ class Run:
     def when_paid(self, step, on, toks):
         self.policy.pay(on)
 
+    def when_accepted(self, step, on, toks):
+        # accepted by underwriter on DATE [with load N% | discount N% | excess AMOUNT on Cover | excluding Cover, ...]
+        if toks[1:3] != ["by", "underwriter"]:
+            raise ValueError("expected 'accepted by underwriter on DATE [with ...]'")
+        terms = engine.Underwriting()
+        groups = [[]]
+        for t in toks[toks.index("with") + 1:] if "with" in toks else []:
+            groups.append([]) if t == "," else groups[-1].append(t)
+        for words in filter(None, groups):
+            if len(words) == 3 and words[0] in ("load", "discount") and words[2] == "%":
+                terms.load += Decimal(words[1]) * Decimal("0.01") * (1 if words[0] == "load" else -1)  # 20 -> 0.20, so the trail reads x 1.20
+            elif len(words) == 4 and words[0] == "excess" and words[2] == "on":
+                terms.excess[unquote(words[3])] = Decimal(words[1])
+            elif len(words) == 2 and words[0] == "excluding":
+                terms.excluded.add(unquote(words[1]))
+            else:
+                raise ValueError(f"underwriter terms are 'load N%', 'discount N%', 'excess AMOUNT on Cover' or 'excluding Cover', not {' '.join(words)!r}")
+        for name in list(terms.excess) + list(terms.excluded):
+            self.product.cover(name)  # unknown covers are an error here, not at the claim
+        self.policy.accept(terms)
+
+    def when_declined(self, step, on, toks):
+        if toks[1:3] != ["by", "underwriter"]:
+            raise ValueError("expected 'declined by underwriter on DATE'")
+        self.policy.decline_by_underwriter()
+
     def when_cancelled(self, step, on, toks):
         self.last_amount = self.policy.cancel(on, toks[toks.index("by") + 1])
 
@@ -206,7 +232,7 @@ class Run:
         item = None
         if rest[1:2] == ["on"]:
             item, rest = self.item(rest)[1], rest[:1] + rest[4:]
-        state = engine.cover_state(self.product, self.product.cover(name), self.policy.inputs, self.selected, item)
+        state = self.policy.cover_state(name, item)
         if rest[1] == "limit":
             self.check(step, f"{name} limit", Decimal(rest[2]), state.limit)
             return

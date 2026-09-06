@@ -194,11 +194,12 @@ def apply_row(value: Decimal, row, ctx: dict) -> Decimal:
     return value * amount if row.op == "x" else value + amount if row.op == "+" else value - amount
 
 
-def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = Decimal(1)) -> Quote:
-    """Prices a risk. A claims loading is a final load on the net, so tax follows it and fees do not."""
+def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = Decimal(1), underwriter: Decimal = Decimal(0)) -> Quote:
+    """Prices a risk. A claims loading or an underwriter's load is a final load on the net, so tax follows it and fees do not."""
     ctx = context(product, inputs, selected)
     lines, trail = [], []
     steps = product.rating + ([RatingStep("load", "Claims loading", amount=("num", loading - 1))] if loading != 1 else [])
+    steps += [RatingStep("load", "Underwriter load", amount=("num", underwriter))] if underwriter else []
     net, quantum = run_steps(product, steps, ctx, Decimal(0), trail, lines)
     net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
     lines = [(kind, label, (amount if kind == "fee" else net * amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
@@ -266,6 +267,14 @@ def excess_amount(excess, ctx: dict) -> Decimal:
     return amount
 
 
+@dataclass
+class Underwriting:
+    """The terms an underwriter accepts a referred risk on. They hold for the life of the policy."""
+    load: Decimal = Decimal(0)  # on the net: 0.20 for a 20% load, negative for a discount
+    excess: dict[str, Decimal] = field(default_factory=dict)  # cover -> the excess imposed in place of the product's
+    excluded: set[str] = field(default_factory=set)  # covers withdrawn
+
+
 class Policy:
     """One policy's history: bind, pay, cancel, adjust, claim, renew. Status is derived per date."""
 
@@ -282,12 +291,36 @@ class Policy:
         self.charged = Decimal(0)  # the total charged for the current term: capped or loaded at renewal, repriced on adjustment
         self.claims: list = []
         self.previous_terms: list[tuple[date, date]] = []
+        self.underwriting: Underwriting | None = None  # terms accepted on a referral
+        self.underwriter_declined = False
 
     # -- derived ------------------------------------------------------------
 
     @property
     def quote(self) -> Quote:
-        return rate(self.product, self.inputs, self.selected)
+        return rate(self.product, self.inputs, self.selected, underwriter=self.underwriter_load)
+
+    @property
+    def underwriter_load(self) -> Decimal:
+        return self.underwriting.load if self.underwriting else Decimal(0)
+
+    def cover_state(self, cover: str, item: dict | None = None) -> CoverState:
+        """The product's view of the cover for this risk, less anything the underwriter withdrew."""
+        state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
+        if self.underwriting and cover in self.underwriting.excluded and state.status == "included":
+            return CoverState(cover, "excluded", "underwriter terms")
+        return state
+
+    def excess_for(self, section: Cover, ctx: dict) -> Decimal:
+        if self.underwriting and section.name in self.underwriting.excess:
+            return self.underwriting.excess[section.name]
+        return excess_amount(section.excess, ctx)
+
+    def accept(self, terms: Underwriting) -> None:
+        self.underwriting, self.underwriter_declined = terms, False
+
+    def decline_by_underwriter(self) -> None:
+        self.underwriter_declined = True
 
     @property
     def premium(self) -> Decimal:
@@ -346,6 +379,13 @@ class Policy:
     # -- events -------------------------------------------------------------
 
     def bind(self, on: date, paid: bool = True) -> None:
+        if self.underwriter_declined:
+            raise ValueError("declined by the underwriter")
+        e = check_eligibility(self.product, self.inputs, self.selected)
+        if e.outcome == "declined":
+            raise ValueError(f"declined: {'; '.join(e.reasons)}")
+        if e.outcome == "referred" and self.underwriting is None:
+            raise ValueError(f"referred: {'; '.join(e.reasons)}; the underwriter must accept it first")
         self.inception = self.first_inception = on
         self.paid_on = on if paid else None
         self.charged = self.quote.total
@@ -416,7 +456,7 @@ class Policy:
             else:
                 inputs[name] = indexed(inputs[name], *how)
         ctx = context(self.product, inputs, self.selected, claims_in_term=self.claims_in_term)
-        new = rate(self.product, inputs, self.selected, self.claims_loading()).total
+        new = rate(self.product, inputs, self.selected, self.claims_loading(), self.underwriter_load).total
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
         if not lc.renewable:
             offer.declined = "The policy is not renewable"
@@ -443,7 +483,7 @@ class Policy:
     def remaining(self, cover: str, item: dict | None = None, facts: dict | None = None) -> Decimal | None:
         """What is left of an aggregate limit this term; None when the cover has no such limit."""
         section = self.product.cover(cover)
-        state = cover_state(self.product, section, self.inputs, self.selected, item)
+        state = self.cover_state(cover, item)
         if not section.aggregate or state.limit is None:
             return None
         bucket = self.bucket(section, item, facts or {})
@@ -455,7 +495,7 @@ class Policy:
         if not section.excess.aggregate:
             return None
         ctx = context(self.product, self.inputs, self.selected)
-        return max(Decimal(0), excess_amount(section.excess, ctx) - sum((c.excess for c in self.claims if c.cover == cover), Decimal(0)))
+        return max(Decimal(0), self.excess_for(section, ctx) - sum((c.excess for c in self.claims if c.cover == cover), Decimal(0)))
 
     def claims_loading(self) -> Decimal:
         applicable = [m for count, m, unless in self.product.claims_loading if self.claims_in_term >= count and not self.unless(unless)]
@@ -472,7 +512,7 @@ class Policy:
         section = self.product.cover(cover)
         if section.item and item is None:
             return ClaimResult("declined", reason=f"{cover} is per {section.item}; say which {section.item} the claim is on")
-        state = cover_state(self.product, section, self.inputs, self.selected, item)
+        state = self.cover_state(cover, item)
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
         first = self.first_inception
@@ -502,7 +542,7 @@ class Policy:
             if clause == "limit" and limit is not None:
                 payout = min(payout, limit)
             elif clause == "excess":
-                borne = min(payout, self.excess_remaining(cover)) if section.excess.aggregate else excess_amount(section.excess, ctx)
+                borne = min(payout, self.excess_remaining(cover)) if section.excess.aggregate else self.excess_for(section, ctx)
                 payout -= borne
             elif clause == "co-payment":
                 for cp in rules.co_payments:

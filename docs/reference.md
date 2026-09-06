@@ -274,6 +274,12 @@ Every rule is checked. If any `decline` fires the outcome is *declined*; otherwi
 `refer` fires it is *referred*; otherwise *eligible*. All reasons that fired are reported.
 Rules may look at the chosen covers, `refer when Racing selected and rider_age > 60`.
 
+A declined risk cannot be bound. A referred risk is bound only once an underwriter has
+accepted it, on terms if they choose: a load or discount on the net (a final step in the
+rating trail, "Underwriter load"), an excess imposed on a cover in place of the product's,
+or a cover withdrawn (reported as excluded, "underwriter terms"). The terms hold for the
+life of the policy, renewals included. The underwriter may instead decline the risk.
+
 ### cover
 
 One block per section of cover.
@@ -600,6 +606,8 @@ Events:
 |---|---|
 | `when bound on DATE [unpaid]` | inception date; add `unpaid` to test lapse |
 | `when paid on DATE` | payment received |
+| `when accepted by underwriter on DATE [with load N%, discount N%, excess AMOUNT on Cover, excluding Cover, ...]` | the underwriter accepts a referred risk, on these terms |
+| `when declined by underwriter on DATE` | the underwriter declines it; binding is then refused |
 | `when cancelled by customer\|insurer on DATE` | cancellation; the refund is available to `expect refund` |
 | `when adjusted on DATE with input value, input value` | mid-term change |
 | `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
@@ -625,7 +633,7 @@ Expectations:
 | `expect expiry DATE` | end of the current term |
 | `expect refund AMOUNT` | refund from the last cancellation |
 | `expect instalment charge AMOUNT`, `expect instalment N AMOUNT` | the credit charge and the Nth instalment on the premium as it stands |
-| `expect refused ["reason"]` | the event just before was rightly refused (an adjustment when `adjustment: not allowed`, cancellation by a party with no terms) |
+| `expect refused ["reason"]` | the event just before was rightly refused (binding a declined or unaccepted referred risk, an adjustment when `adjustment: not allowed`, cancellation by a party with no terms) |
 | `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment |
 | `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
 | `expect claims in term N` | paid claims this policy year |

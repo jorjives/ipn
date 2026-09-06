@@ -181,10 +181,15 @@ scenario "Unemployment cover has an initial exclusion period"
 # --- Renewal -------------------------------------------------------------
 
 scenario "Cover ends at 65"
-  given age 63, monthly_income 3200, monthly_benefit 1500, occupation_class class1, smoker no, deferred_weeks 8, benefit_months 12
+  # taken out at the oldest age allowed and renewed each year until the offer would be at 65
+  given age 59, monthly_income 3200, monthly_benefit 1500, occupation_class class1, smoker no, deferred_weeks 8, benefit_months 12
   when bound on 2026-01-01
   expect renewal offered
   when renewed on 2027-01-01
+  when renewed on 2028-01-01
+  when renewed on 2029-01-01
+  when renewed on 2030-01-01
+  when renewed on 2031-01-01
   expect renewal declined "Cover ends at 65"
 
 scenario "Two claims in a year load the renewal, within the cap"
