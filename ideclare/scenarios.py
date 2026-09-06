@@ -143,8 +143,9 @@ class Run:
 
     def when_claim(self, step, on, toks):
         # claim <Cover> [on <item> N] for <amount> on <date> [reported <date>] [with a, b]
-        cover, amount = unquote(toks[1]), Decimal(toks[toks.index("for") + 1])
-        item = self.item(toks)[1] if toks[2] == "on" else None
+        cover = unquote(toks[1])
+        amount = Decimal(toks[toks.index("for") + 1]) if "for" in toks else Decimal(0)  # a fixed benefit claims nothing
+        item = self.item(toks)[1] if toks[2:3] == ["on"] and not DATE.fullmatch(toks[3]) else None
         reported = date.fromisoformat(toks[toks.index("reported") + 1]) if "reported" in toks else on
         evidence, facts = set(), {}
         asks = self.product.claims[cover].asks if cover in self.product.claims else {}

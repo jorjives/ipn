@@ -194,7 +194,7 @@ scenario "A claim must name the condition"
 scenario "Death from illness pays the purchase price, not the bill"
   given species dog, breed "Labrador", pet_age 2, purchase_price 900, cover_level bronze, breed_risk medium
   when bound on 2026-01-01
-  when claim "Death from Illness" for 0 on 2026-05-01 with vet_certificate
+  when claim "Death from Illness" on 2026-05-01 with vet_certificate
   expect payout 900.00
 
 scenario "Death from illness stops at nine"

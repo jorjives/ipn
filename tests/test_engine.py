@@ -267,6 +267,11 @@ class ClaimsEngine(unittest.TestCase):
         self.pol.product.cover("Theft").excess.maximum = ("num", Decimal(100))
         self.assertEqual(self.claim(amount=1500).amount, Decimal("1400.00"))  # 10% = 150, capped at 100
 
+    def test_a_fixed_benefit_claim_need_not_say_an_amount(self):
+        src = CLAIMS.replace("    pays claimed amount up to limit\n", "    pays 500\n")
+        src += 'scenario "fixed"\n  given bike_value 2000, rider_age 30, security gold, racing no\n  when bound on 2026-01-01\n  when claim "Accidental Damage" on 2026-03-01\n  expect payout 500.00\n'
+        self.assertEqual(run_all(parse(src))[-1].failures, [])
+
     def test_claim_within_the_excess_is_declined_and_does_not_count(self):
         c = self.claim(amount=40)  # the minimum excess is 50
         self.assertEqual((c.status, c.reason), ("declined", "nothing is payable after the excess"))

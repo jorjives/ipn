@@ -179,36 +179,36 @@ scenario "An unpaid policy lapses after sixty days"
 scenario "Death pays the sum assured whatever the claim says"
   given age 35, sum_assured 250000, term_years 20, smoker no, height_cm 180, weight_kg 78, occupation office
   when bound on 2026-04-01
-  when claim Death for 0 on 2030-06-15 with death_certificate, cause natural
+  when claim Death on 2030-06-15 with death_certificate, cause natural
   expect payout 250000.00
 
 scenario "Suicide in the first year is not covered; after that it is"
   given age 35, sum_assured 250000, term_years 20, smoker no, height_cm 180, weight_kg 78, occupation office
   when bound on 2026-04-01
-  when claim Death for 0 on 2027-03-31 with death_certificate, cause suicide
+  when claim Death on 2027-03-31 with death_certificate, cause suicide
   expect claim declined "Suicide is not covered in the first year"
-  when claim Death for 0 on 2027-04-01 with death_certificate, cause suicide
+  when claim Death on 2027-04-01 with death_certificate, cause suicide
   expect payout 250000.00
 
 scenario "The cause of death must be given"
   given age 35, sum_assured 250000, term_years 20, smoker no, height_cm 180, weight_kg 78, occupation office
   when bound on 2026-04-01
-  when claim Death for 0 on 2030-06-15 with death_certificate
+  when claim Death on 2030-06-15 with death_certificate
   expect claim declined "cause is required"
 
 scenario "Critical illness pays half the sum assured for a listed condition"
   given age 35, sum_assured 250000, term_years 20, smoker no, height_cm 180, weight_kg 78, occupation office
   select "Critical Illness"
   when bound on 2026-04-01
-  when claim "Critical Illness" for 0 on 2026-06-01 with consultant_report, condition cancer
+  when claim "Critical Illness" on 2026-06-01 with consultant_report, condition cancer
   expect claim declined "Critical illness is not covered in the first 90 days"
-  when claim "Critical Illness" for 0 on 2031-06-01 with consultant_report, condition other
+  when claim "Critical Illness" on 2031-06-01 with consultant_report, condition other
   expect claim declined "Not one of the listed conditions"
-  when claim "Critical Illness" for 0 on 2031-06-01 with consultant_report, condition heart_attack
+  when claim "Critical Illness" on 2031-06-01 with consultant_report, condition heart_attack
   expect payout 125000.00
 
 scenario "Nothing is paid once the term has ended"
   given age 35, sum_assured 250000, term_years 20, smoker no, height_cm 180, weight_kg 78, occupation office
   when bound on 2026-04-01
-  when claim Death for 0 on 2046-04-02 with death_certificate, cause natural
+  when claim Death on 2046-04-02 with death_certificate, cause natural
   expect claim declined "policy was expired on 2046-04-02"
