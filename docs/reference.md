@@ -428,10 +428,14 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
 
 - **Cooling off**: cancelling within this many days of inception refunds the whole
   amount paid, fees included.
-- **Cancellation** terms per party: `refund pro rata`, `full refund` or `no refund`,
-  optionally `, fee N`. Pro rata refunds the earning premium (net plus taxes, never fees)
-  for the unused days of the term, less the fee, never below zero. A party without a
-  cancellation line cannot cancel.
+- **Cancellation** terms per party: `refund pro rata`, `full refund`, `no refund` or
+  `refund <share>`, optionally `, fee N`. Pro rata refunds the earning premium (net plus
+  taxes, never fees) for the unused days of the term, less the fee, never below zero. A
+  party without a cancellation line cannot cancel. `refund <share>` returns that share of
+  the earning premium, where the share is an expression that may use `days in force` and
+  `months in force` (whole months since inception): a flat `refund 50%`, a formula such
+  as `refund 100% - days in force / 365 * 100%`, or a short-rate table looked up by
+  `refund refunded from "Short rate"` with the table `keyed on months in force`.
 - **Adjustment** (mid-term change): the policy is repriced with the new answers and the
   difference in earning premium is charged pro rata for the remaining days, plus the fee.
   A negative result is a return premium. Write `adjustment: not allowed` to forbid it.
@@ -577,7 +581,7 @@ Expectations:
 
 ## Not yet supported
 
-Short-rate cancellation, instalments, commission, multi-currency, more than one product per
+Instalments, commission, multi-currency, more than one product per
 file, new-for-old versus indemnity as a named settlement basis (use a depreciation table),
 per-condition limits within an aggregate (pet), protected no claims discount as an add-on
 that switches off the step-back, run-off cover after a claims-made policy ends, a benefit

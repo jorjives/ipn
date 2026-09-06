@@ -25,6 +25,16 @@ eligibility
   refer when turnover > 2000000 because "Turnover over 2,000,000 needs an underwriter"
   refer when overseas_work is yes because "Overseas work needs an underwriter"
 
+# Mid-term cancellation returns a short-rate share of the premium rather than a
+# pro rata one: the insurer keeps more in the early months, when most of the
+# exposure of a claims-made year has already been carried.
+table "Short rate" keyed on months in force
+  months_in_force, refunded
+  0-2, 75%
+  3-5, 50%
+  6-8, 25%
+  9+, 0%
+
 cover "Professional Indemnity"
   limit limit_of_indemnity per term
   excess 1000
@@ -59,7 +69,7 @@ rating
 
 lifecycle
   cooling off 14 days, full refund
-  cancellation by customer: refund pro rata, fee 50
+  cancellation by customer: refund refunded from "Short rate", fee 50
   cancellation by insurer: refund pro rata
   adjustment: reprice, charge pro rata difference
   renewal
@@ -117,6 +127,21 @@ scenario "Architects buying a high limit with a claim behind them"
   given profession architect, turnover 900000, years_trading 12, limit_of_indemnity 3000000, retroactive_date 2010-01-01, previous_claims 1, overseas_work no
   # 10,800 x 1.60 x 1.70 x 0.90 x 1.30
   expect net 34369.92
+
+# --- Short-rate cancellation ---------------------------------------------
+
+scenario "Cancelling after four months returns half, less the fee"
+  given profession consultant, turnover 400000, years_trading 8, limit_of_indemnity 1000000, retroactive_date 2018-04-01, previous_claims 0, overseas_work no
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-05-15
+  # four full months in force: 50% of the 4,838.40 earning premium (net plus IPT; the policy fee is kept), less the 50 fee
+  expect refund 2369.20
+
+scenario "Cancelling in the last quarter returns nothing"
+  given profession consultant, turnover 400000, years_trading 8, limit_of_indemnity 1000000, retroactive_date 2018-04-01, previous_claims 0, overseas_work no
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-10-20
+  expect refund 0.00
 
 # --- Claims made, retroactive date --------------------------------------
 

@@ -214,6 +214,11 @@ def add_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
 
 
+def months_between(start: date, on: date) -> int:
+    """Whole months from start to on."""
+    return (on.year - start.year) * 12 + on.month - start.month - (on.day < start.day)
+
+
 def pence(v: Decimal) -> Decimal:
     return v.quantize(Decimal("0.01"), ROUNDING)
 
@@ -347,6 +352,9 @@ class Policy:
             refund = self.refundable
         elif terms.refund == "pro rata":
             refund = self.refundable * self.days_remaining(on) / self.term_days()
+        elif terms.refund == "amount":
+            ctx = context(self.product, self.inputs, self.selected, days_in_force=Decimal((on - self.inception).days), months_in_force=Decimal(months_between(self.inception, on)))
+            refund = self.refundable * Decimal(evaluate(terms.amount, ctx))
         else:
             refund = Decimal(0)
         return pence(max(Decimal(0), refund - terms.fee))
@@ -436,10 +444,9 @@ class Policy:
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
         first = self.first_inception
-        months = (on.year - first.year) * 12 + on.month - first.month - (on.day < first.day)
         ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed, **facts,
                       days_to_report=(reported - on).days, claims_in_term=self.claims_in_term,
-                      days_since_inception=(on - first).days, months_since_inception=months)
+                      days_since_inception=(on - first).days, months_since_inception=months_between(first, on))
         if (section.from_ is not None and on < evaluate(section.from_, ctx)) or (section.until is not None and on >= evaluate(section.until, ctx)):
             return ClaimResult("declined", reason=f"{cover} is not in force on {on.isoformat()}")
         if (on - first).days < section.waiting_days:

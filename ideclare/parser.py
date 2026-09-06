@@ -173,7 +173,7 @@ def parse_collection(line: Line, name: str, toks: list[str]) -> Input:
 # --- expressions and rules ---------------------------------------------------
 
 # Words an expression may use besides inputs, choices and cover names.
-CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term", "days_to_report", "days_since_inception", "months_since_inception"}
+CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term", "days_to_report", "days_since_inception", "months_since_inception", "days_in_force", "months_in_force"}
 
 
 def fold_phrases(toks: list[str]) -> list[str]:
@@ -189,16 +189,24 @@ def fold_phrases(toks: list[str]) -> list[str]:
         elif toks[i:i + 1] == ["within"] and toks[i + 2:i + 3] in (["days"], ["months"]) and toks[i + 3:i + 5] == ["of", "inception"]:
             out += [f"{toks[i + 2]}_since_inception", "<", toks[i + 1]]
             i += 5
+        elif toks[i:i + 1] in (["days"], ["months"]) and toks[i + 1:i + 3] == ["in", "force"]:
+            out.append(f"{toks[i]}_in_force")
+            i += 3
         else:
             out.append(toks[i])
             i += 1
     return out
 
 
+TIME_WORDS = {"days_in_force", "months_in_force"}  # the policy's age, known when it is cancelled
+
+
 def find_input(product: Product, name: str) -> Input | None:
-    """An input, item field or enrichment-provided field by name."""
+    """An input, item field or enrichment-provided field by name; the policy's age reads as a number."""
     if name in product.inputs:
         return product.inputs[name]
+    if name in TIME_WORDS:
+        return Input(name, "number")
     return next((c.fields[name] for c in product.collections if name in c.fields), None)
 
 
@@ -441,7 +449,7 @@ def parse_lifecycle(line: Line, product: Product) -> None:
         if toks[:2] == ["cooling", "off"] and toks[3:] == ["days", ",", "full", "refund"]:
             lc.cooling_off_days = int(toks[2])
         elif toks[:2] == ["cancellation", "by"] and toks[2] in ("customer", "insurer") and toks[3] == ":":
-            lc.cancellation[toks[2]] = parse_cancellation(child, toks[4:])
+            lc.cancellation[toks[2]] = parse_cancellation(child, toks[4:], product)
         elif toks[:2] == ["adjustment", ":"]:
             if toks[2:] == ["not", "allowed"]:
                 lc.adjustment_allowed = False
@@ -468,14 +476,17 @@ def parse_fee(line: Line, toks: list[str]) -> Decimal:
     raise line.error(f"expected ', fee N' not {' '.join(toks)!r}")
 
 
-def parse_cancellation(line: Line, toks: list[str]) -> Cancellation:
+def parse_cancellation(line: Line, toks: list[str], product: Product) -> Cancellation:
     if toks[:3] == ["refund", "pro", "rata"]:
         return Cancellation("pro rata", parse_fee(line, toks[3:]))
     if toks[:2] == ["full", "refund"]:
         return Cancellation("full", parse_fee(line, toks[2:]))
     if toks[:2] == ["no", "refund"]:
         return Cancellation("none", parse_fee(line, toks[2:]))
-    raise line.error("expected 'refund pro rata', 'full refund' or 'no refund', optionally ', fee N'")
+    if toks[:1] == ["refund"] and len(toks) > 1:  # a share of the earning premium: 50%, or a short-rate table over months in force
+        amount, rest = expression(line, toks[1:], product, stop={","})
+        return Cancellation("amount", parse_fee(line, rest), amount)
+    raise line.error("expected 'refund pro rata', 'full refund', 'no refund' or 'refund <share>', optionally ', fee N'")
 
 
 def parse_renewal(line: Line, product: Product) -> None:
@@ -758,7 +769,7 @@ def parse_table(line: Line, product: Product) -> None:
         path, rest = os.path.join(product.base, unquote(rest[1])), rest[2:]
     if rest[:2] != ["keyed", "on"]:
         raise line.error("expected 'keyed on <input>, ...'")
-    keys = [t for t in rest[2:] if t != ","]
+    keys = [t for t in fold_phrases(rest[2:]) if t != ","]
     kinds = {}
     for k in keys:
         inp = find_input(product, k)

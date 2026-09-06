@@ -120,8 +120,9 @@ class RatingStep:
 
 @dataclass
 class Cancellation:
-    refund: str = "pro rata"  # pro rata | full | none
+    refund: str = "pro rata"  # pro rata | full | none | amount
     fee: Decimal = Decimal(0)
+    amount: tuple | None = None  # refund == "amount": the share of the earning premium returned, an expression over days/months in force
 
 
 @dataclass

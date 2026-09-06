@@ -153,6 +153,17 @@ class PolicyLifecycle(unittest.TestCase):
         # 100 days used, 265 remaining: 67.20 * 265/365 = 48.79 - 25 fee = 23.79
         self.assertEqual(pol.cancel(date(2026, 4, 11), "customer"), Decimal("23.79"))
 
+    def test_short_rate_refund_from_a_table(self):
+        table = 'table "Short rate" keyed on months in force\n  months_in_force, proportion\n  0-2, 75%\n  3-5, 50%\n  6+, 0%\n'
+        src = LIFECYCLE.replace("lifecycle\n", table + "lifecycle\n")
+        src = src.replace("  cancellation by customer: refund pro rata, fee 25\n", '  cancellation by customer: refund proportion from "Short rate", fee 25\n')
+        pol = Policy(parse(src), risk(), set())
+        pol.bind(date(2026, 1, 1))
+        # four full months in force: half of the 67.20 earning, less the 25 fee
+        self.assertEqual(pol.cancel(date(2026, 5, 15), "customer"), Decimal("8.60"))
+        pol.cancelled_on = None
+        self.assertEqual(pol.cancel(date(2026, 7, 1), "customer"), Decimal(0))
+
     def test_insurer_cancellation_has_no_fee(self):
         pol = self.policy
         pol.bind(date(2026, 1, 1))
