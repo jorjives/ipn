@@ -16,6 +16,17 @@ what the engine actually produced. You can also price a single risk from the ter
 python3 -m ideclare quote my-product.idl bike_value=2000 rider_age=22 security=gold racing=yes previous_claims=0 select=Racing
 ```
 
+A repeatable item (see `inputs`) is given as a CSV of items, one row each, with the field
+names as the header: `bikes=bikes.csv`. Per-item covers are reported per item. To price a
+whole book, `batch` takes a CSV with one column per input (a `select` column lists chosen
+covers separated by `;`) and writes one row per risk with eligibility, the reasons, the
+net, each tax and fee, the total and each commission; a row the product cannot price says
+why in its `error` column instead of stopping the run:
+
+```
+python3 -m ideclare batch my-product.idl risks.csv > priced.csv
+```
+
 See `examples/cycle.idl` for a complete single-bike product, `examples/family.idl` for a
 policy covering several bikes and `examples/multibike.idl` for a fleet where the first bike
 takes the full rate. The other examples take the same language across the industry:
@@ -191,9 +202,15 @@ table "Theft excess" keyed on area, use
   | Cell | Matches |
   |---|---|
   | `gold`, `12`, `yes` | that value exactly |
+  | `80%` | the number 0.80, in a value column |
   | `17-20` | a number from 17 to 20, both inclusive |
   | `65+` | a number of 65 or more |
   | `*` | anything; a row with fewer `*` cells beats one with more, so `*` rows are the fallback |
+
+  Key cells are checked against the input they match when the product is read: a choice
+  that is not one of the input's choices, or a band on a yes/no input, is an error with
+  the row number rather than a row that never fires. Rows are indexed on their exact
+  cells, so a table of a hundred thousand rows looks up in microseconds.
 
 A stepped table becomes a curve with `interpolated [linearly | geometrically] on <key>`
 (linearly is the default). The named key's cells are then single numbers, the knots; the
@@ -250,6 +267,7 @@ eligibility
 
 Every rule is checked. If any `decline` fires the outcome is *declined*; otherwise if any
 `refer` fires it is *referred*; otherwise *eligible*. All reasons that fired are reported.
+Rules may look at the chosen covers, `refer when Racing selected and rider_age > 60`.
 
 ### cover
 
@@ -271,7 +289,9 @@ cover Racing optional
 - `available when` says when an optional cover may be offered at all.
 - `excludes when` removes the cover for this risk and records the reason.
 - `limit` and `excess` are amounts; `claim` inside an excess means the amount claimed.
-  `minimum` floors a percentage excess.
+  `, minimum 100` floors a percentage excess and `, maximum 1000` caps it:
+  `excess 10% of claim, minimum 100, maximum 1000`. Commercial wordings may write
+  `deductible` for `excess`; the two are the same.
 - `limit 7000 per term` is an aggregate limit: the most the insurer pays on this cover in
   the whole term. Each paid claim eats into it and it is restored at renewal. A plain
   `limit` applies to any one claim.
@@ -280,8 +300,9 @@ cover Racing optional
   item, which makes the cover per item so claims say `on traveller 2`. A claim erodes only
   the limit it belongs to.
 - An excess may be a table instead of one amount, in the shape of a rating factor without
-  the `x`. Its rows may use facts the claim asks for (see `claims`), so the excess can
-  depend on who was driving or what caused the loss:
+  the `x`, ending with an `otherwise` row so every claim has an excess. Its rows may use
+  facts the claim asks for (see `claims`), so the excess can depend on who was driving or
+  what caused the loss:
 
   ```
   excess
@@ -455,11 +476,13 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
 - **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
   insured, `by N` to add a fixed amount, such as a year of age, `by -N` to take one away.
   `, at least 0` and `, at most 9` keep the result within bounds, so a no claims discount
-  grows to nine years and never falls below none. `index bike value by 5%`
-  moves a field on every item. The offer is the product
-  repriced on those answers, times any claims loading (see `claims`), then held within the
-  cap and collar: no more than the current annual premium plus the cap percentage, no less
-  than it minus the collar percentage. `decline when` rules use the indexed answers and
+  grows to nine years and never falls below none. The amount may be any expression over
+  the expiring answers and `claims in term`, so `index previous_claims by claims in term`
+  rolls the year's claims into the record the rating reads. `index bike value by 5%`
+  moves a field on every item. The offer is the product repriced on those answers, with
+  any claims loading (see `claims`) applied to the net before tax, then held within the
+  cap and collar: no more than the premium charged for the current term plus the cap
+  percentage, no less than it minus the collar percentage. `decline when` rules use the indexed answers and
   `claims in term`. Accepting a renewal starts a new term at expiry with the indexed
   answers and resets the claims count.
 
@@ -524,13 +547,17 @@ aggregate limit is used up, or a `decline when` rule fires. Otherwise the amount
 or the fixed benefit) is first scaled by the `depreciation` or `settlement` table (same
 shape as a rating factor: the first matching row applies), then the `pays` clauses apply in
 the order written. A percentage excess is of the amount claimed, before depreciation. Only
-paid claims that count go towards `claims in term`. `after N claims in term: renewal load x M` multiplies the renewal
-premium when the paid claim count reaches N; the highest matching line wins.
+paid claims that count go towards `claims in term`. A claim that comes to nothing after
+the excess is declined as "nothing is payable after the excess" and does not count.
+`after N claims in term: renewal load x M` multiplies the renewal net when the paid claim
+count reaches N; the highest matching line wins.
 
 A paid claim can also change the terms of the policy for the rest of the term. Write
 `after N claims in term` (or `after 1 claim in term`) with lifecycle lines indented below;
 they replace the product's own settings from the point the Nth claim is paid, and anything
-not restated carries over. The `lifecycle` block must come first in the file:
+not restated carries over. Either form takes `unless <condition>`, so a protected no
+claims discount is `after 1 claim in term: renewal load x 1.30 unless "Protected NCD"
+selected`. The `lifecycle` block must come first in the file:
 
 ```
 claims
@@ -553,7 +580,9 @@ scenario "Customer cancels mid term"
 
 `given` supplies every input except calculated ones; `select` chooses optional covers.
 Repeatable items are given one per line using the singular name, with every field: `given
-bike value 2000, age 0, security gold`. Dates are given as `given departure_date 2026-07-10`.
+bike value 2000, age 0, security gold`, or all at once from a CSV beside the product with
+the field names as its header: `given members from "members.csv"`. Dates are given as
+`given departure_date 2026-07-10`.
 Then `when` lines happen in order and `expect` lines check the state at that point.
 
 Events:
@@ -566,7 +595,7 @@ Events:
 | `when adjusted on DATE with input value, input value` | mid-term change |
 | `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
 | `when adjusted on DATE removing bike 2` | remove the second item |
-| `when claim Cover [on bike N] for AMOUNT on DATE [reported DATE] [with item, fact value, ...]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence words and asked facts (`with death_certificate, cause suicide`) |
+| `when claim Cover [on bike N] [for AMOUNT] on DATE [reported DATE] [with item, fact value, ...]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence words and asked facts (`with death_certificate, cause suicide`); a fixed benefit claims no amount, so `for` may be left out |
 | `when renewed on DATE` | accept the renewal offer (fails if it is declined) |
 
 Expectations:
@@ -577,7 +606,7 @@ Expectations:
 | `expect cover Name [on bike N] included\|excluded\|"not selected"\|"not available" ["reason"]` | cover state, for item N if per item |
 | `expect cover Name [on bike N] limit AMOUNT` | the resolved limit |
 | `expect cover Name remaining AMOUNT`, `... remaining AMOUNT for condition "x"`, `expect cover Name on traveller 2 remaining AMOUNT` | what is left of an aggregate limit this term, for that condition or item |
-| `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium |
+| `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium; once bound, the premium is what was charged for the term (capped or loaded at renewal, repriced by an adjustment) |
 | `expect net for bike 2 AMOUNT` | one item's share of the net, before the steps after `for each` |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
 | `expect commission "Label" AMOUNT` | that intermediary's share of the net |
