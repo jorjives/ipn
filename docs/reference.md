@@ -487,7 +487,8 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
 *lapsed*, *cancelled*, *expired* or *renewed* (a past policy year).
 
 - **Cooling off**: cancelling within this many days of inception refunds the whole
-  amount paid, fees included.
+  amount paid, fees included. The days are an expression, so a product sold in several
+  territories takes them from a table: `cooling off days from "Territory" days, full refund`.
 - **Cancellation** terms per party: `refund pro rata`, `full refund`, `no refund` or
   `refund <share>`, optionally `, fee N`. Pro rata refunds the earning premium (net plus
   taxes, never fees) for the unused days of the term, less the fee, never below zero. A
