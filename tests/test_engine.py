@@ -424,6 +424,12 @@ class CollectionEngine(unittest.TestCase):
         declined = pol.claim("Theft", Decimal(1500), date(2026, 2, 1), date(2026, 2, 1), set(), item=pol.inputs["bikes"][1])
         self.assertEqual(declined.reason, "Theft is excluded: Better lock needed")
 
+    def test_claim_on_a_per_item_cover_must_name_the_item(self):
+        pol = Policy(self.p, fleet((2000, 0, "gold")), set())
+        pol.bind(date(2026, 1, 1))
+        c = pol.claim("Theft", Decimal(1500), date(2026, 2, 1), date(2026, 2, 1), set())
+        self.assertEqual((c.status, c.reason), ("declined", "Theft is per bike; say which bike the claim is on"))
+
     def test_index_item_field_at_renewal(self):
         pol = Policy(self.p, fleet((2000, 0, "gold"), (1000, 3, "silver")), set())
         pol.bind(date(2026, 1, 1))

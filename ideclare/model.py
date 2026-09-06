@@ -80,6 +80,7 @@ class Cover:
     from_: tuple | None = None  # date expression: the cover starts here rather than at inception
     until: tuple | None = None  # date expression: the cover stops here rather than at expiry
     waiting_days: int = 0  # losses this soon after the policy first started are not covered
+    item: str = ""  # singular item name when the cover's terms use an item's fields, so claims must name the item
 
 
 @dataclass

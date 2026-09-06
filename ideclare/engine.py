@@ -411,10 +411,12 @@ class Policy:
         status = self.status(on)
         if status != "live":
             return ClaimResult("declined", reason=f"policy was {status} on {on.isoformat()}")
-        state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
+        section = self.product.cover(cover)
+        if section.item and item is None:
+            return ClaimResult("declined", reason=f"{cover} is per {section.item}; say which {section.item} the claim is on")
+        state = cover_state(self.product, section, self.inputs, self.selected, item)
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
-        section = self.product.cover(cover)
         first = self.first_inception
         months = (on.year - first.year) * 12 + on.month - first.month - (on.day < first.day)
         ctx = context(self.product, self.inputs, self.selected, item, claim=claimed, claimed=claimed, **facts,

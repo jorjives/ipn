@@ -702,6 +702,16 @@ table "Age and lock" keyed on rider_age, security
 '''
 
 
+class PerItemCovers(unittest.TestCase):
+    def test_cover_using_item_fields_is_per_item(self):
+        p = parse(FLEET)
+        self.assertEqual(p.cover("Theft").item, "bike")
+
+    def test_cover_using_no_item_field_is_not(self):
+        p = parse(FLEET + 'cover Liability\n  limit 1000000\n')
+        self.assertEqual(p.cover("Liability").item, "")
+
+
 class Tables(unittest.TestCase):
     def test_inline_table(self):
         p = parse(TABLES)

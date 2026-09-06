@@ -289,6 +289,9 @@ def parse_cover(line: Line, product: Product) -> None:
             raise child.error(f"unknown cover setting {child.text!r}")
         if rest:
             raise child.error(f"unexpected {' '.join(rest)!r}")
+    used = set().union(*(names(n) for n in (cover.limit, cover.available, cover.from_, cover.until, cover.excess.amount, cover.excess.minimum) if n is not None),
+                       *(names(r.condition) for r in cover.exclusions))
+    cover.item = next((c.singular for c in product.collections if used & set(c.fields)), "")
 
 
 def claim_facts(product: Product, cover: str) -> set[str]:
