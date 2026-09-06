@@ -313,6 +313,8 @@ def parse_excess_table(line: Line, cover: Cover, product: Product) -> None:
         if rest:
             raise child.error(f"unexpected {' '.join(rest)!r}")
         cover.excess.rows.append(FactorRow(cond, "=", amount))
+    if not cover.excess.rows or cover.excess.rows[-1].condition is not None:
+        raise line.error("an excess table must end with an 'otherwise' row; a claim no row matches would otherwise carry no excess")
 
 
 def parse_factor(line: Line, label: str, product: Product, extra: set[str] = frozenset()) -> RatingStep:

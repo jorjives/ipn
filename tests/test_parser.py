@@ -657,6 +657,12 @@ class MotorFeatures(unittest.TestCase):
         self.assertIsNone(rows[1].condition)
         self.assertIsNone(p.cover("Accidental Damage").excess.amount)
 
+    def test_excess_table_must_end_with_otherwise(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(MOTOR.replace("    otherwise: 250 + voluntary_excess\n", ""))
+        self.assertIn("line 11", str(cm.exception))
+        self.assertIn("otherwise", str(cm.exception))
+
     def test_excess_table_may_only_use_facts_some_claim_asks(self):
         with self.assertRaises(ParseError) as cm:
             parse(MOTOR.replace("driver_age < 25", "pilot_age < 25"))
