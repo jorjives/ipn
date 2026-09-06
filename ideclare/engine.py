@@ -241,7 +241,11 @@ def excess_amount(excess, ctx: dict) -> Decimal:
     row = next((r for r in excess.rows if r.condition is None or evaluate(r.condition, ctx)), None)
     node = row.amount if row is not None else excess.amount
     amount = Decimal(evaluate(node, ctx)) if node is not None else Decimal(0)
-    return max(amount, Decimal(evaluate(excess.minimum, ctx))) if excess.minimum is not None else amount
+    if excess.minimum is not None:
+        amount = max(amount, Decimal(evaluate(excess.minimum, ctx)))
+    if excess.maximum is not None:
+        amount = min(amount, Decimal(evaluate(excess.maximum, ctx)))
+    return amount
 
 
 class Policy:

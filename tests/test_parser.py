@@ -110,6 +110,12 @@ class RulesCoversScenarios(unittest.TestCase):
         self.assertTrue(racing.optional)
         self.assertEqual(racing.available, ("is", ("name", "racing"), ("bool", True)))
 
+    def test_excess_maximum_and_deductible(self):
+        p = parse(HEADER + 'cover Theft\n  limit bike_value\n  excess 10% of claim, minimum 50, maximum 500\ncover Fire\n  limit bike_value\n  deductible 250\nclaims\n  claim Fire\n    pays claimed amount up to limit, less deductible\n')
+        self.assertEqual(p.cover("Theft").excess.maximum, ("num", Decimal(500)))
+        self.assertEqual(p.cover("Fire").excess.amount, ("num", Decimal(250)))
+        self.assertEqual(p.claims["Fire"].pays, ["limit", "excess"])
+
     def test_scenario(self):
         p = parse(FULL)
         s = p.scenarios[0]

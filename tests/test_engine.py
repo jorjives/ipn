@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from ideclare.parser import parse
 from ideclare.engine import check_eligibility, context, cover_state, cover_states
+from ideclare.scenarios import run_all
 from tests.test_parser import FULL
 
 
@@ -261,6 +262,10 @@ class ClaimsEngine(unittest.TestCase):
         self.assertEqual(c.amount, Decimal("250.00"))  # 10% = 30 < minimum 50
         c = self.claim(amount=1900, cover="Accidental Damage", evidence=())
         self.assertEqual(c.amount, Decimal("1900.00"))  # no excess declared for claims on this cover
+
+    def test_percentage_excess_is_capped_at_its_maximum(self):
+        self.pol.product.cover("Theft").excess.maximum = ("num", Decimal(100))
+        self.assertEqual(self.claim(amount=1500).amount, Decimal("1400.00"))  # 10% = 150, capped at 100
 
     def test_claim_within_the_excess_is_declined_and_does_not_count(self):
         c = self.claim(amount=40)  # the minimum excess is 50

@@ -269,7 +269,7 @@ def parse_cover(line: Line, product: Product) -> None:
     product.covers.append(cover)  # before parsing children so "X selected" can name it
     for child in line.children:
         toks = tokens(child)
-        key = toks[0]
+        key = "excess" if toks[0] == "deductible" else toks[0]
         if key == "limit":
             cover.limit, rest = expression(child, toks[1:], product, stop={"per"})
             if rest == ["per", "term"]:
@@ -280,8 +280,10 @@ def parse_cover(line: Line, product: Product) -> None:
             rest = []
         elif key == "excess":
             cover.excess.amount, rest = expression(child, toks[1:], product, stop={","})
-            if rest[:2] == [",", "minimum"]:
-                cover.excess.minimum, rest = expression(child, rest[2:], product)
+            for bound in ("minimum", "maximum"):
+                if rest[:2] == [",", bound]:
+                    node, rest = expression(child, rest[2:], product, stop={","})
+                    setattr(cover.excess, bound, node)
         elif key == "excludes":
             cover.exclusions.append(rule(child, "excludes", toks[1:], product))
             rest = []
@@ -583,7 +585,7 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
     return rule_
 
 
-PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess", ("less", "co-payment"): "co-payment"}
+PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess", ("less", "deductible"): "excess", ("less", "co-payment"): "co-payment"}
 
 
 def parse_pays(line: Line, toks: list[str]) -> list[str]:

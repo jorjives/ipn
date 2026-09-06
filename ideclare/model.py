@@ -65,6 +65,7 @@ class Rule:
 class Excess:
     amount: tuple | None = None
     minimum: tuple | None = None
+    maximum: tuple | None = None
     rows: list["FactorRow"] = field(default_factory=list)  # a table instead of one amount; op is unused
 
 
