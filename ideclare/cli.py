@@ -1,6 +1,7 @@
-"""`python -m ideclare check FILE` runs a product's scenarios; `quote` prices one risk."""
+"""`python -m ideclare check FILE` runs a product's scenarios; `quote` prices one risk; `batch` prices a book."""
 from __future__ import annotations
 
+import csv
 import os
 import sys
 
@@ -84,6 +85,40 @@ def quote(path: str, args: list[str]) -> int:
     return 0
 
 
+def batch(path: str, risks: str, out=None) -> int:
+    """batch FILE RISKS.csv: one risk per row in, one row per risk out with eligibility and the premium lines.
+
+    A risk that cannot be priced (an answer missing, a cell off the table) is reported in its own row's
+    error column; the others still price. Columns are the input names plus an optional `select`, cover
+    names separated by ';'.
+    """
+    product = load(path)
+    writer = csv.writer(out or sys.stdout, lineterminator="\n")
+    with open(risks, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        columns = [c.strip() for c in reader.fieldnames or []]
+        unknown = [c for c in columns if c != "select" and c not in product.inputs]
+        if unknown:
+            writer.writerow([f"unknown column {unknown[0]!r}; expected input names and select"])
+            return 2
+        lines = [s.label for s in product.rating if s.kind in ("tax", "fee")]
+        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "error"])
+        for n, record in enumerate(reader, start=1):
+            blank = [""] * (len(lines) + 4)
+            try:
+                inputs, selected = risk_inputs(product, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()], Line(n, 0, f"row {n}"))
+                missing = missing_inputs(product, inputs)
+                if missing:
+                    raise ParseError(f"missing {', '.join(missing)}")
+                e = check_eligibility(product, inputs, selected)
+                q = rate(product, inputs, selected)
+            except (ParseError, TableError, ExprError) as err:
+                writer.writerow([n, *blank, str(err).removeprefix(f"line {n}: ")])
+                continue
+            by_label = dict(q.lines)
+            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:.2f}", *(f"{by_label.get(l, 0):.2f}" for l in lines), f"{q.total:.2f}", ""])
+    return 0
+
 
 def main(argv: list[str]) -> int:
     try:
@@ -91,11 +126,14 @@ def main(argv: list[str]) -> int:
             return check(argv[1])
         if len(argv) >= 2 and argv[0] == "quote":
             return quote(argv[1], argv[2:])
+        if len(argv) == 3 and argv[0] == "batch":
+            return batch(argv[1], argv[2])
     except ParseError as e:
         print(f"{argv[1]}: {e}")
         return 1
     print("usage: python -m ideclare check FILE.idl\n"
-          "       python -m ideclare quote FILE.idl input=value ... [select=Cover] [items=file.csv]\n")
+          "       python -m ideclare quote FILE.idl input=value ... [select=Cover] [items=file.csv]\n"
+          "       python -m ideclare batch FILE.idl RISKS.csv")
     return 2
 
 
