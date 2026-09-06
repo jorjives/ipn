@@ -26,7 +26,7 @@ class Input:
 @dataclass
 class Product:
     name: str
-    territory: str = ""
+    territories: list[str] = field(default_factory=list)  # where it is sold; more than one makes `territory` a choice at quote
     currency: str = ""
     term: tuple = (("num", Decimal(12)), "months")  # (amount expression, days | months | years | until)
     inputs: dict[str, Input] = field(default_factory=dict)

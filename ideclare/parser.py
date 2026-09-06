@@ -90,8 +90,10 @@ def parse_product_header(line: Line, product: Product) -> None:
     for child in line.children:
         toks = tokens(child)
         key = toks[0]
-        if key == "territory" and len(toks) == 2:
-            product.territory = toks[1]
+        if key == "territory" and len(toks) >= 2:
+            product.territories = [t for t in toks[1:] if t != ","]
+            one = product.territories[0] if len(product.territories) == 1 else None
+            product.inputs["territory"] = Input("territory", "choice", product.territories, default=one)
         elif key == "currency" and len(toks) == 2:
             product.currency = toks[1]
         elif key == "term" and len(toks) == 3 and toks[2] in ("days", "months", "years"):

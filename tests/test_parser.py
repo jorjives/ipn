@@ -24,9 +24,25 @@ class HeaderAndInputs(unittest.TestCase):
     def test_product_header(self):
         p = parse(HEADER)
         self.assertEqual(p.name, "Cycle Cover")
-        self.assertEqual(p.territory, "UK")
+        self.assertEqual(p.territories, ["UK"])
         self.assertEqual(p.currency, "GBP")
         self.assertEqual(p.term, (("num", Decimal(12)), "months"))
+
+    def test_single_territory_is_an_input_with_that_default(self):
+        p = parse(HEADER)
+        self.assertEqual(p.inputs["territory"].kind, "choice")
+        self.assertEqual(p.inputs["territory"].choices, ["UK"])
+        self.assertEqual(p.inputs["territory"].default, "UK")
+
+    def test_several_territories_must_be_chosen_at_quote(self):
+        p = parse('product "X"\n  territory DE, FR, CH\n')
+        self.assertEqual(p.territories, ["DE", "FR", "CH"])
+        self.assertEqual(p.inputs["territory"].choices, ["DE", "FR", "CH"])
+        self.assertIsNone(p.inputs["territory"].default)
+
+    def test_territory_needs_at_least_one(self):
+        with self.assertRaises(ParseError):
+            parse('product "X"\n  territory\n')
 
     def test_inputs(self):
         p = parse(HEADER)
