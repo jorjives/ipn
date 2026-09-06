@@ -193,7 +193,7 @@ class Run:
         self._eligibility(step, "referred", rest)
 
     def _eligibility(self, step, outcome, rest=()):
-        e = engine.check_eligibility(self.product, self.inputs)
+        e = engine.check_eligibility(self.product, self.inputs, self.selected)
         actual = e.outcome + (f" ({'; '.join(e.reasons)})" if e.reasons else "")
         if e.outcome != outcome:
             self.fail(step.line, f"expected {outcome}, got {actual}")

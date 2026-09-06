@@ -30,6 +30,11 @@ class Eligibility(unittest.TestCase):
         e = check_eligibility(self.p, risk(bike_value=Decimal(12000)))
         self.assertEqual(e.outcome, "referred")
 
+    def test_rules_can_see_the_selected_covers(self):
+        p = parse(FULL + 'eligibility\n  refer when Racing selected and rider_age > 60 because "Racing over 60"\n')
+        self.assertEqual(check_eligibility(p, risk(rider_age=Decimal(65)), {"Racing"}).reasons, ["Racing over 60"])
+        self.assertEqual(check_eligibility(p, risk(rider_age=Decimal(65))).outcome, "eligible")
+
     def test_decline_beats_refer(self):
         e = check_eligibility(self.p, risk(bike_value=Decimal(12000), rider_age=Decimal(10)))
         self.assertEqual(e.outcome, "declined")

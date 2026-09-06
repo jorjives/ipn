@@ -23,6 +23,17 @@ scenario "ok"
 ''')
         self.assertEqual(res["ok"], [])
 
+    def test_eligibility_sees_the_selection(self):
+        res = outcomes('''
+eligibility
+  refer when Racing selected and rider_age > 60 because "Racing over 60"
+scenario "sel"
+  given bike_value 2000, rider_age 65, security gold, racing yes
+  select Racing
+  expect referred "Racing over 60"
+''')
+        self.assertEqual(res["sel"], [])
+
     def test_failure_names_line_and_values(self):
         res = outcomes('''
 scenario "wrong"

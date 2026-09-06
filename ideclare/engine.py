@@ -61,8 +61,8 @@ class Eligibility:
     reasons: list[str] = field(default_factory=list)
 
 
-def check_eligibility(product: Product, inputs: dict) -> Eligibility:
-    ctx = context(product, inputs, set())
+def check_eligibility(product: Product, inputs: dict, selected: set[str] = frozenset()) -> Eligibility:
+    ctx = context(product, inputs, set(selected))
     reasons, declined = [], False
     _, outcomes, missing = enriched(product, inputs)
     for kind, reason in outcomes:

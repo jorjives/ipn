@@ -43,7 +43,7 @@ def quote(path: str, args: list[str]) -> int:
     if missing:
         print(f"missing: {' '.join(f'{n}=...' for n in missing)}")
         return 2
-    e = check_eligibility(product, inputs)
+    e = check_eligibility(product, inputs, selected)
     print(f"Eligibility: {e.outcome}" + (f" ({'; '.join(e.reasons)})" if e.reasons else ""))
     for c in cover_states(product, inputs, selected):
         print(f"  {c.name}: {c.status}" + (f" ({c.reason})" if c.reason else "") + (f", limit {c.limit:.2f}" if c.limit is not None else ""))
