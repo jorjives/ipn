@@ -100,6 +100,11 @@ What you ask at quote. Each line is `name: type`.
 | `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
 | `calculated` | an input or item field worked out from the others by the steps indented below it |
 
+Any of these but a collection may end `, default <value>`: `voluntary_excess: money,
+default 0`, `cover_type: choice of comprehensive, third_party, default comprehensive`. An
+input or item field left out of a scenario, a `quote` or a `batch` row takes its default;
+one without a default must be given.
+
 #### Repeatable items
 
 ```

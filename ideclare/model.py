@@ -20,6 +20,7 @@ class Input:
     # calculated field only: per-item steps that produce its value
     steps: list["RatingStep"] = field(default_factory=list)
     provided: str = ""  # name of the enrichment that supplies this field, if any
+    default: object = None  # the typed value assumed when the input is not given; None means it must be given
 
 
 @dataclass

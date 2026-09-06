@@ -174,6 +174,28 @@ PER_CONDITION = 'product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per te
 PER_TRAVELLER = 'product "X"\ninputs\n  travellers: collection of traveller, 1 to 4\n    age: integer\ncover Baggage\n  limit 1500 per term per traveller\nrating\n  for each traveller\n    base 10\nclaims\n  claim Baggage\n    pays claimed amount up to limit\n'
 
 
+DEFAULTS = 'product "X"\ninputs\n  value: money\n  voluntary_excess: money, default 0\n  cover_type: choice of comprehensive, third_party, default comprehensive\n  bikes: collection of bike, 1 to 4\n    price: money\n    security: choice of gold, silver, default silver\nrating\n  base 100 - voluntary_excess\n  for each bike\n    add 10 when security is silver\n'
+
+
+class InputDefaults(unittest.TestCase):
+    def test_a_default_is_typed_like_a_given_value(self):
+        p = parse(DEFAULTS)
+        self.assertEqual(p.inputs["voluntary_excess"].default, Decimal(0))
+        self.assertEqual(p.inputs["cover_type"].default, "comprehensive")
+        self.assertEqual(p.inputs["cover_type"].choices, ["comprehensive", "third_party"])
+        self.assertEqual(p.inputs["bikes"].fields["security"].default, "silver")
+        self.assertIsNone(p.inputs["value"].default)
+
+    def test_a_default_must_fit_the_type(self):
+        with self.assertRaises(ParseError) as e:
+            parse(DEFAULTS.replace("default comprehensive", "default fully_comp"))
+        self.assertIn("fully_comp", str(e.exception))
+
+    def test_a_default_fills_an_item_field_left_out(self):
+        p = parse(DEFAULTS + 'scenario "s"\n  given value 1\n  given bike price 500\n  given bike price 700, security gold\n')
+        self.assertEqual([b["security"] for b in p.scenarios[0].given["bikes"]], ["silver", "gold"])
+
+
 class AggregatePer(unittest.TestCase):
     def test_per_term_per_asked_fact(self):
         c = parse(PER_CONDITION).cover("Vet")

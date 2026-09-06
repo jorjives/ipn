@@ -308,6 +308,22 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(run_all(p)[0].failures, [])
 
 
+class InputDefaults(unittest.TestCase):
+    def test_an_input_left_out_takes_its_default_and_a_given_one_overrides(self):
+        from tests.test_parser import DEFAULTS
+        res = run_all(parse(DEFAULTS + '''
+scenario "left out"
+  given value 1
+  given bike price 500
+  expect net 110.00
+scenario "given"
+  given value 1, voluntary_excess 25
+  given bike price 500, security gold
+  expect net 75.00
+'''))
+        self.assertEqual([r.failures for r in res], [[], []])
+
+
 class AggregateExcess(unittest.TestCase):
     def test_excess_remaining(self):
         from tests.test_parser import AGGREGATE_EXCESS

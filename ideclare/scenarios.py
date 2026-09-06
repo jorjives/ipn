@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from . import engine
 from .model import Product, Scenario, Step
-from .parser import Line, given_value, unquote
+from .parser import Line, given_value, unquote, with_defaults
 
 
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -35,7 +35,7 @@ def money(v: Decimal) -> str:
 class Run:
     def __init__(self, product: Product, scenario: Scenario):
         self.product, self.scenario = product, scenario
-        self.inputs = dict(scenario.given)
+        self.inputs = with_defaults(product.inputs, scenario.given)
         self.selected = set(scenario.selected)
         self.result = Result(scenario)
         self.policy = engine.Policy(product, self.inputs, self.selected)

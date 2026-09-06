@@ -131,6 +131,9 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
         toks = tokens(child)
         if len(toks) < 3 or toks[1] != ":":
             raise child.error("expected 'name: type'")
+        default = None
+        if len(toks) >= 6 and toks[-3:-1] == [",", "default"]:
+            default, toks = toks[-1], toks[:-3]
         name, kind = toks[0], toks[2]
         if kind == "choice":
             if len(toks) < 5 or toks[3] != "of":
@@ -144,7 +147,14 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
             inputs[name] = Input(name, "calculated")
         else:
             raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
+        if default is not None:
+            inputs[name].default = given_value(child, inputs[name], default)
     return inputs
+
+
+def with_defaults(inputs: dict[str, Input], given: dict) -> dict:
+    """What was given, plus the default of anything with one that was left out."""
+    return {**{n: i.default for n, i in inputs.items() if i.default is not None}, **given}
 
 
 def parse_collection(line: Line, name: str, toks: list[str]) -> Input:
@@ -665,6 +675,7 @@ def given_item(line: Line, coll: Input, pairs: list[tuple[str, str]]) -> dict:
         if name not in coll.fields:
             raise line.error(f"unknown {coll.singular} field {name!r}")
         item[name] = given_value(line, coll.fields[name], value)
+    item = with_defaults(coll.fields, item)
     missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated") and not coll.fields[f].provided]
     if missing:
         raise line.error(f"{coll.singular} is missing {', '.join(missing)}")

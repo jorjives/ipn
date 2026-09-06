@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from ideclare.cli import main
-from tests.test_parser import FLEET, LIFECYCLE, RATING
+from tests.test_parser import DEFAULTS, FLEET, LIFECYCLE, RATING
 
 
 def run(*argv) -> tuple[int, str]:
@@ -28,6 +28,18 @@ class QuoteCommand(unittest.TestCase):
         self.assertIn("Theft on bike 2: included, limit 1000.00", out)
         self.assertIn("bike 2 Bike age", out)
         self.assertIn("= 82.65", out)  # 60 + 27, x 0.95
+
+
+class QuoteDefaults(unittest.TestCase):
+    def test_defaulted_inputs_need_not_be_given(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "x.idl"), "w") as f:
+                f.write(DEFAULTS)
+            with open(os.path.join(d, "bikes.csv"), "w") as f:
+                f.write("price,security\n500,\n")
+            code, out = run("quote", os.path.join(d, "x.idl"), "value=1", "bikes=bikes.csv")
+        self.assertEqual(code, 0, out)
+        self.assertIn("= 110.00", out)
 
 
 class QuoteInstalments(unittest.TestCase):

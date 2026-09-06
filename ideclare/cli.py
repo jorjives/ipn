@@ -7,7 +7,7 @@ import sys
 
 from .engine import check_eligibility, cover_state, instalments, rate
 from .expr import ExprError
-from .parser import Line, ParseError, given_value, items_from_file, parse
+from .parser import Line, ParseError, given_value, items_from_file, parse, with_defaults
 from .scenarios import run_all
 from .tables import TableError
 
@@ -42,7 +42,7 @@ def risk_inputs(product, pairs: list[tuple[str, str]], line: Line) -> tuple[dict
             inputs[name] = items_from_file(line, product.inputs[name], value, product.base)
         else:
             inputs[name] = given_value(line, product.inputs[name], value)
-    return inputs, selected
+    return with_defaults(product.inputs, inputs), selected
 
 
 def missing_inputs(product, inputs: dict) -> list[str]:
