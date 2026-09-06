@@ -82,6 +82,8 @@ def quote(path: str, args: list[str]) -> int:
     for label, amount in q.lines:
         print(f"  {label:<20} {'':>10}  + {amount:.2f}")
     print(f"  {'total':<20} {'':>10}  = {q.total:.2f} {product.currency}")
+    for label, amount in q.commission:
+        print(f"  of which {label} commission {amount:.2f}")
     lc = product.lifecycle
     if lc.instalments:
         charge, parts = instalments(q.total, lc.instalments, lc.instalment_charge)
@@ -106,9 +108,10 @@ def batch(path: str, risks: str, out=None) -> int:
             writer.writerow([f"unknown column {unknown[0]!r}; expected input names and select"])
             return 2
         lines = [s.label for s in product.rating if s.kind in ("tax", "fee")]
-        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "error"])
+        commission = [s.label for s in product.rating if s.kind == "commission"]
+        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", *commission, "error"])
         for n, record in enumerate(reader, start=1):
-            blank = [""] * (len(lines) + 4)
+            blank = [""] * (len(lines) + len(commission) + 4)
             try:
                 inputs, selected = risk_inputs(product, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()], Line(n, 0, f"row {n}"))
                 missing = missing_inputs(product, inputs)
@@ -119,8 +122,9 @@ def batch(path: str, risks: str, out=None) -> int:
             except (ParseError, TableError, ExprError) as err:
                 writer.writerow([n, *blank, str(err).removeprefix(f"line {n}: ")])
                 continue
-            by_label = dict(q.lines)
-            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:.2f}", *(f"{by_label.get(l, 0):.2f}" for l in lines), f"{q.total:.2f}", ""])
+            by_label, split = dict(q.lines), dict(q.commission)
+            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:.2f}", *(f"{by_label.get(l, 0):.2f}" for l in lines), f"{q.total:.2f}",
+                             *(f"{split.get(l, 0):.2f}" for l in commission), ""])
     return 0
 
 

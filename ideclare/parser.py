@@ -424,7 +424,7 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
                 step.condition, rest = expression(child, rest[1:], product, extra=extra)
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
-        elif kind in ("tax", "fee"):
+        elif kind in ("tax", "fee", "commission"):
             if kind == "tax" and not label and rest and rest[0][0].isalpha():
                 label, rest = rest[0], rest[1:]  # tax IPT 12%
             if not label:

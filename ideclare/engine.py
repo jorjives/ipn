@@ -132,6 +132,7 @@ class Quote:
     total: Decimal
     earning: Decimal  # net plus taxes: the part that earns over the term and is refundable pro rata
     trail: list[Trail] = field(default_factory=list)
+    commission: list[tuple[str, Decimal]] = field(default_factory=list)  # shares of the net owed to intermediaries; reported, never added
 
 
 def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lines: list, prefix: str = "") -> tuple[Decimal, Decimal]:
@@ -181,7 +182,7 @@ def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lin
             bound = value(step.amount)
             net = max(net, bound) if step.kind == "minimum" else min(net, bound)
             record(step.label or step.kind, str(bound))
-        elif step.kind in ("tax", "fee"):
+        elif step.kind in ("tax", "fee", "commission"):
             lines.append((step.kind, step.label, value(step.amount)))
         elif step.kind == "round":
             quantum = value(step.amount)
@@ -200,10 +201,11 @@ def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = 
     steps = product.rating + ([RatingStep("load", "Claims loading", amount=("num", loading - 1))] if loading != 1 else [])
     net, quantum = run_steps(product, steps, ctx, Decimal(0), trail, lines)
     net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
-    lines = [(kind, label, (net * amount if kind == "tax" else amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
+    lines = [(kind, label, (amount if kind == "fee" else net * amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
     taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
     fees = sum((a for kind, _, a in lines if kind == "fee"), Decimal(0))
-    return Quote(net, [(label, a) for _, label, a in lines], net + taxes + fees, net + taxes, trail)
+    return Quote(net, [(label, a) for kind, label, a in lines if kind != "commission"], net + taxes + fees, net + taxes, trail,
+                 [(label, a) for kind, label, a in lines if kind == "commission"])
 
 
 # --- lifecycle --------------------------------------------------------------

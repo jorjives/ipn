@@ -66,6 +66,8 @@ rating
   minimum 250
   tax IPT 12%
   fee "Policy fee" 35
+  # The broker's share of the net, reported for the bordereau; the customer's premium is unchanged
+  commission "Broker" 17.5%
 
 lifecycle
   cooling off 14 days, full refund
@@ -112,6 +114,7 @@ scenario "Rate on fee income for the consultancy"
   expect net 4320.00
   expect tax IPT 518.40
   expect premium 4873.40
+  expect commission "Broker" 756.00
 
 scenario "A new IT contractor buying a low limit"
   given profession it_contractor, turnover 60000, years_trading 1, limit_of_indemnity 250000, retroactive_date 2026-01-01, previous_claims 0, overseas_work no

@@ -165,6 +165,12 @@ rating
 
 
 class Rating(unittest.TestCase):
+    def test_commission_is_a_named_share_of_the_net(self):
+        p = parse(FULL + 'rating\n  base 100\n  commission "Broker" 15%\n')
+        self.assertEqual((p.rating[1].kind, p.rating[1].label, p.rating[1].amount), ("commission", "Broker", ("pct", ("num", Decimal(15)))))
+        with self.assertRaises(ParseError):
+            parse(FULL + 'rating\n  base 100\n  commission 15%\n')
+
     def test_steps_parse_in_order(self):
         p = parse(RATING)
         self.assertEqual([s.kind for s in p.rating], ["base", "factor", "factor", "add", "discount", "load", "minimum", "tax", "fee", "round"])

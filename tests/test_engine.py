@@ -100,6 +100,13 @@ class RatingEngine(unittest.TestCase):
         self.assertEqual(q.lines, [("IPT", Decimal("13.50"))])  # 13.4952 on rounded net, not 13.4946
         self.assertEqual(q.total, Decimal("125.96"))
 
+    def test_commission_is_reported_on_the_net_and_never_added(self):
+        p = parse(FULL + 'rating\n  base 112.455\n  commission "Broker" 15%\n  commission "Scheme" 2.5%\n  tax IPT 12%\n')
+        q = rate(p, risk(), set())
+        self.assertEqual(q.commission, [("Broker", Decimal("16.87")), ("Scheme", Decimal("2.81"))])
+        self.assertEqual(q.lines, [("IPT", Decimal("13.50"))])
+        self.assertEqual(q.total, Decimal("125.96"))
+
     def test_no_rating_block_gives_zero(self):
         q = rate(parse(FULL), risk(), set())
         self.assertEqual(q.total, Decimal("0.00"))

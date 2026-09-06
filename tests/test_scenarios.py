@@ -92,6 +92,18 @@ scenario "priced"
 ''')
         self.assertEqual(res["priced"], [])
 
+    def test_commission_line(self):
+        res = {r.scenario.name: r.failures for r in run_all(parse(RATING + '  commission "Broker" 15%\n' + '''
+scenario "split"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  expect net 60.00
+  expect commission "Broker" 9.00
+  expect premium 77.20
+  expect commission "Agent" 1.00
+'''))}
+        self.assertEqual(len(res["split"]), 1)
+        self.assertIn("no commission called 'Agent'", res["split"][0])
+
     def test_wrong_premium_shows_breakdown(self):
         res = rated('''
 scenario "wrong"

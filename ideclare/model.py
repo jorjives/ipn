@@ -108,7 +108,7 @@ class FactorRow:
 
 @dataclass
 class RatingStep:
-    kind: str  # base | factor | add | discount | load | minimum | maximum | tax | fee | round
+    kind: str  # base | factor | add | discount | load | minimum | maximum | tax | fee | commission | round
     label: str = ""
     amount: tuple | None = None
     condition: tuple | None = None

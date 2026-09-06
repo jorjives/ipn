@@ -257,9 +257,13 @@ class Run:
     def expect_fee(self, step, rest):
         self._line(step, "fee", rest)
 
+    def expect_commission(self, step, rest):
+        self._line(step, "commission", rest)
+
     def _line(self, step, kind, rest):
         label = unquote(rest[0])
-        actual = dict(self.quote().lines).get(label)
+        q = self.quote()
+        actual = dict(q.commission if kind == "commission" else q.lines).get(label)
         if actual is None:
             self.fail(step.line, f"no {kind} called {label!r} in the quote")
         else:

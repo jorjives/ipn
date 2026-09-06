@@ -395,12 +395,14 @@ inputs
 | `maximum <amount>` | lowers it to at most this |
 | `tax Name N%` | adds a tax line of N% of the rounded net |
 | `fee "Label" <amount>` | adds a flat fee line |
+| `commission "Label" N%` | reports N% of the rounded net as owed to that intermediary; never added to the premium |
 | `round to 0.01` | rounding unit for every figure, half up (default 0.01) |
 
 A product with no tax simply has no `tax` line (life premiums, for example).
 
-The result is the net premium, one line per tax and fee, and the total. The `quote`
-command prints the full trail of applied steps.
+The result is the net premium, one line per tax and fee, the total, and the commission
+split of the net. The `quote` command prints the full trail of applied steps and
+`batch` gives each commission its own column.
 
 ### lifecycle
 
@@ -574,6 +576,7 @@ Expectations:
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium |
 | `expect net for bike 2 AMOUNT` | one item's share of the net, before the steps after `for each` |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
+| `expect commission "Label" AMOUNT` | that intermediary's share of the net |
 | `expect factor "Label" x 1.40` | what a factor applied |
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
 | `expect expiry DATE` | end of the current term |
@@ -587,7 +590,7 @@ Expectations:
 
 ## Not yet supported
 
-Commission, multi-currency, more than one product per
+Multi-currency, more than one product per
 file, new-for-old versus indemnity as a named settlement basis (use a depreciation table),
 per-condition limits within an aggregate (pet), protected no claims discount as an add-on
 that switches off the step-back, run-off cover after a claims-made policy ends, a benefit
