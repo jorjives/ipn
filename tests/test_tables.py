@@ -82,6 +82,53 @@ class Lookup(unittest.TestCase):
             self.look(driver_age="young", area=1, vehicle_group=1)
 
 
+class Scale(unittest.TestCase):
+    """A big table is looked up through an index on its exact-valued cells, not by scanning every row."""
+
+    def big(self, sectors=2000):
+        lines = ["sector, group, age, rate"]
+        for s in range(sectors):
+            for g in range(1, 11):
+                for a in ("17-24", "25-49", "50+"):
+                    lines.append(f"S{s}, {g}, {a}, {s % 7}.{g}")
+        return load_table("Big", ["sector", "group", "age"], lines)
+
+    def test_index_agrees_with_a_scan_on_bands_and_wildcards(self):
+        t = load_table("T", ["area", "age"], ["area, age, v", "A, 17-24, 1", "A, 25+, 2", "*, 17-24, 3", "B, *, 4", "*, *, 5"])
+        cases = {("A", 20): 1, ("A", 30): 2, ("C", 20): 3, ("B", 40): 4, ("C", 40): 5}
+        for (area, age), v in cases.items():
+            self.assertEqual(t.lookup({"area": area, "age": Decimal(age)})["v"], Decimal(v), (area, age))
+
+    def test_a_hundred_lookups_on_sixty_thousand_rows_is_quick(self):
+        import time
+        t = self.big()
+        start = time.perf_counter()
+        for i in range(100):
+            row = t.lookup({"sector": f"S{i * 19}", "group": Decimal(1 + i % 10), "age": Decimal(30)})
+            self.assertEqual(row["rate"], Decimal(f"{(i * 19) % 7}.{1 + i % 10}"))
+        self.assertLess(time.perf_counter() - start, 0.5)
+
+
+class TypedCells(unittest.TestCase):
+    def test_percentage_cell(self):
+        t = load_table("T", ["months"], ["months, refund", "1, 80%", "2+, 50%"])
+        self.assertEqual(t.lookup({"months": Decimal(1)})["refund"], Decimal("0.80"))
+        self.assertEqual(t.lookup({"months": Decimal(5)})["refund"], Decimal("0.50"))
+
+    def test_choice_cell_must_be_a_choice(self):
+        with self.assertRaisesRegex(TableError, "T row 3: 'glod' is not one of bronze, silver, gold"):
+            load_table("T", ["security"], ["security, v", "gold, 1", "glod, 2"], kinds={"security": ["bronze", "silver", "gold"]})
+
+    def test_yes_no_cell(self):
+        with self.assertRaisesRegex(TableError, "T row 2: 'Yes' is not yes, no or \\*"):
+            load_table("T", ["racing"], ["racing, v", "Yes, 1"], kinds={"racing": "yes/no"})
+
+    def test_number_cell(self):
+        with self.assertRaisesRegex(TableError, "T row 2: 'young' is not a number, a band like 17-20 or 65\\+, or \\*"):
+            load_table("T", ["age"], ["age, v", "young, 1"], kinds={"age": "integer"})
+        load_table("T", ["age"], ["age, v", "17-20, 1", "21+, 2", "*, 3"], kinds={"age": "integer"})
+
+
 class Interpolation(unittest.TestCase):
     def setUp(self):
         self.t = load_table("Mortality", ["age", "smoker"], [
