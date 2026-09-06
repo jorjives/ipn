@@ -62,7 +62,7 @@ way to write it) and *scale* (fine at 300 rows or 3 items, not at 100,000 or 5,0
 ## Outcome
 
 Everything in the three tables shipped, one commit per item, tests first. The suite went
-from 236 to 285 tests; the 13 example products all pass their scenarios (168 in total).
+from 236 to 285 tests; the 13 example products all pass their scenarios (219 in total).
 
 What each example now proves beyond its original brief:
 
