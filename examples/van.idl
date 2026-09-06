@@ -41,7 +41,8 @@ eligibility
 
 cover "Accidental Damage"
   limit vehicle_value
-  excess 350
+  # A commercial aggregate deductible: the insured bears the first 350 of damage across the year, not on every claim
+  excess 350 per term
 
 cover Theft
   limit vehicle_value
@@ -159,6 +160,22 @@ scenario "Renewal indexes the age across a band edge and grows the discount"
   when renewed on 2027-03-01
   expect premium 630.77
   expect factor "Driver, area and group" x 1.49
+
+# --- Claims: an aggregate deductible on damage --------------------------------
+
+scenario "The insured bears the first 350 of damage across the year"
+  given postcode "YO1 1AA", area 2, vehicle_value 10000, vehicle_group 5, driver_age 35, ncd_years 0, use own_goods
+  when bound on 2026-01-01
+  expect cover "Accidental Damage" excess remaining 350
+  when claim "Accidental Damage" for 200 on 2026-02-01
+  expect claim declined "nothing is payable after the excess"
+  expect cover "Accidental Damage" excess remaining 150
+  when claim "Accidental Damage" for 1000 on 2026-05-01
+  expect payout 850.00
+  expect cover "Accidental Damage" excess remaining 0
+  when claim "Accidental Damage" for 600 on 2026-08-01
+  expect payout 600.00
+  expect claims in term 2
 
 # --- Claims: the excess comes from the inline table ----------------------------
 

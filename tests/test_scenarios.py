@@ -308,6 +308,24 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(run_all(p)[0].failures, [])
 
 
+class AggregateExcess(unittest.TestCase):
+    def test_excess_remaining(self):
+        from tests.test_parser import AGGREGATE_EXCESS
+        res = run_all(parse(AGGREGATE_EXCESS + '''
+scenario "s"
+  given a 1
+  when bound on 2026-01-01
+  expect cover Fleet excess remaining 1000
+  when claim Fleet for 600 on 2026-02-01
+  expect claim declined "nothing is payable after the excess"
+  expect cover Fleet excess remaining 400
+  when claim Fleet for 900 on 2026-03-01
+  expect payout 500
+  expect cover Fleet excess remaining 0
+'''))[0]
+        self.assertEqual(res.failures, [])
+
+
 class AggregatePerBucket(unittest.TestCase):
     def test_remaining_for_a_condition_and_on_an_item(self):
         from tests.test_parser import PER_CONDITION, PER_TRAVELLER

@@ -292,6 +292,10 @@ cover Racing optional
   `, minimum 100` floors a percentage excess and `, maximum 1000` caps it:
   `excess 10% of claim, minimum 100, maximum 1000`. Commercial wordings may write
   `deductible` for `excess`; the two are the same.
+- `excess 350 per term` (or `deductible 350 per term`) is an aggregate excess: the insured
+  bears the first 350 across the term's claims on the cover rather than on each one. A
+  claim inside it is declined as nothing payable but still uses it up; it is restored at
+  renewal.
 - `limit 7000 per term` is an aggregate limit: the most the insurer pays on this cover in
   the whole term. Each paid claim eats into it and it is restored at renewal. A plain
   `limit` applies to any one claim.
@@ -606,6 +610,7 @@ Expectations:
 | `expect cover Name [on bike N] included\|excluded\|"not selected"\|"not available" ["reason"]` | cover state, for item N if per item |
 | `expect cover Name [on bike N] limit AMOUNT` | the resolved limit |
 | `expect cover Name remaining AMOUNT`, `... remaining AMOUNT for condition "x"`, `expect cover Name on traveller 2 remaining AMOUNT` | what is left of an aggregate limit this term, for that condition or item |
+| `expect cover Name excess remaining AMOUNT` | what the insured still bears of an aggregate excess this term |
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium; once bound, the premium is what was charged for the term (capped or loaded at renewal, repriced by an adjustment) |
 | `expect net for bike 2 AMOUNT` | one item's share of the net, before the steps after `for each` |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |

@@ -251,6 +251,7 @@ class ClaimResult:
     cover: str = ""
     counted: bool = True  # towards claims in term
     bucket: object = None  # which per-condition or per-item limit this claim erodes
+    excess: Decimal = Decimal(0)  # what the insured bore on this claim; erodes an aggregate excess
 
 
 def excess_amount(excess, ctx: dict) -> Decimal:
@@ -448,6 +449,14 @@ class Policy:
         bucket = self.bucket(section, item, facts or {})
         return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover and c.bucket == bucket), Decimal(0)))
 
+    def excess_remaining(self, cover: str) -> Decimal | None:
+        """What the insured still has to bear of an aggregate excess this term; None when the excess is per claim."""
+        section = self.product.cover(cover)
+        if not section.excess.aggregate:
+            return None
+        ctx = context(self.product, self.inputs, self.selected)
+        return max(Decimal(0), excess_amount(section.excess, ctx) - sum((c.excess for c in self.claims if c.cover == cover), Decimal(0)))
+
     def claims_loading(self) -> Decimal:
         applicable = [m for count, m, unless in self.product.claims_loading if self.claims_in_term >= count and not self.unless(unless)]
         return applicable[-1] if applicable else Decimal(1)
@@ -488,18 +497,22 @@ class Policy:
         if section.aggregate and limit == 0:
             where = f" for {section.per} {self.bucket(section, item, facts)}" if section.per else ""
             return ClaimResult("declined", reason=f"{cover} limit for the term is used up{where}")
+        borne = Decimal(0)
         for clause in rules.pays:  # in the order the wording gives them
             if clause == "limit" and limit is not None:
                 payout = min(payout, limit)
             elif clause == "excess":
-                payout -= excess_amount(section.excess, ctx)
+                borne = min(payout, self.excess_remaining(cover)) if section.excess.aggregate else excess_amount(section.excess, ctx)
+                payout -= borne
             elif clause == "co-payment":
                 for cp in rules.co_payments:
                     if cp.condition is None or evaluate(cp.condition, ctx):
                         payout *= 1 - Decimal(evaluate(cp.amount, ctx))
         if payout <= 0:
+            if section.excess.aggregate:  # the claim still eats into what the insured bears this term
+                self.claims.append(ClaimResult("declined", cover=cover, counted=False, excess=pence(borne)))
             return ClaimResult("declined", reason="nothing is payable after the excess")
-        result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)), bucket=self.bucket(section, item, facts))
+        result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)), bucket=self.bucket(section, item, facts), excess=pence(borne))
         self.claims.append(result)
         return result
 

@@ -290,7 +290,9 @@ def parse_cover(line: Line, product: Product) -> None:
             product.deferred.append(lambda line=child: parse_excess_table(line, cover, product))
             rest = []
         elif key == "excess":
-            cover.excess.amount, rest = expression(child, toks[1:], product, stop={","})
+            cover.excess.amount, rest = expression(child, toks[1:], product, stop={",", "per"})
+            if rest[:2] == ["per", "term"]:
+                cover.excess.aggregate, rest = True, rest[2:]
             for bound in ("minimum", "maximum"):
                 if rest[:2] == [",", bound]:
                     node, rest = expression(child, rest[2:], product, stop={","})

@@ -610,6 +610,33 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(self.pol.remaining("Vet"), Decimal(7000))
 
 
+class AggregateExcess(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import AGGREGATE_EXCESS
+        self.pol = Policy(parse(AGGREGATE_EXCESS), {"a": Decimal(1)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, amount):
+        on = date(2026, 3, 1)
+        return self.pol.claim("Fleet", Decimal(amount), on, on, set())
+
+    def test_the_insured_bears_the_first_1000_across_the_term(self):
+        r = self.claim(600)
+        self.assertEqual((r.status, r.reason), ("declined", "nothing is payable after the excess"))
+        self.assertEqual(self.pol.excess_remaining("Fleet"), Decimal(400))
+        self.assertEqual(self.pol.claims_in_term, 0)
+        self.assertEqual(self.claim(900).amount, Decimal(500))
+        self.assertEqual(self.pol.excess_remaining("Fleet"), Decimal(0))
+        self.assertEqual(self.claim(700).amount, Decimal(700))
+        self.assertEqual(self.pol.claims_in_term, 2)
+
+    def test_restored_at_renewal(self):
+        self.claim(5000)
+        self.pol.product.lifecycle.renewal_invite_days = 21
+        self.pol.accept_renewal()
+        self.assertEqual(self.pol.excess_remaining("Fleet"), Decimal(1000))
+
+
 class AggregatePerCondition(unittest.TestCase):
     def setUp(self):
         from tests.test_parser import PER_CONDITION

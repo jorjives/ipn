@@ -64,6 +64,7 @@ class Rule:
 @dataclass
 class Excess:
     amount: tuple | None = None
+    aggregate: bool = False  # per term: the insured bears this much across the term's claims, not on each
     minimum: tuple | None = None
     maximum: tuple | None = None
     rows: list["FactorRow"] = field(default_factory=list)  # a table instead of one amount; op is unused

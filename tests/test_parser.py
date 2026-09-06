@@ -116,6 +116,11 @@ class RulesCoversScenarios(unittest.TestCase):
         self.assertEqual(p.cover("Fire").excess.amount, ("num", Decimal(250)))
         self.assertEqual(p.claims["Fire"].pays, ["limit", "excess"])
 
+    def test_aggregate_deductible(self):
+        p = parse(HEADER + 'cover Theft\n  limit bike_value\n  deductible 1000 per term\ncover Fire\n  limit bike_value\n  excess 10% of claim per term, minimum 50\n')
+        self.assertEqual((p.cover("Theft").excess.amount, p.cover("Theft").excess.aggregate), (("num", Decimal(1000)), True))
+        self.assertEqual((p.cover("Fire").excess.aggregate, p.cover("Fire").excess.minimum), (True, ("num", Decimal(50))))
+
     def test_scenario(self):
         p = parse(FULL)
         s = p.scenarios[0]
@@ -164,6 +169,7 @@ rating
 '''
 
 
+AGGREGATE_EXCESS = 'product "X"\ninputs\n  a: money\ncover Fleet\n  limit 100000\n  excess 1000 per term\nrating\n  base 100\nclaims\n  claim Fleet\n    pays claimed amount, less excess, up to limit\n'
 PER_CONDITION = 'product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term per condition\n  excess 100\nrating\n  base 100\nclaims\n  claim Vet\n    asks\n      condition: text\n    pays claimed amount, less excess, up to limit\n'
 PER_TRAVELLER = 'product "X"\ninputs\n  travellers: collection of traveller, 1 to 4\n    age: integer\ncover Baggage\n  limit 1500 per term per traveller\nrating\n  for each traveller\n    base 10\nclaims\n  claim Baggage\n    pays claimed amount up to limit\n'
 

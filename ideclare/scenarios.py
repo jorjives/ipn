@@ -210,6 +210,9 @@ class Run:
         if rest[1] == "limit":
             self.check(step, f"{name} limit", Decimal(rest[2]), state.limit)
             return
+        if rest[1:3] == ["excess", "remaining"]:
+            self.check(step, f"{name} excess remaining", money(Decimal(rest[3])), money(self.policy.excess_remaining(name)))
+            return
         if rest[1] == "remaining":  # remaining X [for <fact> value]
             facts = {}
             if rest[3:4] == ["for"]:
