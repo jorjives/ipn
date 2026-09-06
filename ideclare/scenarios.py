@@ -210,8 +210,12 @@ class Run:
         if rest[1] == "limit":
             self.check(step, f"{name} limit", Decimal(rest[2]), state.limit)
             return
-        if rest[1] == "remaining":
-            self.check(step, f"{name} remaining", money(Decimal(rest[2])), money(self.policy.remaining(name, item)))
+        if rest[1] == "remaining":  # remaining X [for <fact> value]
+            facts = {}
+            if rest[3:4] == ["for"]:
+                asks = self.product.claims[name].asks
+                facts[rest[4]] = given_value(Line(step.line, 0, ""), asks[rest[4]], rest[5])
+            self.check(step, f"{name} remaining", money(Decimal(rest[2])), money(self.policy.remaining(name, item, facts)))
             return
         status = " ".join(unquote(t) for t in rest[1:2])
         actual = state.status + (f" ({state.reason})" if state.reason else "")

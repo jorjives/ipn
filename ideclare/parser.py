@@ -280,8 +280,11 @@ def parse_cover(line: Line, product: Product) -> None:
         key = "excess" if toks[0] == "deductible" else toks[0]
         if key == "limit":
             cover.limit, rest = expression(child, toks[1:], product, stop={"per"})
-            if rest == ["per", "term"]:
-                cover.aggregate, rest = True, []
+            if rest[:2] == ["per", "term"]:
+                cover.aggregate, rest = True, rest[2:]
+                if len(rest) == 2 and rest[0] == "per":
+                    cover.per, rest = rest[1], []
+                    product.deferred.append(lambda line=child: check_per(line, cover, product))
         elif key == "excess" and len(toks) == 1 and child.children:
             # A table of rows may use facts a claim asks for, which are declared later: parse it last.
             product.deferred.append(lambda line=child: parse_excess_table(line, cover, product))
@@ -309,7 +312,14 @@ def parse_cover(line: Line, product: Product) -> None:
             raise child.error(f"unexpected {' '.join(rest)!r}")
     used = set().union(*(names(n) for n in (cover.limit, cover.available, cover.from_, cover.until, cover.excess.amount, cover.excess.minimum) if n is not None),
                        *(names(r.condition) for r in cover.exclusions))
-    cover.item = next((c.singular for c in product.collections if used & set(c.fields)), "")
+    cover.item = next((c.singular for c in product.collections if used & set(c.fields)), "") or (cover.per if product.collection_for(cover.per) else "")
+
+
+def check_per(line: Line, cover: Cover, product: Product) -> None:
+    """`per term per X`: X is an item the policy has, or a fact the claim asks for; checked once the claims are known."""
+    rule_ = product.claims.get(cover.name)
+    if not product.collection_for(cover.per) and not (rule_ and cover.per in rule_.asks):
+        raise line.error(f"{cover.per!r} is neither an item nor a fact that a claim on {cover.name} asks for")
 
 
 def claim_facts(product: Product, cover: str) -> set[str]:

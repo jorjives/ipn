@@ -250,6 +250,7 @@ class ClaimResult:
     reason: str = ""
     cover: str = ""
     counted: bool = True  # towards claims in term
+    bucket: object = None  # which per-condition or per-item limit this claim erodes
 
 
 def excess_amount(excess, ctx: dict) -> Decimal:
@@ -429,12 +430,23 @@ class Policy:
                 break
         return offer
 
-    def remaining(self, cover: str, item: dict | None = None) -> Decimal | None:
-        """What is left of an aggregate limit this term; None when the cover has no such limit."""
-        state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
-        if not self.product.cover(cover).aggregate or state.limit is None:
+    def bucket(self, section: Cover, item: dict | None, facts: dict) -> object:
+        """Which of a cover's per-X limits a claim falls into: the fact's value, or the item's position."""
+        if not section.per:
             return None
-        return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover), Decimal(0)))
+        if section.per in facts:
+            return facts[section.per]
+        items = self.inputs[self.product.collection_for(section.per).name]
+        return next(n for n, x in enumerate(items, start=1) if x is item)
+
+    def remaining(self, cover: str, item: dict | None = None, facts: dict | None = None) -> Decimal | None:
+        """What is left of an aggregate limit this term; None when the cover has no such limit."""
+        section = self.product.cover(cover)
+        state = cover_state(self.product, section, self.inputs, self.selected, item)
+        if not section.aggregate or state.limit is None:
+            return None
+        bucket = self.bucket(section, item, facts or {})
+        return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover and c.bucket == bucket), Decimal(0)))
 
     def claims_loading(self) -> Decimal:
         applicable = [m for count, m, unless in self.product.claims_loading if self.claims_in_term >= count and not self.unless(unless)]
@@ -472,9 +484,10 @@ class Policy:
         row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
         if row is not None:
             payout = apply_row(payout, row, ctx)
-        limit = self.remaining(cover, item) if section.aggregate else state.limit
+        limit = self.remaining(cover, item, facts) if section.aggregate else state.limit
         if section.aggregate and limit == 0:
-            return ClaimResult("declined", reason=f"{cover} limit for the term is used up")
+            where = f" for {section.per} {self.bucket(section, item, facts)}" if section.per else ""
+            return ClaimResult("declined", reason=f"{cover} limit for the term is used up{where}")
         for clause in rules.pays:  # in the order the wording gives them
             if clause == "limit" and limit is not None:
                 payout = min(payout, limit)
@@ -486,7 +499,7 @@ class Policy:
                         payout *= 1 - Decimal(evaluate(cp.amount, ctx))
         if payout <= 0:
             return ClaimResult("declined", reason="nothing is payable after the excess")
-        result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)))
+        result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)), bucket=self.bucket(section, item, facts))
         self.claims.append(result)
         return result
 

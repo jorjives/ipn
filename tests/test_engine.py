@@ -610,6 +610,45 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(self.pol.remaining("Vet"), Decimal(7000))
 
 
+class AggregatePerCondition(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import PER_CONDITION
+        self.pol = Policy(parse(PER_CONDITION), {"a": Decimal(1)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, amount, condition):
+        on = date(2026, 3, 1)
+        return self.pol.claim("Vet", Decimal(amount), on, on, set(), facts={"condition": condition})
+
+    def test_each_condition_has_its_own_limit(self):
+        self.assertEqual(self.claim(5000, "knee").amount, Decimal(4900))
+        self.assertEqual(self.claim(5000, "knee").amount, Decimal(2100))
+        self.assertEqual(self.claim(5000, "ear").amount, Decimal(4900))
+        self.assertEqual(self.pol.remaining("Vet", facts={"condition": "knee"}), Decimal(0))
+        self.assertEqual(self.pol.remaining("Vet", facts={"condition": "ear"}), Decimal(2100))
+        r = self.claim(500, "knee")
+        self.assertEqual((r.status, r.reason), ("declined", "Vet limit for the term is used up for condition knee"))
+
+
+class AggregatePerItem(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import PER_TRAVELLER
+        self.pol = Policy(parse(PER_TRAVELLER), {"travellers": [{"age": Decimal(40)}, {"age": Decimal(40)}]}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, amount, n):
+        on = date(2026, 3, 1)
+        return self.pol.claim("Baggage", Decimal(amount), on, on, set(), item=self.pol.inputs["travellers"][n - 1])
+
+    def test_identical_travellers_still_have_their_own_limits(self):
+        self.assertEqual(self.claim(1000, 1).amount, Decimal(1000))
+        self.assertEqual(self.claim(1000, 1).amount, Decimal(500))
+        self.assertEqual(self.claim(1000, 2).amount, Decimal(1000))
+        self.assertEqual(self.pol.remaining("Baggage", self.pol.inputs["travellers"][1]), Decimal(500))
+        r = self.claim(100, 1)
+        self.assertEqual((r.status, r.reason), ("declined", "Baggage limit for the term is used up for traveller 1"))
+
+
 class ClaimFacts(unittest.TestCase):
     def setUp(self):
         from tests.test_parser import LIFE

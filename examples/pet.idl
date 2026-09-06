@@ -32,7 +32,8 @@ eligibility
   decline when purchase_price > 5000 because "Pets worth over 5,000 need a specialist policy"
 
 cover "Vet Fees"
-  limit vet_limit per term
+  # The annual limit is per condition: a dog with a bad knee and an ear infection has a full limit for each
+  limit vet_limit per term per condition
   excess 99
   waiting period 14 days
 
@@ -131,20 +132,24 @@ scenario "Gold cover on a high risk breed"
 
 # --- The annual limit ----------------------------------------------------
 
-scenario "Every paid claim eats into the annual vet fee limit"
+scenario "Every paid claim eats into the annual limit for its condition"
   given species dog, breed "Labrador", pet_age 2, purchase_price 900, cover_level bronze, breed_risk medium
   when bound on 2026-01-01
-  expect cover "Vet Fees" remaining 4000
+  expect cover "Vet Fees" remaining 4000 for condition "cruciate ligament"
   when claim "Vet Fees" for 2500 on 2026-03-01 with condition "cruciate ligament"
   expect payout 2401.00
-  expect cover "Vet Fees" remaining 1599
+  expect cover "Vet Fees" remaining 1599 for condition "cruciate ligament"
   when claim "Vet Fees" for 3000 on 2026-06-01 with condition "cruciate ligament"
-  # 2901 after the excess, but only 1599 is left this year
+  # 2901 after the excess, but only 1599 is left this year for the knee
   expect payout 1599.00
-  expect cover "Vet Fees" remaining 0
+  expect cover "Vet Fees" remaining 0 for condition "cruciate ligament"
+  when claim "Vet Fees" for 400 on 2026-08-01 with condition "cruciate ligament"
+  expect claim declined "Vet Fees limit for the term is used up for condition cruciate ligament"
+  # a different condition has its own untouched limit
+  expect cover "Vet Fees" remaining 4000 for condition "ear infection"
   when claim "Vet Fees" for 400 on 2026-09-01 with condition "ear infection"
-  expect claim declined "Vet Fees limit for the term is used up"
-  expect claims in term 2
+  expect payout 301.00
+  expect claims in term 3
 
 scenario "The limit is restored at renewal"
   given species dog, breed "Labrador", pet_age 2, purchase_price 900, cover_level bronze, breed_risk medium
@@ -152,7 +157,7 @@ scenario "The limit is restored at renewal"
   when claim "Vet Fees" for 5000 on 2026-03-01 with condition "cruciate ligament"
   expect payout 4000.00
   when renewed on 2027-01-01
-  expect cover "Vet Fees" remaining 4000
+  expect cover "Vet Fees" remaining 4000 for condition "cruciate ligament"
   when claim "Vet Fees" for 500 on 2027-02-01 with condition "ear infection"
   expect payout 401.00
 

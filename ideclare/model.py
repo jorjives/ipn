@@ -75,6 +75,7 @@ class Cover:
     optional: bool = False
     limit: tuple | None = None
     aggregate: bool = False  # the limit is for the whole term, eroded by each paid claim
+    per: str = ""  # aggregate == True: one limit per value of this asked fact, or per this item (e.g. condition, traveller)
     excess: Excess = field(default_factory=Excess)
     exclusions: list[Rule] = field(default_factory=list)
     available: tuple | None = None

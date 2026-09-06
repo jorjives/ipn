@@ -308,6 +308,30 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(run_all(p)[0].failures, [])
 
 
+class AggregatePerBucket(unittest.TestCase):
+    def test_remaining_for_a_condition_and_on_an_item(self):
+        from tests.test_parser import PER_CONDITION, PER_TRAVELLER
+        pet = run_all(parse(PER_CONDITION + '''
+scenario "s"
+  given a 1
+  when bound on 2026-01-01
+  when claim Vet for 5000 on 2026-02-01 with condition "knee"
+  expect cover Vet remaining 2100 for condition "knee"
+  expect cover Vet remaining 7000 for condition "ear"
+'''))[0]
+        self.assertEqual(pet.failures, [])
+        trip = run_all(parse(PER_TRAVELLER + '''
+scenario "s"
+  given traveller age 40
+  given traveller age 40
+  when bound on 2026-01-01
+  when claim Baggage on traveller 2 for 1000 on 2026-02-01
+  expect cover Baggage on traveller 2 remaining 500
+  expect cover Baggage on traveller 1 remaining 1500
+'''))[0]
+        self.assertEqual(trip.failures, [])
+
+
 class ClaimFacts(unittest.TestCase):
     def test_with_mixes_evidence_and_facts(self):
         from tests.test_parser import LIFE

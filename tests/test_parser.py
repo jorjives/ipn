@@ -164,6 +164,27 @@ rating
 '''
 
 
+PER_CONDITION = 'product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term per condition\n  excess 100\nrating\n  base 100\nclaims\n  claim Vet\n    asks\n      condition: text\n    pays claimed amount, less excess, up to limit\n'
+PER_TRAVELLER = 'product "X"\ninputs\n  travellers: collection of traveller, 1 to 4\n    age: integer\ncover Baggage\n  limit 1500 per term per traveller\nrating\n  for each traveller\n    base 10\nclaims\n  claim Baggage\n    pays claimed amount up to limit\n'
+
+
+class AggregatePer(unittest.TestCase):
+    def test_per_term_per_asked_fact(self):
+        c = parse(PER_CONDITION).cover("Vet")
+        self.assertEqual((c.aggregate, c.per, c.item), (True, "condition", ""))
+
+    def test_per_term_per_item_makes_the_cover_per_item(self):
+        c = parse(PER_TRAVELLER).cover("Baggage")
+        self.assertEqual((c.aggregate, c.per, c.item), (True, "traveller", "traveller"))
+
+    def test_per_must_name_an_asked_fact_or_an_item(self):
+        with self.assertRaises(ParseError) as e:
+            parse(PER_CONDITION.replace("per condition", "per colour"))
+        self.assertIn("colour", str(e.exception))
+        with self.assertRaises(ParseError):
+            parse(PER_CONDITION.replace("per term per condition", "per condition"))
+
+
 class Rating(unittest.TestCase):
     def test_commission_is_a_named_share_of_the_net(self):
         p = parse(FULL + 'rating\n  base 100\n  commission "Broker" 15%\n')
