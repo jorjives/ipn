@@ -12,7 +12,8 @@ from .tables import Table  # noqa: F401  (re-exported: a Product holds its table
 EURO = "AT BE BG CY DE EE ES FI FR GR HR IE IT LT LU LV MC MT NL PT SI SK".split()
 CURRENCY = {**dict.fromkeys(EURO, "EUR"), "UK": "GBP", "GB": "GBP", "CH": "CHF", "LI": "CHF", "DK": "DKK", "NO": "NOK",
             "SE": "SEK", "IS": "ISK", "PL": "PLN", "CZ": "CZK", "HU": "HUF", "RO": "RON", "US": "USD", "CA": "CAD",
-            "AU": "AUD", "NZ": "NZD", "JP": "JPY"}
+            "AU": "AUD", "NZ": "NZD", "JP": "JPY", "KW": "KWD", "BH": "BHD"}
+MINOR_DIGITS = {"JPY": 0, "ISK": 0, "KWD": 3, "BHD": 3}  # ISO 4217 exponent where it is not 2
 
 
 @dataclass
@@ -53,6 +54,10 @@ class Product:
 
     def currency_for(self, territory: str) -> str:
         return self.currency or CURRENCY.get(territory, "")
+
+    def quantum_for(self, territory: str) -> Decimal:
+        """The smallest unit of the currency the risk is quoted in: 0.01 for GBP, 1 for JPY."""
+        return Decimal(1).scaleb(-MINOR_DIGITS.get(self.currency_for(territory), 2))
 
     def cover(self, name: str) -> "Cover | None":
         return next((c for c in self.covers if c.name == name), None)

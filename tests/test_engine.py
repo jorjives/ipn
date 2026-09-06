@@ -72,6 +72,21 @@ from ideclare.engine import rate
 from tests.test_parser import RATING
 
 
+JP = '''
+product "X"
+  territory JP
+inputs
+  v: money
+rating
+  base v / 3
+  tax CT 7%
+lifecycle
+  cooling off 0 days, full refund
+  cancellation by customer: refund pro rata
+  instalments 3 monthly, charge 5%
+'''
+
+
 class RatingEngine(unittest.TestCase):
     def setUp(self):
         self.p = parse(RATING)
@@ -80,6 +95,13 @@ class RatingEngine(unittest.TestCase):
         p = parse('product "X"\n  territory DE, CH\ninputs\n  v: money\nrating\n  base v\n')
         self.assertEqual(rate(p, {"v": Decimal(1), "territory": "CH"}, set()).currency, "CHF")
         self.assertEqual(rate(p, {"v": Decimal(1), "territory": "DE"}, set()).currency, "EUR")
+
+    def test_rounding_unit_follows_the_currency(self):
+        jp = parse(JP)
+        q = rate(jp, {"v": Decimal(1000), "territory": "JP"}, set())
+        self.assertEqual((str(q.net), str(q.lines[0][1]), str(q.total), q.currency), ("333", "23", "356", "JPY"))  # 333.33 and 23.31 to whole yen
+        kw = parse(JP.replace("territory JP", "territory KW"))
+        self.assertEqual(str(rate(kw, {"v": Decimal(10), "territory": "KW"}, set()).net), "3.333")
 
     def test_currency_line_overrides_the_territory(self):
         p = parse('product "X"\n  territory CH\n  currency EUR\ninputs\n  v: money\nrating\n  base v\n')
@@ -169,6 +191,14 @@ class PolicyLifecycle(unittest.TestCase):
         pol = Policy(parse(src), risk(), set())
         pol.bind(date(2026, 1, 1))
         self.assertEqual(pol.cancel(date(2026, 1, 25), "customer"), Decimal("77.20"))  # gold: 30 days
+
+    def test_refunds_and_instalments_in_whole_yen(self):
+        pol = Policy(parse(JP), {"v": Decimal(1000), "territory": "JP"}, set())
+        pol.bind(date(2026, 1, 1))
+        # premium 356; charge 17.8 -> 18; 374 over three: 124.67 -> 125, the first takes the difference
+        self.assertEqual(instalments(pol.premium, 3, Decimal("0.05"), pol.quantum), (Decimal(18), [Decimal(124), Decimal(125), Decimal(125)]))
+        # 183 of 365 days remaining: 356 * 183 / 365 = 178.49 -> 178
+        self.assertEqual(str(pol.cancel(date(2026, 7, 2), "customer")), "178")
 
     def test_pro_rata_cancellation_less_fee(self):
         pol = self.policy
@@ -837,13 +867,13 @@ class TableEngine(unittest.TestCase):
 class Instalments(unittest.TestCase):
     def test_charge_then_equal_parts_with_the_first_absorbing_the_rounding(self):
         # 98.70 + 8% (7.90) = 106.60; 106.60 / 12 = 8.883.. so eleven of 8.88 and a first of 8.92
-        charge, parts = instalments(Decimal("98.70"), 12, Decimal("0.08"))
+        charge, parts = instalments(Decimal("98.70"), 12, Decimal("0.08"), Decimal("0.01"))
         self.assertEqual(charge, Decimal("7.90"))
         self.assertEqual(parts, [Decimal("8.92")] + [Decimal("8.88")] * 11)
         self.assertEqual(sum(parts), Decimal("106.60"))
 
     def test_no_charge_splits_the_premium_exactly(self):
-        self.assertEqual(instalments(Decimal("100.00"), 4, Decimal(0)), (Decimal("0.00"), [Decimal("25.00")] * 4))
+        self.assertEqual(instalments(Decimal("100.00"), 4, Decimal(0), Decimal("0.01")), (Decimal("0.00"), [Decimal("25.00")] * 4))
 
 
 class UnderwriterTerms(unittest.TestCase):

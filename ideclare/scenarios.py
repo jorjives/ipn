@@ -268,7 +268,7 @@ class Run:
         lc = self.product.lifecycle
         if not lc.instalments:
             raise ValueError("the product has no instalments line in its lifecycle")
-        charge, parts = engine.instalments(self.policy.premium, lc.instalments, lc.instalment_charge)
+        charge, parts = engine.instalments(self.policy.premium, lc.instalments, lc.instalment_charge, self.policy.quantum)
         if rest[0] == "charge":
             self.check(step, "instalment charge", money(Decimal(rest[1])), money(charge))
         elif rest[0].isdigit() and 1 <= int(rest[0]) <= len(parts):

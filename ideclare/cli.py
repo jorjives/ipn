@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+from decimal import Decimal
 import os
 import sys
 
@@ -78,16 +79,16 @@ def quote(path: str, args: list[str]) -> int:
     print("Premium:")
     for t in q.trail:
         print(f"  {t.label:<20} {t.applied:>10}  = {t.net:.2f}")
-    print(f"  {'net':<20} {'':>10}  = {q.net:.2f}")
+    print(f"  {'net':<20} {'':>10}  = {q.net:f}")
     for label, amount in q.lines:
-        print(f"  {label:<20} {'':>10}  + {amount:.2f}")
-    print(f"  {'total':<20} {'':>10}  = {q.total:.2f} {q.currency}")
+        print(f"  {label:<20} {'':>10}  + {amount:f}")
+    print(f"  {'total':<20} {'':>10}  = {q.total:f} {q.currency}")
     for label, amount in q.commission:
-        print(f"  of which {label} commission {amount:.2f}")
+        print(f"  of which {label} commission {amount:f}")
     lc = product.lifecycle
     if lc.instalments:
-        charge, parts = instalments(q.total, lc.instalments, lc.instalment_charge)
-        print(f"  or {lc.instalments} monthly: {parts[0]:.2f} then {parts[1]:.2f} (credit charge {charge:.2f})")
+        charge, parts = instalments(q.total, lc.instalments, lc.instalment_charge, product.quantum_for(inputs.get('territory', '')))
+        print(f"  or {lc.instalments} monthly: {parts[0]:f} then {parts[1]:f} (credit charge {charge:f})")
     return 0
 
 
@@ -122,9 +123,9 @@ def batch(path: str, risks: str, out=None) -> int:
             except (ParseError, TableError, ExprError) as err:
                 writer.writerow([n, *blank, str(err).removeprefix(f"line {n}: ")])
                 continue
-            by_label, split = dict(q.lines), dict(q.commission)
-            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:.2f}", *(f"{by_label.get(l, 0):.2f}" for l in lines), f"{q.total:.2f}", q.currency,
-                             *(f"{split.get(l, 0):.2f}" for l in commission), ""])
+            by_label, split, none = dict(q.lines), dict(q.commission), Decimal(0).quantize(q.net)
+            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:f}", *(f"{by_label.get(l, none):f}" for l in lines), f"{q.total:f}", q.currency,
+                             *(f"{split.get(l, none):f}" for l in commission), ""])
     return 0
 
 

@@ -138,7 +138,7 @@ class Quote:
 
 def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lines: list, prefix: str = "") -> tuple[Decimal, Decimal]:
     """Runs rating steps in order against a running net. Returns the net and the rounding unit."""
-    quantum = Decimal("0.01")
+    quantum = product.quantum_for(ctx.get("territory", ""))
 
     def value(node):
         return Decimal(evaluate(node, ctx))
@@ -223,16 +223,16 @@ def months_between(start: date, on: date) -> int:
     return (on.year - start.year) * 12 + on.month - start.month - (on.day < start.day)
 
 
-def pence(v: Decimal) -> Decimal:
-    return v.quantize(Decimal("0.01"), ROUNDING)
+def round_money(v: Decimal, quantum: Decimal) -> Decimal:
+    return v.quantize(quantum, ROUNDING)
 
 
-def instalments(premium: Decimal, count: int, charge: Decimal) -> tuple[Decimal, list[Decimal]]:
+def instalments(premium: Decimal, count: int, charge: Decimal, quantum: Decimal) -> tuple[Decimal, list[Decimal]]:
     """The credit charge on the premium and the instalments that pay premium plus charge: equal
-    to the penny, with the first taking any rounding so the sum is exact."""
-    charge = pence(premium * charge)
+    to the smallest unit of the currency, with the first taking any rounding so the sum is exact."""
+    charge = round_money(premium * charge, quantum)
     total = premium + charge
-    each = pence(total / count)
+    each = round_money(total / count, quantum)
     return charge, [total - each * (count - 1)] + [each] * (count - 1)
 
 
@@ -286,6 +286,7 @@ class Policy:
 
     def __init__(self, product: Product, inputs: dict, selected: set[str]):
         self.product, self.inputs, self.selected = product, dict(inputs), set(selected)
+        self.quantum = product.quantum_for(self.inputs.get("territory", ""))
         self.inception: date | None = None
         self.first_inception: date | None = None  # the original start, kept across renewals for waiting periods
         self.paid_on: date | None = None
@@ -397,6 +398,9 @@ class Policy:
     def pay(self, on: date) -> None:
         self.paid_on = on
 
+    def round(self, v: Decimal) -> Decimal:
+        return round_money(v, self.quantum)
+
     def cancel(self, on: date, by: str) -> Decimal:
         lc = self.terms
         terms = lc.cancellation.get(by)
@@ -404,7 +408,7 @@ class Policy:
             raise ValueError(f"cancellation by {by} is not declared in the lifecycle")
         self.cancelled_on = on
         if (on - self.inception).days < evaluate(lc.cooling_off, context(self.product, self.inputs, self.selected)):
-            return pence(self.premium)
+            return self.round(self.premium)
         if terms.refund == "full":
             refund = self.refundable
         elif terms.refund == "pro rata":
@@ -414,7 +418,7 @@ class Policy:
             refund = self.refundable * Decimal(evaluate(terms.amount, ctx))
         else:
             refund = Decimal(0)
-        return pence(max(Decimal(0), refund - terms.fee))
+        return self.round(max(Decimal(0), refund - terms.fee))
 
     def adjust(self, on: date, changes: dict) -> Decimal:
         """Applies changes; returns the amount to charge (negative = return premium)."""
@@ -439,7 +443,7 @@ class Policy:
         self.inputs.update(changes)
         self.charged = self.quote.total
         difference = (self.refundable - before) * self.days_remaining(on) / self.term_days()
-        return pence(difference + lc.adjustment_fee)
+        return self.round(difference + lc.adjustment_fee)
 
     def renew(self) -> RenewalOffer:
         lc = self.terms
@@ -448,7 +452,7 @@ class Policy:
 
         def indexed(v, how, node, least, most):
             amount = Decimal(evaluate(node, before))
-            v = pence(v * (1 + amount / 100)) if how == "%" else v + amount
+            v = self.round(v * (1 + amount / 100)) if how == "%" else v + amount
             v = v if least is None else max(v, least)
             return v if most is None else min(v, most)
 
@@ -466,9 +470,9 @@ class Policy:
             offer.declined = "The policy is not renewable"
             return offer
         if lc.renewal_cap is not None:
-            offer.premium = min(offer.premium, pence(self.charged * (1 + lc.renewal_cap)))
+            offer.premium = min(offer.premium, self.round(self.charged * (1 + lc.renewal_cap)))
         if lc.renewal_collar is not None:
-            offer.premium = max(offer.premium, pence(self.charged * (1 - lc.renewal_collar)))
+            offer.premium = max(offer.premium, self.round(self.charged * (1 - lc.renewal_collar)))
         for r in lc.renewal_decline:
             if evaluate(r.condition, ctx):
                 offer.declined = r.reason
@@ -503,7 +507,7 @@ class Policy:
             raise ValueError(f"{cover} has already been reinstated this term")
         state = self.cover_state(cover)
         self.reinstated[cover] = state.limit - self.remaining(cover)
-        return pence(self.refundable * section.reinstatement * self.days_remaining(on) / self.term_days())
+        return self.round(self.refundable * section.reinstatement * self.days_remaining(on) / self.term_days())
 
     def excess_remaining(self, cover: str) -> Decimal | None:
         """What the insured still has to bear of an aggregate excess this term; None when the excess is per claim."""
@@ -575,16 +579,15 @@ class Policy:
                         payout *= 1 - Decimal(evaluate(cp.amount, ctx))
         if payout <= 0:
             if section.excess.aggregate:  # the claim still eats into what the insured bears this term
-                self.claims.append(ClaimResult("declined", cover=cover, counted=False, excess=pence(borne)))
+                self.claims.append(ClaimResult("declined", cover=cover, counted=False, excess=self.round(borne)))
             return ClaimResult("declined", reason="nothing is payable after the excess")
-        result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)), bucket=self.bucket(section, item, facts), excess=pence(borne))
+        result = ClaimResult("paid", self.round(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)), bucket=self.bucket(section, item, facts), excess=self.round(borne))
         result.payments = self.schedule(rules, ctx, on, result.amount, monthly) if rules.months is not None else [(on, result.amount)]
         self.claims.append(result)
         self.history.append(result)
         return result
 
-    @staticmethod
-    def schedule(rules, ctx: dict, on: date, total: Decimal, monthly: Decimal) -> list[tuple[date, Decimal]]:
+    def schedule(self, rules, ctx: dict, on: date, total: Decimal, monthly: Decimal) -> list[tuple[date, Decimal]]:
         """A month's benefit at the end of each month after the deferred period, the last month's part last."""
         start = on
         if rules.after is not None:
@@ -594,7 +597,7 @@ class Policy:
         while paid < total:
             n += 1
             amount = min(monthly, total - paid)
-            payments.append((add_months(start, n), pence(amount)))
+            payments.append((add_months(start, n), self.round(amount)))
             paid += amount
         return payments
 
