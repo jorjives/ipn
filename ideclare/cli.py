@@ -1,18 +1,23 @@
-"""`python -m ideclare check FILE` runs a product's scenarios."""
+"""`python -m ideclare check FILE` runs a product's scenarios; `quote` prices one risk."""
 from __future__ import annotations
 
 import os
 import sys
 
-from .engine import check_eligibility, cover_states, rate
-from .parser import Line, ParseError, given_value, parse
+from .engine import check_eligibility, cover_state, rate
+from .expr import ExprError
+from .parser import Line, ParseError, given_value, items_from_file, parse
 from .scenarios import run_all
 from .tables import TableError
 
 
+def load(path: str):
+    return parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
+
+
 def check(path: str) -> int:
     try:
-        product = parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
+        product = load(path)
     except ParseError as e:
         print(f"{path}: {e}")
         return 1
@@ -26,30 +31,47 @@ def check(path: str) -> int:
     return 1 if failed else 0
 
 
-def quote(path: str, args: list[str]) -> int:
-    """quote FILE name=value ... [select=Cover ...]"""
-    product = parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
+def risk_inputs(product, pairs: list[tuple[str, str]], line: Line) -> tuple[dict, set[str]]:
+    """Inputs and selected covers from name=value pairs; a collection's value is a CSV file of its items."""
     inputs, selected = {}, set()
-    for arg in args:
-        name, _, value = arg.partition("=")
+    for name, value in pairs:
         if name == "select":
-            selected.add(value)
-        elif name in product.inputs:
-            inputs[name] = given_value(Line(0, 0, arg), product.inputs[name], value)
+            selected |= {v.strip() for v in value.split(";") if v.strip()}
+        elif product.inputs[name].kind == "collection":
+            inputs[name] = items_from_file(line, product.inputs[name], value, product.base)
         else:
-            print(f"unknown input {name!r}; expected one of {', '.join(product.inputs)}")
-            return 2
-    missing = [n for n in product.inputs if n not in inputs and product.inputs[n].kind not in ("text", "calculated")]
+            inputs[name] = given_value(line, product.inputs[name], value)
+    return inputs, selected
+
+
+def missing_inputs(product, inputs: dict) -> list[str]:
+    return [n for n, i in product.inputs.items() if n not in inputs and i.kind not in ("text", "calculated", "collection") and not i.provided]
+
+
+def quote(path: str, args: list[str]) -> int:
+    """quote FILE name=value ... [select=Cover ...] [items=file.csv]"""
+    product = load(path)
+    pairs = [arg.partition("=")[::2] for arg in args]
+    unknown = [n for n, _ in pairs if n != "select" and n not in product.inputs]
+    if unknown:
+        print(f"unknown input {unknown[0]!r}; expected one of {', '.join(product.inputs)}")
+        return 2
+    inputs, selected = risk_inputs(product, pairs, Line(0, 0, ""))
+    missing = missing_inputs(product, inputs)
     if missing:
         print(f"missing: {' '.join(f'{n}=...' for n in missing)}")
         return 2
     e = check_eligibility(product, inputs, selected)
     print(f"Eligibility: {e.outcome}" + (f" ({'; '.join(e.reasons)})" if e.reasons else ""))
-    for c in cover_states(product, inputs, selected):
-        print(f"  {c.name}: {c.status}" + (f" ({c.reason})" if c.reason else "") + (f", limit {c.limit:.2f}" if c.limit is not None else ""))
+    for cover in product.covers:  # a per-item cover is reported once per item
+        coll = product.collection_for(cover.item) if cover.item else None
+        for n, item in enumerate(inputs.get(coll.name, []) if coll else [None], start=1):
+            c = cover_state(product, cover, inputs, selected, item)
+            where = f" on {cover.item} {n}" if item is not None else ""
+            print(f"  {c.name}{where}: {c.status}" + (f" ({c.reason})" if c.reason else "") + (f", limit {c.limit:.2f}" if c.limit is not None else ""))
     try:
         q = rate(product, inputs, selected)
-    except TableError as e:
+    except (TableError, ExprError) as e:
         print(f"Premium: {e}")
         return 1
     print("Premium:")
@@ -62,16 +84,18 @@ def quote(path: str, args: list[str]) -> int:
     return 0
 
 
+
 def main(argv: list[str]) -> int:
-    if len(argv) == 2 and argv[0] == "check":
-        return check(argv[1])
-    if len(argv) >= 2 and argv[0] == "quote":
-        try:
+    try:
+        if len(argv) == 2 and argv[0] == "check":
+            return check(argv[1])
+        if len(argv) >= 2 and argv[0] == "quote":
             return quote(argv[1], argv[2:])
-        except ParseError as e:
-            print(f"{argv[1]}: {e}")
-            return 1
-    print("usage: python -m ideclare check FILE.idl\n       python -m ideclare quote FILE.idl input=value ... [select=Cover]")
+    except ParseError as e:
+        print(f"{argv[1]}: {e}")
+        return 1
+    print("usage: python -m ideclare check FILE.idl\n"
+          "       python -m ideclare quote FILE.idl input=value ... [select=Cover] [items=file.csv]\n")
     return 2
 
 
