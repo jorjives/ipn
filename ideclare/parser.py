@@ -318,10 +318,15 @@ def parse_cover(line: Line, product: Product) -> None:
             cover.until, rest = expression(child, toks[3:], product)
         elif toks[:2] == ["waiting", "period"] and toks[3:] == ["days"]:
             cover.waiting_days, rest = int(toks[2]), []
+        elif toks[:2] == ["reinstatement", "at"] and toks[3:] == ["%", "of", "premium", "pro", "rata"]:
+            cover.reinstatement, rest = Decimal(toks[2]) / 100, []
+            reinstatement_line = child
         else:
             raise child.error(f"unknown cover setting {child.text!r}")
         if rest:
             raise child.error(f"unexpected {' '.join(rest)!r}")
+    if cover.reinstatement is not None and not cover.aggregate:
+        raise reinstatement_line.error("only a limit per term can be reinstated")
     used = set().union(*(names(n) for n in (cover.limit, cover.available, cover.from_, cover.until, cover.excess.amount, cover.excess.minimum) if n is not None),
                        *(names(r.condition) for r in cover.exclusions))
     cover.item = next((c.singular for c in product.collections if used & set(c.fields)), "") or (cover.per if product.collection_for(cover.per) else "")

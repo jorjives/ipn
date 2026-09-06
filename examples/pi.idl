@@ -37,6 +37,8 @@ table "Short rate" keyed on months in force
 
 cover "Professional Indemnity"
   limit limit_of_indemnity per term
+  # Once the aggregate is eroded the insured may buy it back once, for the rest of the year
+  reinstatement at 100% of premium pro rata
   excess 1000
 
 cover "Court Attendance" 
@@ -153,6 +155,19 @@ scenario "A claim made in the period for work after the retroactive date"
   when bound on 2026-01-01
   when claim "Professional Indemnity" for 80000 on 2026-06-15 with written_demand, work_date 2023-09-01
   expect payout 79000.00
+
+scenario "An eroded limit may be reinstated once, for a pro rata additional premium"
+  given profession consultant, turnover 400000, years_trading 8, limit_of_indemnity 250000, retroactive_date 2018-04-01, previous_claims 0, overseas_work no
+  when bound on 2026-01-01
+  when claim "Professional Indemnity" for 200000 on 2026-03-01 with written_demand, work_date 2023-09-01
+  expect payout 199000.00
+  expect cover "Professional Indemnity" remaining 51000
+  when reinstated "Professional Indemnity" on 2026-04-11
+  # 100% of the earning premium (3,456 net plus 414.72 IPT) for the 265 days left
+  expect additional premium 2810.25
+  expect cover "Professional Indemnity" remaining 250000
+  when reinstated "Professional Indemnity" on 2026-06-01
+  expect refused "Professional Indemnity has already been reinstated this term"
 
 scenario "Work done before the retroactive date is not covered"
   given profession consultant, turnover 400000, years_trading 8, limit_of_indemnity 1000000, retroactive_date 2018-04-01, previous_claims 0, overseas_work no

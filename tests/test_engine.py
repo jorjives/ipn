@@ -929,3 +929,34 @@ class SubLimits(unittest.TestCase):
         self.claim(900, "other")
         self.assertEqual(self.pol.remaining("Baggage", self.pol.inputs["travellers"][0]), Decimal(300))  # 1500 - 350 - 850
         self.assertEqual(self.claim(900, "other").amount, Decimal(250))
+
+
+class Reinstatement(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import REINSTATE
+        self.pol = Policy(parse(REINSTATE), {"a": Decimal(1)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, amount, on=date(2026, 3, 1)):
+        return self.pol.claim("PI", Decimal(amount), on, on, set())
+
+    def test_reinstating_restores_the_limit_for_a_pro_rata_share_of_the_premium(self):
+        self.claim(200000)
+        self.assertEqual(self.pol.remaining("PI"), Decimal(50000))
+        # 100% of the 1,120 earning premium for the 265 days left of 365
+        self.assertEqual(self.pol.reinstate("PI", date(2026, 4, 11)), Decimal("813.15"))
+        self.assertEqual(self.pol.remaining("PI"), Decimal(250000))
+        self.assertEqual(self.claim(240000, date(2026, 6, 1)).amount, Decimal(240000))
+
+    def test_once_a_term_and_only_when_the_product_allows_it(self):
+        self.claim(200000)
+        self.pol.reinstate("PI", date(2026, 4, 11))
+        with self.assertRaises(ValueError) as e:
+            self.pol.reinstate("PI", date(2026, 5, 1))
+        self.assertEqual(str(e.exception), "PI has already been reinstated this term")
+        self.pol.accept_renewal()
+        self.assertEqual(self.pol.remaining("PI"), Decimal(250000))
+        self.pol.product.cover("PI").reinstatement = None
+        with self.assertRaises(ValueError) as e:
+            self.pol.reinstate("PI", date(2027, 2, 1))
+        self.assertEqual(str(e.exception), "PI has no reinstatement")

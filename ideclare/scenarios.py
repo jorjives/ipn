@@ -119,6 +119,9 @@ class Run:
             self.product.cover(name)  # unknown covers are an error here, not at the claim
         self.policy.accept(terms)
 
+    def when_reinstated(self, step, on, toks):  # reinstated Cover on DATE
+        self.last_amount = self.policy.reinstate(unquote(toks[1]), on)
+
     def when_declined(self, step, on, toks):
         if toks[1:3] != ["by", "underwriter"]:
             raise ValueError("expected 'declined by underwriter on DATE'")

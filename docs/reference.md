@@ -316,6 +316,10 @@ cover Racing optional
 - `limit 7000 per term` is an aggregate limit: the most the insurer pays on this cover in
   the whole term. Each paid claim eats into it and it is restored at renewal. A plain
   `limit` applies to any one claim.
+- `reinstatement at 100% of premium pro rata` lets an eroded aggregate be bought back to
+  its full amount once a term, for that share of the earning premium (net plus taxes) for
+  the days left. The scenario event is `when reinstated Cover on DATE` and the charge is
+  available to `expect additional premium`.
 - `limit 4000 per term per condition` keeps one such limit for each value of a fact the
   claim asks for (`condition` here), and `limit 1500 per term per traveller` one for each
   item, which makes the cover per item so claims say `on traveller 2`. A claim erodes only
@@ -624,6 +628,7 @@ Events:
 | `when paid on DATE` | payment received |
 | `when accepted by underwriter on DATE [with load N%, discount N%, excess AMOUNT on Cover, excluding Cover, ...]` | the underwriter accepts a referred risk, on these terms |
 | `when declined by underwriter on DATE` | the underwriter declines it; binding is then refused |
+| `when reinstated Cover on DATE` | buys back an eroded aggregate limit; the charge is available to `expect additional premium` |
 | `when cancelled by customer\|insurer on DATE` | cancellation; the refund is available to `expect refund` |
 | `when adjusted on DATE with input value, input value` | mid-term change |
 | `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
@@ -650,7 +655,7 @@ Expectations:
 | `expect refund AMOUNT` | refund from the last cancellation |
 | `expect instalment charge AMOUNT`, `expect instalment N AMOUNT` | the credit charge and the Nth instalment on the premium as it stands |
 | `expect refused ["reason"]` | the event just before was rightly refused (binding a declined or unaccepted referred risk, an adjustment when `adjustment: not allowed`, cancellation by a party with no terms) |
-| `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment |
+| `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment or reinstatement |
 | `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
 | `expect claims in term N` | paid claims this policy year |
 | `expect benefit paid AMOUNT by DATE` | everything paid out on or before that date, whichever term the claims arose in |

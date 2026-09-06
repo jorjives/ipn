@@ -294,6 +294,7 @@ class Policy:
         self.history: list = []  # every paid claim, whose payments may run past the term
         self.previous_terms: list[tuple[date, date]] = []
         self.underwriting: Underwriting | None = None  # terms accepted on a referral
+        self.reinstated: dict[str, Decimal] = {}  # cover -> what a reinstatement added to its aggregate this term
         self.underwriter_declined = False
 
     # -- derived ------------------------------------------------------------
@@ -489,7 +490,19 @@ class Policy:
         if not section.aggregate or state.limit is None:
             return None
         bucket = self.bucket(section, item, facts or {})
-        return max(Decimal(0), state.limit - sum((c.amount for c in self.claims if c.cover == cover and c.bucket == bucket), Decimal(0)))
+        limit = state.limit + self.reinstated.get(cover, Decimal(0))
+        return max(Decimal(0), limit - sum((c.amount for c in self.claims if c.cover == cover and c.bucket == bucket), Decimal(0)))
+
+    def reinstate(self, cover: str, on: date) -> Decimal:
+        """Restores an eroded aggregate to its full amount; returns the additional premium for the rest of the term."""
+        section = self.product.cover(cover)
+        if section.reinstatement is None:
+            raise ValueError(f"{cover} has no reinstatement")
+        if cover in self.reinstated:
+            raise ValueError(f"{cover} has already been reinstated this term")
+        state = self.cover_state(cover)
+        self.reinstated[cover] = state.limit - self.remaining(cover)
+        return pence(self.refundable * section.reinstatement * self.days_remaining(on) / self.term_days())
 
     def excess_remaining(self, cover: str) -> Decimal | None:
         """What the insured still has to bear of an aggregate excess this term; None when the excess is per claim."""
@@ -593,3 +606,4 @@ class Policy:
         self.inception = self.paid_on = self.expiry
         self.charged = offer.premium
         self.claims = []
+        self.reinstated = {}

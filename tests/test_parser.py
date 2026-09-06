@@ -169,6 +169,7 @@ rating
 '''
 
 
+REINSTATE = 'product "X"\ninputs\n  a: money\ncover PI\n  limit 250000 per term\n  reinstatement at 100% of premium pro rata\nrating\n  base 1000\n  tax IPT 12%\nlifecycle\n  renewal\n    invite 21 days before expiry\nclaims\n  claim PI\n    pays claimed amount up to limit\n'
 SUBLIMIT = 'product "X"\ninputs\n  travellers: collection of traveller, 1 to 4\n    age: integer\ncover Baggage\n  limit 1500 per term per traveller\n  excess 50\nrating\n  for each traveller\n    base 10\nclaims\n  claim Baggage\n    asks\n      kind: choice of valuables, cash, other\n    pays claimed amount up to 400 when kind is valuables, up to 200 when kind is cash, up to limit, less excess\n'
 BENEFIT = 'product "X"\ninputs\n  monthly_benefit: money\n  deferred_weeks: integer\ncover Incapacity\n  limit monthly_benefit * 12 per term\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\nclaims\n  claim Incapacity\n    asks\n      weeks_off_work: integer\n    pays monthly_benefit per month for ( weeks_off_work - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit\n'
 REFERRED = 'product "X"\ninputs\n  a: money\n  risky: yes/no\neligibility\n  refer when risky is yes because "Needs an underwriter"\n  decline when a > 1000 because "Too big"\ncover Main\n  limit a\n  excess 50\ncover Extra\n  limit 100\nrating\n  base a\n  tax IPT 12%\nclaims\n  claim Main\n    pays claimed amount, less excess, up to limit\n  claim Extra\n    pays claimed amount up to limit\n'
@@ -197,6 +198,17 @@ class InputDefaults(unittest.TestCase):
     def test_a_default_fills_an_item_field_left_out(self):
         p = parse(DEFAULTS + 'scenario "s"\n  given value 1\n  given bike price 500\n  given bike price 700, security gold\n')
         self.assertEqual([b["security"] for b in p.scenarios[0].given["bikes"]], ["silver", "gold"])
+
+
+class Reinstatement(unittest.TestCase):
+    def test_reinstatement_is_a_share_of_the_premium_pro_rata(self):
+        self.assertEqual(parse(REINSTATE).cover("PI").reinstatement, Decimal(1))
+        self.assertEqual(parse(REINSTATE.replace("at 100%", "at 50%")).cover("PI").reinstatement, Decimal("0.5"))
+
+    def test_only_an_aggregate_limit_can_be_reinstated(self):
+        with self.assertRaises(ParseError) as e:
+            parse(REINSTATE.replace("limit 250000 per term", "limit 250000"))
+        self.assertIn("per term", str(e.exception))
 
 
 class SubLimits(unittest.TestCase):

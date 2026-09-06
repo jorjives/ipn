@@ -308,6 +308,24 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(run_all(p)[0].failures, [])
 
 
+class Reinstatement(unittest.TestCase):
+    def test_reinstated_event_and_the_additional_premium(self):
+        from tests.test_parser import REINSTATE
+        res = run_all(parse(REINSTATE + '''
+scenario "s"
+  given a 1
+  when bound on 2026-01-01
+  when claim PI for 200000 on 2026-03-01
+  expect cover PI remaining 50000
+  when reinstated PI on 2026-04-11
+  expect additional premium 813.15
+  expect cover PI remaining 250000
+  when reinstated PI on 2026-05-01
+  expect refused "PI has already been reinstated this term"
+'''))[0]
+        self.assertEqual(res.failures, [])
+
+
 class BenefitOverTime(unittest.TestCase):
     def test_benefit_paid_by_a_date_across_the_renewal(self):
         from tests.test_parser import BENEFIT
