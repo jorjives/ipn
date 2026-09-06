@@ -543,9 +543,12 @@ claims
   as "cause is required". They may be used in this claim's `decline when`, `co-payment`,
   `settlement` and in the cover's excess table.
 - `pays claimed amount` followed by clauses **in the order they apply**: `up to limit`,
-  `less excess`, `less co-payment`. A sum insured is usually capped then the excess
-  deducted (`up to limit, less excess`); a liability or aggregate limit caps what the
-  insurer pays after the excess (`less excess, up to limit`). Write what the wording says.
+  `less excess`, `less co-payment`, and `up to <amount> [when <condition>]` for a
+  sub-limit. A sum insured is usually capped then the excess deducted (`up to limit, less
+  excess`); a liability or aggregate limit caps what the insurer pays after the excess
+  (`less excess, up to limit`). Write what the wording says. A sub-limit caps only the
+  claims its condition picks out, `up to 400 when kind is valuables`, and the claim still
+  erodes the aggregate it sits within.
 - `pays <amount>` is a fixed benefit instead of the amount claimed: `pays sum_assured`,
   `pays 50% of sum_assured`, `pays purchase_price`. It may use asked facts and take the same
   clauses.

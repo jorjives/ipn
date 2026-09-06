@@ -84,8 +84,11 @@ claims
   claim "Medical Expenses"
     pays claimed amount up to limit, less excess
   claim Baggage
+    asks
+      kind: choice of valuables, cash, other
     requires property_irregularity_report
-    pays claimed amount up to limit, less excess
+    # Sub-limits for valuables and cash sit inside the traveller's baggage limit
+    pays claimed amount up to 400 when kind is valuables, up to 250 when kind is cash, up to limit, less excess
     decline when reported after 31 days because "Baggage losses must be reported within 31 days"
   claim "Winter Sports"
     pays claimed amount up to limit, less excess
@@ -216,18 +219,18 @@ scenario "Nothing is covered after the return date"
   given departure_date 2026-07-10, return_date 2026-07-17, destination europe
   given traveller age 40, medical_conditions no
   when bound on 2026-03-01
-  when claim Baggage on traveller 1 for 400 on 2026-07-18 with property_irregularity_report
+  when claim Baggage on traveller 1 for 400 on 2026-07-18 with property_irregularity_report, kind other
   expect claim declined "policy was expired on 2026-07-18"
 
 scenario "Baggage claims need the airline's report and prompt notice"
   given departure_date 2026-07-10, return_date 2026-07-17, destination europe
   given traveller age 40, medical_conditions no
   when bound on 2026-03-01
-  when claim Baggage on traveller 1 for 400 on 2026-07-12
+  when claim Baggage on traveller 1 for 400 on 2026-07-12 with kind other
   expect claim declined "property_irregularity_report is required"
-  when claim Baggage on traveller 1 for 400 on 2026-07-12 reported 2026-09-01 with property_irregularity_report
+  when claim Baggage on traveller 1 for 400 on 2026-07-12 reported 2026-09-01 with property_irregularity_report, kind other
   expect claim declined "Baggage losses must be reported within 31 days"
-  when claim Baggage on traveller 1 for 2000 on 2026-07-12 with property_irregularity_report
+  when claim Baggage on traveller 1 for 2000 on 2026-07-12 with property_irregularity_report, kind other
   expect payout 1425.00
 
 scenario "Each traveller has their own baggage limit"
@@ -235,12 +238,26 @@ scenario "Each traveller has their own baggage limit"
   given traveller age 40, medical_conditions no
   given traveller age 38, medical_conditions no
   when bound on 2026-03-01
-  when claim Baggage on traveller 1 for 2000 on 2026-07-12 with property_irregularity_report
+  when claim Baggage on traveller 1 for 2000 on 2026-07-12 with property_irregularity_report, kind other
   expect payout 1425.00
   expect cover Baggage on traveller 1 remaining 75
   expect cover Baggage on traveller 2 remaining 1500
-  when claim Baggage on traveller 2 for 600 on 2026-07-14 with property_irregularity_report
+  when claim Baggage on traveller 2 for 600 on 2026-07-14 with property_irregularity_report, kind other
   expect payout 525.00
-  when claim Baggage on traveller 1 for 300 on 2026-07-15 with property_irregularity_report
+  when claim Baggage on traveller 1 for 300 on 2026-07-15 with property_irregularity_report, kind other
   # 75 is left for traveller 1, and the 75 excess takes all of it
   expect claim declined "nothing is payable after the excess"
+
+scenario "Valuables and cash have sub-limits inside the baggage limit"
+  given departure_date 2026-07-10, return_date 2026-07-17, destination europe
+  given traveller age 40, medical_conditions no
+  when bound on 2026-03-01
+  when claim Baggage on traveller 1 for 900 on 2026-07-12 with property_irregularity_report, kind valuables
+  # capped at 400 for valuables, less the 75 excess
+  expect payout 325.00
+  when claim Baggage on traveller 1 for 300 on 2026-07-13 with property_irregularity_report, kind cash
+  expect payout 175.00
+  # both came out of the traveller's 1,500
+  expect cover Baggage on traveller 1 remaining 1000
+  when claim Baggage on traveller 1 for 1200 on 2026-07-14 with property_irregularity_report, kind other
+  expect payout 925.00

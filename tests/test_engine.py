@@ -907,3 +907,25 @@ class BenefitOverTime(unittest.TestCase):
         self.assertEqual(self.pol.paid_by(date(2027, 6, 1)), Decimal(7500))
         self.assertEqual(self.pol.remaining("Incapacity"), Decimal(18000))  # the new term's limit is untouched
         self.assertEqual(self.pol.claims_in_term, 0)
+
+
+class SubLimits(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import SUBLIMIT
+        self.pol = Policy(parse(SUBLIMIT), {"travellers": [{"age": Decimal(40)}]}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, amount, kind):
+        on = date(2026, 3, 1)
+        return self.pol.claim("Baggage", Decimal(amount), on, on, set(), item=self.pol.inputs["travellers"][0], facts={"kind": kind})
+
+    def test_a_conditional_cap_applies_only_when_its_condition_holds(self):
+        self.assertEqual(self.claim(900, "valuables").amount, Decimal(350))  # capped at 400, less the 50 excess
+        self.assertEqual(self.claim(900, "other").amount, Decimal(850))
+        self.assertEqual(self.claim(300, "cash").amount, Decimal(150))
+
+    def test_a_capped_claim_still_erodes_the_aggregate_it_sits_within(self):
+        self.claim(900, "valuables")
+        self.claim(900, "other")
+        self.assertEqual(self.pol.remaining("Baggage", self.pol.inputs["travellers"][0]), Decimal(300))  # 1500 - 350 - 850
+        self.assertEqual(self.claim(900, "other").amount, Decimal(250))

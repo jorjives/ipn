@@ -169,6 +169,7 @@ rating
 '''
 
 
+SUBLIMIT = 'product "X"\ninputs\n  travellers: collection of traveller, 1 to 4\n    age: integer\ncover Baggage\n  limit 1500 per term per traveller\n  excess 50\nrating\n  for each traveller\n    base 10\nclaims\n  claim Baggage\n    asks\n      kind: choice of valuables, cash, other\n    pays claimed amount up to 400 when kind is valuables, up to 200 when kind is cash, up to limit, less excess\n'
 BENEFIT = 'product "X"\ninputs\n  monthly_benefit: money\n  deferred_weeks: integer\ncover Incapacity\n  limit monthly_benefit * 12 per term\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\nclaims\n  claim Incapacity\n    asks\n      weeks_off_work: integer\n    pays monthly_benefit per month for ( weeks_off_work - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit\n'
 REFERRED = 'product "X"\ninputs\n  a: money\n  risky: yes/no\neligibility\n  refer when risky is yes because "Needs an underwriter"\n  decline when a > 1000 because "Too big"\ncover Main\n  limit a\n  excess 50\ncover Extra\n  limit 100\nrating\n  base a\n  tax IPT 12%\nclaims\n  claim Main\n    pays claimed amount, less excess, up to limit\n  claim Extra\n    pays claimed amount up to limit\n'
 AGGREGATE_EXCESS = 'product "X"\ninputs\n  a: money\ncover Fleet\n  limit 100000\n  excess 1000 per term\nrating\n  base 100\nclaims\n  claim Fleet\n    pays claimed amount, less excess, up to limit\n'
@@ -196,6 +197,16 @@ class InputDefaults(unittest.TestCase):
     def test_a_default_fills_an_item_field_left_out(self):
         p = parse(DEFAULTS + 'scenario "s"\n  given value 1\n  given bike price 500\n  given bike price 700, security gold\n')
         self.assertEqual([b["security"] for b in p.scenarios[0].given["bikes"]], ["silver", "gold"])
+
+
+class SubLimits(unittest.TestCase):
+    def test_up_to_an_amount_with_a_condition_is_a_pays_clause_in_order(self):
+        pays = parse(SUBLIMIT).claims["Baggage"].pays
+        self.assertEqual([c if isinstance(c, str) else c[0] for c in pays], ["cap", "cap", "limit", "excess"])
+        self.assertEqual(pays[0][1], ("num", Decimal(400)))
+        self.assertIsNotNone(pays[0][2])
+        unconditional = parse(SUBLIMIT.replace("up to 400 when kind is valuables, up to 200 when kind is cash, ", "up to 50% of claim, ")).claims["Baggage"].pays
+        self.assertEqual(unconditional[0][2], None)
 
 
 class BenefitOverTime(unittest.TestCase):

@@ -612,7 +612,7 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
         if toks[:1] == ["requires"]:
             rule_.requires = [t for t in toks[1:] if t != ","]
         elif toks[:3] == ["pays", "claimed", "amount"]:
-            rule_.pays = parse_pays(child, toks[3:])
+            rule_.pays = parse_pays(child, toks[3:], product, facts)
         elif toks[:1] == ["pays"]:
             rule_.pays_amount, rest = expression(child, toks[1:], product, stop={",", "per"}, extra=facts)
             if rest[:2] == ["per", "month"]:  # pays X per month for M months [after D weeks]
@@ -627,7 +627,7 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
                     if rest[:1] not in (["days"], ["weeks"], ["months"]):
                         raise child.error(f"the deferred period is in days, weeks or months, not {' '.join(rest[:1])!r}")
                     rule_.after, rest = (period, rest[0]), rest[1:]
-            rule_.pays = parse_pays(child, rest)
+            rule_.pays = parse_pays(child, rest, product, facts)
         elif toks[:1] == ["co-payment"]:
             step = RatingStep("co-payment", line=child.number)
             step.amount, rest = expression(child, toks[1:], product, stop={"when"}, extra=facts)
@@ -654,15 +654,25 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
 PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess", ("less", "deductible"): "excess", ("less", "co-payment"): "co-payment"}
 
 
-def parse_pays(line: Line, toks: list[str]) -> list[str]:
-    """`pays claimed amount[, up to limit][, less excess]` in any order; the order written is the order applied."""
-    clauses, rest = [], [t for t in toks if t != ","]
-    while rest:
-        hit = next((words for words in PAYS_CLAUSES if tuple(rest[:len(words)]) == words), None)
-        if hit is None:
-            raise line.error(f"expected 'up to limit', 'less excess' or 'less co-payment', not {' '.join(rest)!r}")
-        clauses.append(PAYS_CLAUSES[hit])
-        rest = rest[len(hit):]
+def parse_pays(line: Line, toks: list[str], product: Product, facts: set[str]) -> list:
+    """The clauses after the amount, comma separated, in the order written, which is the order applied:
+    `up to limit`, `less excess`, `less co-payment`, or a cap `up to <amount> [when <condition>]` as ("cap", amount, condition)."""
+    clauses, groups = [], [[]]
+    for t in toks:
+        groups.append([]) if t == "," else groups[-1].append(t)
+    for words in filter(None, groups):
+        if tuple(words) in PAYS_CLAUSES:
+            clauses.append(PAYS_CLAUSES[tuple(words)])
+        elif words[:2] == ["up", "to"]:
+            amount, rest = expression(line, words[2:], product, stop={"when"}, extra=facts)
+            condition = None
+            if rest[:1] == ["when"]:
+                condition, rest = expression(line, rest[1:], product, extra=facts)
+            if rest:
+                raise line.error(f"unexpected {' '.join(rest)!r}")
+            clauses.append(("cap", amount, condition))
+        else:
+            raise line.error(f"expected 'up to limit', 'up to <amount> [when ...]', 'less excess' or 'less co-payment', not {' '.join(words)!r}")
     return clauses
 
 

@@ -549,6 +549,9 @@ class Policy:
         for clause in rules.pays:  # in the order the wording gives them
             if clause == "limit" and limit is not None:
                 payout = min(payout, limit)
+            elif isinstance(clause, tuple):  # ("cap", amount, condition): a sub-limit, for these claims only
+                if clause[2] is None or evaluate(clause[2], ctx):
+                    payout = min(payout, Decimal(evaluate(clause[1], ctx)))
             elif clause == "excess":
                 borne = min(payout, self.excess_remaining(cover)) if section.excess.aggregate else self.excess_for(section, ctx)
                 payout -= borne
