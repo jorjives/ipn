@@ -448,7 +448,9 @@ class Policy:
                 for cp in rules.co_payments:
                     if cp.condition is None or evaluate(cp.condition, ctx):
                         payout *= 1 - Decimal(evaluate(cp.amount, ctx))
-        result = ClaimResult("paid", pence(max(Decimal(0), payout)), cover=cover, counted=bool(evaluate(rules.counts, ctx)))
+        if payout <= 0:
+            return ClaimResult("declined", reason="nothing is payable after the excess")
+        result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)))
         self.claims.append(result)
         return result
 

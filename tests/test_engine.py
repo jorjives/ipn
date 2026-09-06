@@ -253,6 +253,11 @@ class ClaimsEngine(unittest.TestCase):
         c = self.claim(amount=1900, cover="Accidental Damage", evidence=())
         self.assertEqual(c.amount, Decimal("1900.00"))  # no excess declared for claims on this cover
 
+    def test_claim_within_the_excess_is_declined_and_does_not_count(self):
+        c = self.claim(amount=40)  # the minimum excess is 50
+        self.assertEqual((c.status, c.reason), ("declined", "nothing is payable after the excess"))
+        self.assertEqual(self.pol.claims_in_term, 0)
+
     def test_limit_applies_before_excess(self):
         self.pol.product.claims["Theft"].decline.pop()  # allow claimed > bike_value for this test
         c = self.claim(amount=5000)
