@@ -225,7 +225,7 @@ class Run:
         return self.policy.quote
 
     def expect_premium(self, step, rest):
-        self.check(step, "premium", money(Decimal(rest[0])), money(self.quote().total))
+        self.check(step, "premium", money(Decimal(rest[0])), money(self.policy.premium))
 
     def expect_net(self, step, rest):  # net X | net for <item> N X
         if rest[:1] == ["for"]:

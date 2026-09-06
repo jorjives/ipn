@@ -199,6 +199,15 @@ class PolicyLifecycle(unittest.TestCase):
         self.assertEqual(offer.premium, Decimal("92.64"))  # 77.20 x 1.2
         self.assertEqual(offer.uncapped, Decimal("141.04"))
 
+    def test_a_capped_renewal_is_what_the_customer_pays_and_what_is_refunded(self):
+        pol = self.policy
+        pol.bind(date(2026, 1, 1))
+        pol.inputs["bike_value"] = Decimal(4000)
+        pol.accept_renewal()
+        self.assertEqual(pol.premium, Decimal("92.64"))  # capped, not the 141.04 re-rated price
+        # earning part is the capped total less the 10 fee; 92.64 - 10 = 82.64 over the unused 300 of 365 days
+        self.assertEqual(pol.cancel(date(2027, 3, 7), "insurer"), Decimal("67.92"))
+
     def test_renewal_declined(self):
         pol = self.policy
         pol.bind(date(2026, 1, 1))

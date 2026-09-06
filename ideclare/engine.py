@@ -257,7 +257,7 @@ class Policy:
         self.first_inception: date | None = None  # the original start, kept across renewals for waiting periods
         self.paid_on: date | None = None
         self.cancelled_on: date | None = None
-        self.expiring_premium = Decimal(0)  # the annual total the customer is currently on
+        self.charged = Decimal(0)  # the total charged for the current term: capped or loaded at renewal, repriced on adjustment
         self.claims: list = []
         self.previous_terms: list[tuple[date, date]] = []
 
@@ -268,9 +268,15 @@ class Policy:
         return rate(self.product, self.inputs, self.selected)
 
     @property
+    def premium(self) -> Decimal:
+        """What the customer pays for the term: the quote until bound, then what was actually charged."""
+        return self.charged if self.inception is not None else self.quote.total
+
+    @property
     def refundable(self) -> Decimal:
         """Fees are earned on day one; only net plus taxes earn over the term."""
-        return self.quote.earning
+        q = self.quote
+        return self.premium - (q.total - q.earning)
 
     @property
     def expiry(self) -> date:
@@ -316,7 +322,7 @@ class Policy:
     def bind(self, on: date, paid: bool = True) -> None:
         self.inception = self.first_inception = on
         self.paid_on = on if paid else None
-        self.expiring_premium = self.quote.total
+        self.charged = self.quote.total
 
     def pay(self, on: date) -> None:
         self.paid_on = on
@@ -328,7 +334,7 @@ class Policy:
             raise ValueError(f"cancellation by {by} is not declared in the lifecycle")
         self.cancelled_on = on
         if (on - self.inception).days < lc.cooling_off_days:
-            return pence(self.quote.total)
+            return pence(self.premium)
         if terms.refund == "full":
             refund = self.refundable
         elif terms.refund == "pro rata":
@@ -358,8 +364,8 @@ class Policy:
                 if changed:
                     raise ValueError(f"{changed[0]} is held for the term")
         self.inputs.update(changes)
+        self.charged = self.quote.total
         difference = (self.refundable - before) * self.days_remaining(on) / self.term_days()
-        self.expiring_premium = self.quote.total
         return pence(difference + lc.adjustment_fee)
 
     def renew(self) -> RenewalOffer:
@@ -385,9 +391,9 @@ class Policy:
             offer.declined = "The policy is not renewable"
             return offer
         if lc.renewal_cap is not None:
-            offer.premium = min(offer.premium, pence(self.expiring_premium * (1 + lc.renewal_cap)))
+            offer.premium = min(offer.premium, pence(self.charged * (1 + lc.renewal_cap)))
         if lc.renewal_collar is not None:
-            offer.premium = max(offer.premium, pence(self.expiring_premium * (1 - lc.renewal_collar)))
+            offer.premium = max(offer.premium, pence(self.charged * (1 - lc.renewal_collar)))
         for r in lc.renewal_decline:
             if evaluate(r.condition, ctx):
                 offer.declined = r.reason
@@ -463,5 +469,5 @@ class Policy:
         self.previous_terms.append((self.inception, self.expiry))
         self.inputs = offer.inputs
         self.inception = self.paid_on = self.expiry
-        self.expiring_premium = offer.premium
+        self.charged = offer.premium
         self.claims = []
