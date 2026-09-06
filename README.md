@@ -27,5 +27,6 @@ python3 -m ideclare batch examples/cycle.idl risks.csv > priced.csv
 - `examples/income.idl`: short-term income protection; a monthly benefit paid at the end of each month off work after a deferred period, up to a year's worth, carrying on into the next policy year.
 - `examples/van.idl`: light commercial vehicle; rated from a three-dimensional table of 300 cells held as a CSV beside the product (`van_rates.csv`), with a small excess table written inline.
 - `examples/mortality.idl`: term life rated from a mortality curve interpolated geometrically between five-year knots, with a power-law BMI loading, an exponential large-sum discount and a linearly interpolated expense loading.
+- `examples/gadget.idl`: gadget cover sold across Germany, France, the Netherlands and Switzerland from one definition; the territory is chosen at quote, a table keyed on it carries each country's tax and loading, and the quote comes out in that country's currency.
 - `ideclare/`: the sidecar engine. Python 3.12, standard library only.
 - `python3 -m unittest`: the engine's own tests.

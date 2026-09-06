@@ -7,7 +7,6 @@
 
 product "Short Term Income Protection"
   territory UK
-  currency GBP
   term 12 months
 
 inputs

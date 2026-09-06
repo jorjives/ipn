@@ -6,7 +6,6 @@
 
 product "Lifetime Pet Cover"
   territory UK
-  currency GBP
   term 12 months
 
 inputs

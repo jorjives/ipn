@@ -3,7 +3,6 @@
 
 product "Cycle Cover"
   territory UK
-  currency GBP
   term 12 months
 
 inputs

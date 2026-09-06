@@ -5,7 +5,6 @@
 
 product "Single Trip Travel"
   territory UK
-  currency GBP
   term until return_date
 
 inputs

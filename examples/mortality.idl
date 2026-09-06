@@ -8,7 +8,6 @@
 
 product "Mortality Rated Term Life"
   territory UK
-  currency GBP
   term term_years years
 
 inputs

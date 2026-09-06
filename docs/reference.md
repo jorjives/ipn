@@ -36,7 +36,8 @@ claims discount, an excess that depends on who was driving), `life.idl` (a fixed
 over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit), `runoff.idl` (six years of
 run-off cover after that practice closes) and
 `home.idl` (specified items, the average clause), `household.idl` (buildings and
-contents as sections of one policy), `income.idl` (a benefit paid over time) and `leasing.idl` (a group scheme whose members join and leave).
+contents as sections of one policy), `income.idl` (a benefit paid over time), `leasing.idl` (a group scheme whose members join and leave)
+and `gadget.idl` (one product sold across several territories, each with its own tax and currency).
 
 ## Writing conventions
 
@@ -78,9 +79,15 @@ months of inception` are true when the loss is that soon after the policy first 
 ```
 product "Cycle Cover"
   territory UK
-  currency GBP
   term 12 months
 ```
+
+`territory` is where the product is sold. A product sold in several countries lists them,
+`territory DE, FR, NL, CH`, and `territory` is then an answer given at quote, so a table
+keyed on it carries the country's tax and loading and a condition can say `territory is
+CH`. With one territory it is assumed. The currency follows the territory (GBP for UK,
+EUR for DE, CHF for CH, and so on); a product priced in another currency, or sold
+somewhere the engine does not know, says `currency EUR`. See `examples/gadget.idl`.
 
 `term` is the length of one policy period: `term 12 months`, `term 10 days`, `term 25
 years`. A policy bound on 31 January with a 1 month term expires on 28 February. The
@@ -648,6 +655,7 @@ Expectations:
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium; once bound, the premium is what was charged for the term (capped or loaded at renewal, repriced by an adjustment) |
 | `expect net for bike 2 AMOUNT` | one item's share of the net, before the steps after `for each` |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
+| `expect currency CODE` | the currency the risk is quoted in, from its territory |
 | `expect commission "Label" AMOUNT` | that intermediary's share of the net |
 | `expect factor "Label" x 1.40` | what a factor applied |
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
@@ -663,6 +671,7 @@ Expectations:
 
 ## Not yet supported
 
-Multi-currency, more than one product per file, new-for-old versus indemnity as a named
+A policy carrying amounts in two currencies at once (a limit in USD on a premium in GBP),
+more than one product per file, new-for-old versus indemnity as a named
 settlement basis (use a depreciation table). Each is a small addition to the engine; say
 which you need.

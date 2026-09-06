@@ -6,7 +6,6 @@
 
 product "Private Motor"
   territory UK
-  currency GBP
   term 12 months
 
 inputs

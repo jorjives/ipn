@@ -9,7 +9,6 @@
 
 product "Professional Indemnity Run-off"
   territory UK
-  currency GBP
   term 6 years
 
 inputs
