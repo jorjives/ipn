@@ -308,6 +308,24 @@ class AggregateLimit(unittest.TestCase):
         self.assertEqual(run_all(p)[0].failures, [])
 
 
+class BenefitOverTime(unittest.TestCase):
+    def test_benefit_paid_by_a_date_across_the_renewal(self):
+        from tests.test_parser import BENEFIT
+        res = run_all(parse(BENEFIT + '''
+scenario "s"
+  given monthly_benefit 1500, deferred_weeks 8
+  when bound on 2026-01-01
+  when claim Incapacity on 2026-11-01 with weeks_off_work 28
+  expect payout 7500.00
+  expect benefit paid 0.00 by 2026-12-31
+  expect benefit paid 1500.00 by 2027-01-27
+  when renewed on 2027-01-01
+  expect benefit paid 7500.00 by 2027-06-01
+  expect cover Incapacity remaining 18000
+'''))[0]
+        self.assertEqual(res.failures, [])
+
+
 class UnderwriterTerms(unittest.TestCase):
     def run_referred(self, extra):
         from tests.test_parser import REFERRED

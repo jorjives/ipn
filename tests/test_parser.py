@@ -169,6 +169,7 @@ rating
 '''
 
 
+BENEFIT = 'product "X"\ninputs\n  monthly_benefit: money\n  deferred_weeks: integer\ncover Incapacity\n  limit monthly_benefit * 12 per term\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\nclaims\n  claim Incapacity\n    asks\n      weeks_off_work: integer\n    pays monthly_benefit per month for ( weeks_off_work - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit\n'
 REFERRED = 'product "X"\ninputs\n  a: money\n  risky: yes/no\neligibility\n  refer when risky is yes because "Needs an underwriter"\n  decline when a > 1000 because "Too big"\ncover Main\n  limit a\n  excess 50\ncover Extra\n  limit 100\nrating\n  base a\n  tax IPT 12%\nclaims\n  claim Main\n    pays claimed amount, less excess, up to limit\n  claim Extra\n    pays claimed amount up to limit\n'
 AGGREGATE_EXCESS = 'product "X"\ninputs\n  a: money\ncover Fleet\n  limit 100000\n  excess 1000 per term\nrating\n  base 100\nclaims\n  claim Fleet\n    pays claimed amount, less excess, up to limit\n'
 PER_CONDITION = 'product "X"\ninputs\n  a: money\ncover Vet\n  limit 7000 per term per condition\n  excess 100\nrating\n  base 100\nclaims\n  claim Vet\n    asks\n      condition: text\n    pays claimed amount, less excess, up to limit\n'
@@ -195,6 +196,21 @@ class InputDefaults(unittest.TestCase):
     def test_a_default_fills_an_item_field_left_out(self):
         p = parse(DEFAULTS + 'scenario "s"\n  given value 1\n  given bike price 500\n  given bike price 700, security gold\n')
         self.assertEqual([b["security"] for b in p.scenarios[0].given["bikes"]], ["silver", "gold"])
+
+
+class BenefitOverTime(unittest.TestCase):
+    def test_pays_per_month_for_months_after_a_deferred_period(self):
+        r = parse(BENEFIT).claims["Incapacity"]
+        self.assertEqual(r.pays_amount, ("name", "monthly_benefit"))
+        self.assertEqual(r.months, ("/", ("-", ("name", "weeks_off_work"), ("name", "deferred_weeks")), ("num", Decimal(4))))
+        self.assertEqual(r.after, (("name", "deferred_weeks"), "weeks"))
+        self.assertEqual(r.pays, ["limit"])
+
+    def test_the_deferred_period_is_optional_and_its_unit_is_checked(self):
+        r = parse(BENEFIT.replace(" after deferred_weeks weeks", "")).claims["Incapacity"]
+        self.assertIsNone(r.after)
+        with self.assertRaises(ParseError):
+            parse(BENEFIT.replace("deferred_weeks weeks", "deferred_weeks fortnights"))
 
 
 class AggregatePer(unittest.TestCase):

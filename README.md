@@ -22,7 +22,7 @@ python3 -m ideclare batch examples/cycle.idl risks.csv > priced.csv
 - `examples/pi.idl`: professional indemnity; commercial, turnover-rated, claims-made with a retroactive date, an aggregate limit, short-rate cancellation and broker commission.
 - `examples/home.idl`: home contents; specified items on top of a sum insured, a cause-based excess, the average clause.
 - `examples/leasing.idl`: a cycle leasing scheme; a group policy held by the supplier, members who join and leave mid term, each covered for their own lease dates; the bordereau of 520 members comes from `leasing_members.csv`.
-- `examples/income.idl`: short-term income protection; a monthly benefit paid for the months off work after a deferred period, up to a year's worth.
+- `examples/income.idl`: short-term income protection; a monthly benefit paid at the end of each month off work after a deferred period, up to a year's worth, carrying on into the next policy year.
 - `examples/van.idl`: light commercial vehicle; rated from a three-dimensional table of 300 cells held as a CSV beside the product (`van_rates.csv`), with a small excess table written inline.
 - `examples/mortality.idl`: term life rated from a mortality curve interpolated geometrically between five-year knots, with a power-law BMI loading, an exponential large-sum discount and a linearly interpolated expense loading.
 - `ideclare/`: the sidecar engine. Python 3.12, standard library only.

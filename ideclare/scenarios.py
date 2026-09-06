@@ -359,6 +359,11 @@ class Run:
         else:
             self.check(step, "payout", money(Decimal(rest[0])), money(c.amount))
 
+    def expect_benefit(self, step, rest):  # benefit paid AMOUNT by DATE
+        if rest[:1] != ["paid"] or rest[2:3] != ["by"]:
+            raise ValueError("expected 'benefit paid AMOUNT by YYYY-MM-DD'")
+        self.check(step, f"benefit paid by {rest[3]}", money(Decimal(rest[1])), money(self.policy.paid_by(date.fromisoformat(rest[3]))))
+
     def expect_claim(self, step, rest):
         c = self.last_claim
         actual = c.status + (f": {c.reason}" if c.reason else f" {money(c.amount)}")

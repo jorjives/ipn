@@ -874,3 +874,36 @@ class UnderwriterTerms(unittest.TestCase):
         pol = self.policy(risky=False)
         pol.bind(date(2026, 1, 1))
         self.assertEqual(pol.premium, Decimal("112.00"))
+
+
+class BenefitOverTime(unittest.TestCase):
+    def setUp(self):
+        from tests.test_parser import BENEFIT
+        self.pol = Policy(parse(BENEFIT), {"monthly_benefit": Decimal(1500), "deferred_weeks": Decimal(8)}, set())
+        self.pol.bind(date(2026, 1, 1))
+
+    def claim(self, on, weeks):
+        return self.pol.claim("Incapacity", Decimal(0), on, on, set(), facts={"weeks_off_work": Decimal(weeks)})
+
+    def test_a_month_of_benefit_is_paid_at_the_end_of_each_month_after_the_deferred_period(self):
+        r = self.claim(date(2026, 3, 1), 20)  # 12 weeks of benefit: 3 months from 26 April
+        self.assertEqual(r.amount, Decimal(4500))
+        self.assertEqual(r.payments, [(date(2026, 5, 26), Decimal(1500)), (date(2026, 6, 26), Decimal(1500)), (date(2026, 7, 26), Decimal(1500))])
+
+    def test_a_part_month_is_paid_last_and_the_limit_cuts_the_tail(self):
+        r = self.claim(date(2026, 1, 1), 62)  # 54 weeks = 13.5 months, capped at the 18,000 limit: 12 months
+        self.assertEqual(r.amount, Decimal(18000))
+        self.assertEqual(len(r.payments), 12)
+        r = Policy(self.pol.product, self.pol.inputs, set())
+        r.bind(date(2026, 1, 1))
+        c = r.claim("Incapacity", Decimal(0), date(2026, 1, 1), date(2026, 1, 1), set(), facts={"weeks_off_work": Decimal(18)})  # 10 weeks = 2.5 months
+        self.assertEqual([a for _, a in c.payments], [Decimal(1500), Decimal(1500), Decimal(750)])
+
+    def test_payments_run_past_expiry_and_survive_renewal(self):
+        self.claim(date(2026, 11, 1), 28)  # 20 weeks of benefit from 27 December: five months into 2027
+        self.assertEqual(self.pol.paid_by(date(2026, 12, 31)), Decimal(0))
+        self.assertEqual(self.pol.paid_by(date(2027, 2, 1)), Decimal(1500))
+        self.pol.accept_renewal()
+        self.assertEqual(self.pol.paid_by(date(2027, 6, 1)), Decimal(7500))
+        self.assertEqual(self.pol.remaining("Incapacity"), Decimal(18000))  # the new term's limit is untouched
+        self.assertEqual(self.pol.claims_in_term, 0)

@@ -1,7 +1,8 @@
 # Short Term Income Protection: a benefit paid over time rather than a loss made
-# good. The claim says how long the customer was off work; the benefit is so many
-# months' worth after the deferred period, and the term's limit is a number of
-# months of benefit in total.
+# good. The claim says how long the customer was off work; a month's benefit is
+# paid at the end of each month after the deferred period, the term's limit is a
+# number of months of benefit in total, and a claim that starts late in the year
+# keeps paying into the next.
 # Run it with:  python3 -m ideclare check examples/income.idl
 
 product "Short Term Income Protection"
@@ -80,8 +81,8 @@ claims
       weeks_off_work: integer
       cause: choice of illness, injury, pregnancy, pre_existing
     requires gp_certificate
-    # Months of benefit after the deferred period, never more than the year's limit.
-    pays monthly_benefit * ( weeks_off_work - deferred_weeks ) / 4, up to limit
+    # A month's benefit for each month off work after the deferred period, never more than the year's limit.
+    pays monthly_benefit per month for ( weeks_off_work - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit
     decline when weeks_off_work <= deferred_weeks because "Absence did not outlast the deferred period"
     decline when cause is pre_existing because "Pre-existing conditions are excluded"
     decline when cause is pregnancy because "Normal pregnancy is not an incapacity"
@@ -89,7 +90,7 @@ claims
     asks
       weeks_unemployed: integer
     requires termination_letter
-    pays monthly_benefit * ( weeks_unemployed - deferred_weeks ) / 4, up to limit
+    pays monthly_benefit per month for ( weeks_unemployed - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit
     decline when weeks_unemployed <= deferred_weeks because "Unemployment did not outlast the deferred period"
   after 2 claims in term: renewal load x 1.25
 
@@ -149,6 +150,19 @@ scenario "A long absence is capped at the months of benefit left in the year"
   # 13 months' worth would be 19,500; 13,500 is left
   expect payout 13500.00
   expect cover Incapacity remaining 0
+
+scenario "A claim late in the year keeps paying into the next"
+  given age 35, monthly_income 3200, monthly_benefit 1500, occupation_class class1, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity on 2026-10-01 with gp_certificate, weeks_off_work 28, cause injury
+  # 20 weeks of benefit from 26 November: 1,500 at the end of each month, five months in all
+  expect payout 7500.00
+  expect benefit paid 1500.00 by 2026-12-31
+  expect benefit paid 4500.00 by 2027-02-28
+  when renewed on 2027-01-01
+  expect benefit paid 7500.00 by 2027-05-01
+  # the new year's limit is untouched by a claim that arose in the old one
+  expect cover Incapacity remaining 18000
 
 scenario "Absence inside the deferred period pays nothing"
   given age 35, monthly_income 3200, monthly_benefit 1500, occupation_class class1, smoker no, deferred_weeks 8, benefit_months 12

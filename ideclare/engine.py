@@ -253,6 +253,7 @@ class ClaimResult:
     counted: bool = True  # towards claims in term
     bucket: object = None  # which per-condition or per-item limit this claim erodes
     excess: Decimal = Decimal(0)  # what the insured bore on this claim; erodes an aggregate excess
+    payments: list = field(default_factory=list)  # (date, amount): when the money goes out; one entry for a lump sum
 
 
 def excess_amount(excess, ctx: dict) -> Decimal:
@@ -289,7 +290,8 @@ class Policy:
         self.paid_on: date | None = None
         self.cancelled_on: date | None = None
         self.charged = Decimal(0)  # the total charged for the current term: capped or loaded at renewal, repriced on adjustment
-        self.claims: list = []
+        self.claims: list = []  # this term's
+        self.history: list = []  # every paid claim, whose payments may run past the term
         self.previous_terms: list[tuple[date, date]] = []
         self.underwriting: Underwriting | None = None  # terms accepted on a referral
         self.underwriter_declined = False
@@ -497,6 +499,10 @@ class Policy:
         ctx = context(self.product, self.inputs, self.selected)
         return max(Decimal(0), self.excess_for(section, ctx) - sum((c.excess for c in self.claims if c.cover == cover), Decimal(0)))
 
+    def paid_by(self, on: date) -> Decimal:
+        """Everything paid out on or before a date, whichever term the claim arose in."""
+        return sum((a for c in self.history for d, a in c.payments if d <= on), Decimal(0))
+
     def claims_loading(self) -> Decimal:
         applicable = [m for count, m, unless in self.product.claims_loading if self.claims_in_term >= count and not self.unless(unless)]
         return applicable[-1] if applicable else Decimal(1)
@@ -530,6 +536,8 @@ class Policy:
             if evaluate(r.condition, ctx):
                 return ClaimResult("declined", reason=r.reason)
         payout = Decimal(evaluate(rules.pays_amount, ctx)) if rules.pays_amount is not None else claimed
+        if rules.months is not None:
+            monthly, payout = payout, payout * Decimal(evaluate(rules.months, ctx))
         row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
         if row is not None:
             payout = apply_row(payout, row, ctx)
@@ -553,8 +561,25 @@ class Policy:
                 self.claims.append(ClaimResult("declined", cover=cover, counted=False, excess=pence(borne)))
             return ClaimResult("declined", reason="nothing is payable after the excess")
         result = ClaimResult("paid", pence(payout), cover=cover, counted=bool(evaluate(rules.counts, ctx)), bucket=self.bucket(section, item, facts), excess=pence(borne))
+        result.payments = self.schedule(rules, ctx, on, result.amount, monthly) if rules.months is not None else [(on, result.amount)]
         self.claims.append(result)
+        self.history.append(result)
         return result
+
+    @staticmethod
+    def schedule(rules, ctx: dict, on: date, total: Decimal, monthly: Decimal) -> list[tuple[date, Decimal]]:
+        """A month's benefit at the end of each month after the deferred period, the last month's part last."""
+        start = on
+        if rules.after is not None:
+            length, unit = int(evaluate(rules.after[0], ctx)), rules.after[1]
+            start = add_months(on, length) if unit == "months" else on + timedelta(days=length * (7 if unit == "weeks" else 1))
+        payments, paid, n = [], Decimal(0), 0
+        while paid < total:
+            n += 1
+            amount = min(monthly, total - paid)
+            payments.append((add_months(start, n), pence(amount)))
+            paid += amount
+        return payments
 
     def accept_renewal(self) -> None:
         offer = self.renew()

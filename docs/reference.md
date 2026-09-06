@@ -542,7 +542,14 @@ claims
   insurer pays after the excess (`less excess, up to limit`). Write what the wording says.
 - `pays <amount>` is a fixed benefit instead of the amount claimed: `pays sum_assured`,
   `pays 50% of sum_assured`, `pays purchase_price`. It may use asked facts and take the same
-  clauses: `pays monthly_benefit * ( weeks_off_work - deferred_weeks ) / 4, up to limit`.
+  clauses.
+- `pays <amount> per month for <months> months [after <period> days|weeks|months]` is a
+  benefit paid over time: `pays monthly_benefit per month for ( weeks_off_work -
+  deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit`. The total is the
+  monthly amount times the months, then the clauses apply; it goes out as a month's
+  benefit at the end of each month after the deferred period, a part month last. The
+  payments are dated from the loss and carry on past the term's expiry and through a
+  renewal; the claim counts and erodes the limit in the term it arose in.
 - `co-payment N% [when ...]` is a share the customer bears, applied where `less co-payment`
   sits in the `pays` line.
 - `depreciation` (or `settlement`, the same table under a name that suits an average clause)
@@ -637,11 +644,11 @@ Expectations:
 | `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment |
 | `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
 | `expect claims in term N` | paid claims this policy year |
+| `expect benefit paid AMOUNT by DATE` | everything paid out on or before that date, whichever term the claims arose in |
 | `expect renewal premium AMOUNT`, `expect renewal invite DATE`, `expect renewal offered`, `expect renewal declined ["reason"]` | the renewal offer as things stand |
 
 ## Not yet supported
 
 Multi-currency, more than one product per file, new-for-old versus indemnity as a named
 settlement basis (use a depreciation table), run-off cover after a claims-made policy
-ends, a benefit that continues to be paid across policy years. Each is a small addition
-to the engine; say which you need.
+ends. Each is a small addition to the engine; say which you need.

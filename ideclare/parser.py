@@ -614,7 +614,19 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
         elif toks[:3] == ["pays", "claimed", "amount"]:
             rule_.pays = parse_pays(child, toks[3:])
         elif toks[:1] == ["pays"]:
-            rule_.pays_amount, rest = expression(child, toks[1:], product, stop={","}, extra=facts)
+            rule_.pays_amount, rest = expression(child, toks[1:], product, stop={",", "per"}, extra=facts)
+            if rest[:2] == ["per", "month"]:  # pays X per month for M months [after D weeks]
+                if rest[2:3] != ["for"]:
+                    raise child.error("expected 'pays <amount> per month for <months> months [after <period> days|weeks|months]'")
+                rule_.months, rest = expression(child, rest[3:], product, stop={",", "months"}, extra=facts)
+                if rest[:1] != ["months"]:
+                    raise child.error(f"expected 'months' after the number of months, not {' '.join(rest[:1])!r}")
+                rest = rest[1:]
+                if rest[:1] == ["after"]:
+                    period, rest = expression(child, rest[1:], product, stop={",", "days", "weeks", "months"}, extra=facts)
+                    if rest[:1] not in (["days"], ["weeks"], ["months"]):
+                        raise child.error(f"the deferred period is in days, weeks or months, not {' '.join(rest[:1])!r}")
+                    rule_.after, rest = (period, rest[0]), rest[1:]
             rule_.pays = parse_pays(child, rest)
         elif toks[:1] == ["co-payment"]:
             step = RatingStep("co-payment", line=child.number)
