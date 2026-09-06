@@ -59,6 +59,21 @@ way to write it) and *scale* (fine at 300 rows or 3 items, not at 100,000 or 5,0
 - **Input defaults.** Would let the `quote` command skip answers, but a product should ask what it needs; a default is a product decision that belongs in `calculated`.
 - **Reinstatement of an eroded aggregate on payment of a premium**, **aggregate deductibles**, **underwriter terms on a referral**: each real, each a further branch on the mechanisms added here, none needed to prove the direction.
 
+### Re-scoped on review
+
+The exclusions above were an agent's judgement under the same mandate ("gaps required in a
+production environment across industries and lines") and were re-tested against it.
+Brought into scope, in build order: an aggregate deductible (`excess X per term`), input
+defaults, underwriter terms on a referral, a benefit paid across policy years, and
+reinstatement of an eroded aggregate; and three to prove with an example before deciding
+whether the language needs anything: run-off cover, a bundle (buildings and contents),
+sub-limits within a cover. Still out: multi-currency (a product is written in one
+currency; conversion at settlement is an operations matter), `is one of` (readability
+only), spline and bilinear interpolation (graduation happens upstream), documents,
+persistence and UI (not language). Rate versioning is decided, not built: rates in force
+at a date are a version of the file, held in version control, and a renewal is priced on
+the file in force when it is offered.
+
 ## Outcome
 
 Everything in the three tables shipped, one commit per item, tests first. The suite went
