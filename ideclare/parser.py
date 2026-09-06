@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import csv
 import os
 import re
 from datetime import date
@@ -611,6 +612,36 @@ def given_value(line: Line, inp: Input, tok: str):
     raise line.error(f"{inp.name} is {inp.kind}, cannot be {tok!r}")
 
 
+def given_item(line: Line, coll: Input, pairs: list[tuple[str, str]]) -> dict:
+    """One item from (field, value) pairs, checked for unknown and missing fields."""
+    item = {}
+    for name, value in pairs:
+        if name not in coll.fields:
+            raise line.error(f"unknown {coll.singular} field {name!r}")
+        item[name] = given_value(line, coll.fields[name], value)
+    missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated") and not coll.fields[f].provided]
+    if missing:
+        raise line.error(f"{coll.singular} is missing {', '.join(missing)}")
+    return item
+
+
+def items_from_file(line: Line, coll: Input, path: str, base: str) -> list[dict]:
+    """Items from a CSV whose columns are the fields; a blank cell is a field not given."""
+    full = os.path.join(base, path)
+    try:
+        with open(full, encoding="utf-8", newline="") as f:
+            records = list(csv.DictReader(f))
+    except OSError:
+        raise line.error(f"cannot read {path!r}")
+    items = []
+    for n, record in enumerate(records, start=2):
+        try:
+            items.append(given_item(line, coll, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()]))
+        except ParseError as e:
+            raise line.error(f"{path} row {n}: {str(e).removeprefix(f'line {line.number}: ')}")
+    return items
+
+
 def parse_scenario(line: Line, product: Product) -> None:
     toks = tokens(line)
     if len(toks) != 2 or not toks[1].startswith('"'):
@@ -618,18 +649,13 @@ def parse_scenario(line: Line, product: Product) -> None:
     sc = Scenario(unquote(toks[1]), line.number)
     for child in line.children:
         toks = tokens(child)
-        if toks[0] == "given" and len(toks) > 1 and product.collection_for(toks[1]) is not None:
+        if toks[0] == "given" and len(toks) == 4 and toks[2] == "from" and toks[3].startswith('"') and toks[1] in product.inputs and product.inputs[toks[1]].kind == "collection":
+            coll = product.inputs[toks[1]]
+            sc.given.setdefault(coll.name, []).extend(items_from_file(child, coll, unquote(toks[3]), product.base))
+        elif toks[0] == "given" and len(toks) > 1 and product.collection_for(toks[1]) is not None:
             coll = product.collection_for(toks[1])
             pairs = [t for t in toks[2:] if t != ","]
-            item = {}
-            for name, value in zip(pairs[::2], pairs[1::2]):
-                if name not in coll.fields:
-                    raise child.error(f"unknown {coll.singular} field {name!r}")
-                item[name] = given_value(child, coll.fields[name], value)
-            missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated") and not coll.fields[f].provided]
-            if missing:
-                raise child.error(f"{coll.singular} is missing {', '.join(missing)}")
-            sc.given.setdefault(coll.name, []).append(item)
+            sc.given.setdefault(coll.name, []).append(given_item(child, coll, list(zip(pairs[::2], pairs[1::2]))))
         elif toks[0] == "given":
             pairs = [t for t in toks[1:] if t != ","]
             if len(pairs) % 2:

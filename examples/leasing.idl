@@ -215,3 +215,19 @@ scenario "Scheme liability is a single limit for the whole scheme"
   when claim "Scheme Liability" for 1500000 on 2026-05-01
   expect payout 1500000.00
   expect cover "Scheme Liability" remaining 500000
+
+# --- A bordereau: the members come from a spreadsheet beside the product -------
+# leasing_members.csv has 520 rows, one per member, its columns the member's fields.
+
+scenario "Five hundred and twenty members from a file are rated in one go and referred for size"
+  given scheme_code "NHS-07", employer_sector public, supplier_turnover 9000000
+  given members from "leasing_members.csv"
+  expect referred "Schemes over 500 members need an underwriter"
+  expect factor "Scheme size" x 0.75
+  expect net 43937.09
+  expect tax IPT 5272.45
+  expect premium 49309.54
+  when bound on 2026-01-01
+  when claim Theft on member 520 for 2000 on 2026-12-15 with crime_reference
+  # member 520 leases a 1,303 bike from 2026-04-01: capped at 1,303, less 10% of the 2,000 claimed
+  expect payout 1103.00

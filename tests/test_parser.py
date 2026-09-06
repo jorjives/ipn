@@ -702,6 +702,32 @@ table "Age and lock" keyed on rider_age, security
 '''
 
 
+class ItemsFromFile(unittest.TestCase):
+    def test_given_collection_from_csv(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "bikes.csv"), "w") as f:
+                f.write("value,age,security\n2000,0,gold\n1000,3,silver\n")
+            p = parse(FLEET + 'scenario "file"\n  given rider_age 30\n  given bikes from "bikes.csv"\n', base=d)
+            self.assertEqual(p.scenarios[-1].given["bikes"], [
+                {"value": Decimal(2000), "age": Decimal(0), "security": "gold"},
+                {"value": Decimal(1000), "age": Decimal(3), "security": "silver"}])
+
+    def test_csv_errors_name_the_row(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "bikes.csv"), "w") as f:
+                f.write("value,age\n2000,0\n")
+            with self.assertRaisesRegex(ParseError, "line 50: bikes.csv row 2: bike is missing security"):
+                parse(FLEET + 'scenario "file"\n  given rider_age 30\n  given bikes from "bikes.csv"\n', base=d)
+            with open(os.path.join(d, "bikes.csv"), "w") as f:
+                f.write("value,age,security\n2000,0,platinum\n")
+            with self.assertRaisesRegex(ParseError, "line 50: bikes.csv row 2: security is choice, cannot be 'platinum'"):
+                parse(FLEET + 'scenario "file"\n  given rider_age 30\n  given bikes from "bikes.csv"\n', base=d)
+            with self.assertRaisesRegex(ParseError, "line 50: cannot read 'nowhere.csv'"):
+                parse(FLEET + 'scenario "file"\n  given rider_age 30\n  given bikes from "nowhere.csv"\n', base=d)
+
+
 class PerItemCovers(unittest.TestCase):
     def test_cover_using_item_fields_is_per_item(self):
         p = parse(FLEET)
