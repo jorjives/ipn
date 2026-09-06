@@ -61,4 +61,26 @@ way to write it) and *scale* (fine at 300 rows or 3 items, not at 100,000 or 5,0
 
 ## Outcome
 
-Filled in at the end of the run: what shipped, what each example proves, test counts.
+Everything in the three tables shipped, one commit per item, tests first. The suite went
+from 236 to 285 tests; the 13 example products all pass their scenarios (168 in total).
+
+What each example now proves beyond its original brief:
+
+| Example | Added in this review |
+|---|---|
+| `pi.idl` | short-rate cancellation from a table keyed on months in force (G1); broker commission reported on the net (G3) |
+| `motor.idl` | monthly instalments with a credit charge (G2); protected no claims discount as `unless "Protected NCD" selected` (G5) |
+| `pet.idl` | the annual vet fee limit is per condition (G4); a claim without an amount (G8) |
+| `travel.idl` | a baggage limit per traveller, distinct even for identical travellers (G4) |
+| `home.idl` | `index previous_claims by claims in term` rolls the year's claims into next year's rating (G6) |
+| `leasing.idl` | 520 members read from `leasing_members.csv` (S3) |
+| `van.idl` | key cells checked at load (S2); indexed lookups (S1) |
+
+Scale figures, measured on the development machine: an 80,000-row table looks up in about
+11 microseconds a row against 0.8 milliseconds before indexing; `batch` prices 20,000 van
+risks from the 300-cell table in about two seconds.
+
+Two small departures from the decisions above, both in naming only: the short-rate lookup
+in `pi.idl` is `refund refunded from "Short rate"` (the share returned, because a refund
+line should say what comes back, not what is kept), and the instalment charge is a
+percentage of the premium as charged, which is the total.
