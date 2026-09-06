@@ -138,6 +138,8 @@ class Lifecycle:
     renewal_collar: Decimal | None = None
     renewal_index: list[tuple] = field(default_factory=list)  # (input, "%" or "+", amount, at least, at most)
     renewal_decline: list[Rule] = field(default_factory=list)
+    instalments: int = 0  # 0: paid in one; else the number of monthly instalments
+    instalment_charge: Decimal = Decimal(0)  # credit charge as a fraction of the premium
 
 
 @dataclass

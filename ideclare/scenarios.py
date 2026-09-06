@@ -228,6 +228,18 @@ class Run:
     def expect_premium(self, step, rest):
         self.check(step, "premium", money(Decimal(rest[0])), money(self.policy.premium))
 
+    def expect_instalment(self, step, rest):  # instalment charge X | instalment N X
+        lc = self.product.lifecycle
+        if not lc.instalments:
+            raise ValueError("the product has no instalments line in its lifecycle")
+        charge, parts = engine.instalments(self.policy.premium, lc.instalments, lc.instalment_charge)
+        if rest[0] == "charge":
+            self.check(step, "instalment charge", money(Decimal(rest[1])), money(charge))
+        elif rest[0].isdigit() and 1 <= int(rest[0]) <= len(parts):
+            self.check(step, f"instalment {rest[0]}", money(Decimal(rest[1])), money(parts[int(rest[0]) - 1]))
+        else:
+            raise ValueError(f"expected 'instalment charge X' or 'instalment N X' with N from 1 to {len(parts)}")
+
     def expect_net(self, step, rest):  # net X | net for <item> N X
         if rest[:1] == ["for"]:
             label = f"{rest[1]} {rest[2]}"

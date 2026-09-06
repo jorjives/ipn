@@ -411,6 +411,7 @@ lifecycle
   cancellation by insurer: refund pro rata
   adjustment: reprice, charge pro rata difference, fee 10
   lapse when unpaid after 30 days
+  instalments 12 monthly, charge 10%
   renewal
     invite 21 days before expiry
     increase capped at 20%
@@ -441,6 +442,10 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
   A negative result is a return premium. Write `adjustment: not allowed` to forbid it.
   After an adjustment the customer's annual premium is the new one.
 - **Lapse**: a policy bound but unpaid lapses after this many days until it is paid.
+- **Instalments**: `instalments N monthly`, optionally `, charge P%`. The credit charge is
+  that percentage of the premium, rounded; premium plus charge is split into N equal
+  instalments to the penny, with the first taking any rounding so the schedule sums
+  exactly. The `quote` command shows the schedule.
 - **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
   insured, `by N` to add a fixed amount, such as a year of age, `by -N` to take one away.
   `, at least 0` and `, at most 9` keep the result within bounds, so a no claims discount
@@ -573,6 +578,7 @@ Expectations:
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
 | `expect expiry DATE` | end of the current term |
 | `expect refund AMOUNT` | refund from the last cancellation |
+| `expect instalment charge AMOUNT`, `expect instalment N AMOUNT` | the credit charge and the Nth instalment on the premium as it stands |
 | `expect refused ["reason"]` | the event just before was rightly refused (an adjustment when `adjustment: not allowed`, cancellation by a party with no terms) |
 | `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment |
 | `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
@@ -581,7 +587,7 @@ Expectations:
 
 ## Not yet supported
 
-Instalments, commission, multi-currency, more than one product per
+Commission, multi-currency, more than one product per
 file, new-for-old versus indemnity as a named settlement basis (use a depreciation table),
 per-condition limits within an aggregate (pet), protected no claims discount as an add-on
 that switches off the step-back, run-off cover after a claims-made policy ends, a benefit

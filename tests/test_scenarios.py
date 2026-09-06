@@ -105,10 +105,31 @@ from tests.test_parser import LIFECYCLE
 
 
 def lived(extra):
-    return {r.scenario.name: r.failures for r in run_all(parse(LIFECYCLE + extra))}
+    return {r.scenario.name: r.failures for r in run_all(parse(LIFECYCLE + "  instalments 12 monthly, charge 8%\n" + extra))}
 
 
 class LifecycleSteps(unittest.TestCase):
+    def test_instalment_schedule(self):
+        res = lived('''
+scenario "monthly"
+  given bike_value 2000, rider_age 22, security gold, racing no
+  expect premium 98.70
+  expect instalment charge 7.90
+  expect instalment 1 8.92
+  expect instalment 12 8.88
+  expect instalment 13 8.88
+''')
+        self.assertEqual(len(res["monthly"]), 1)
+        self.assertIn("instalment 13", res["monthly"][0])
+
+    def test_instalments_need_the_lifecycle_line(self):
+        res = outcomes('''
+scenario "none"
+  given bike_value 2000, rider_age 22, security gold, racing no
+  expect instalment 1 8.92
+''')
+        self.assertIn("instalments", res["none"][0])
+
     def test_cancellation_flow(self):
         res = lived('''
 scenario "cancel"

@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from ideclare.cli import main
-from tests.test_parser import FLEET, RATING
+from tests.test_parser import FLEET, LIFECYCLE, RATING
 
 
 def run(*argv) -> tuple[int, str]:
@@ -28,6 +28,16 @@ class QuoteCommand(unittest.TestCase):
         self.assertIn("Theft on bike 2: included, limit 1000.00", out)
         self.assertIn("bike 2 Bike age", out)
         self.assertIn("= 82.65", out)  # 60 + 27, x 0.95
+
+
+class QuoteInstalments(unittest.TestCase):
+    def test_the_schedule_is_shown_when_the_product_offers_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "cycle.idl"), "w") as f:
+                f.write(LIFECYCLE + "  instalments 12 monthly, charge 8%\n")
+            code, out = run("quote", os.path.join(d, "cycle.idl"), "bike_value=2000", "rider_age=22", "security=gold", "racing=no")
+        self.assertEqual(code, 0, out)
+        self.assertIn("or 12 monthly: 8.92 then 8.88 (credit charge 7.90)", out)
 
 
 class BatchCommand(unittest.TestCase):

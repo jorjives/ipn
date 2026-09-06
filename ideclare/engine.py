@@ -223,6 +223,15 @@ def pence(v: Decimal) -> Decimal:
     return v.quantize(Decimal("0.01"), ROUNDING)
 
 
+def instalments(premium: Decimal, count: int, charge: Decimal) -> tuple[Decimal, list[Decimal]]:
+    """The credit charge on the premium and the instalments that pay premium plus charge: equal
+    to the penny, with the first taking any rounding so the sum is exact."""
+    charge = pence(premium * charge)
+    total = premium + charge
+    each = pence(total / count)
+    return charge, [total - each * (count - 1)] + [each] * (count - 1)
+
+
 @dataclass
 class RenewalOffer:
     invite_date: date

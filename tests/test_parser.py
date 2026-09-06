@@ -228,6 +228,20 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual([r.reason for r in lc.renewal_decline], ["Too many claims", "Age limit"])
         self.assertEqual(lc.renewal_decline[0].condition, (">=", ("name", "claims_in_term"), ("num", Decimal(2))))
 
+    def test_instalments_with_a_credit_charge(self):
+        lc = parse(LIFECYCLE + "  instalments 12 monthly, charge 8%\n").lifecycle
+        self.assertEqual((lc.instalments, lc.instalment_charge), (12, Decimal("0.08")))
+
+    def test_instalments_without_a_charge(self):
+        lc = parse(LIFECYCLE + "  instalments 4 monthly\n").lifecycle
+        self.assertEqual((lc.instalments, lc.instalment_charge), (4, Decimal(0)))
+
+    def test_instalments_need_a_count_and_monthly(self):
+        with self.assertRaises(ParseError):
+            parse(LIFECYCLE + "  instalments monthly\n")
+        with self.assertRaises(ParseError):
+            parse(LIFECYCLE + "  instalments 12 weekly\n")
+
     def test_refund_by_an_expression_over_time_in_force(self):
         src = FULL + 'table "Short rate" keyed on months in force\n  months_in_force, proportion\n  0-2, 75%\n  3-5, 50%\n  6+, 0%\nlifecycle\n  cancellation by customer: refund proportion from "Short rate", fee 20\n  cancellation by insurer: refund 100% - days in force / 365 * 100%\n'
         lc = parse(src).lifecycle

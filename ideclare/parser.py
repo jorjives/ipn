@@ -464,6 +464,13 @@ def parse_lifecycle(line: Line, product: Product) -> None:
             parse_renewal(child, product)
         elif toks == ["renewal", ":", "none"]:
             lc.renewable = False
+        elif toks[:1] == ["instalments"]:
+            well_formed = len(toks) > 2 and toks[1].isdigit() and toks[2] == "monthly" and (not toks[3:] or toks[3:5] == [",", "charge"] and toks[6:] == ["%"])
+            if not well_formed:
+                raise child.error("expected 'instalments N monthly' optionally ', charge P%'")
+            lc.instalments = int(toks[1])
+            if toks[3:]:
+                lc.instalment_charge = Decimal(toks[5]) / 100
         else:
             raise child.error(f"unknown lifecycle setting {words!r}")
 

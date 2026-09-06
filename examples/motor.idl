@@ -105,6 +105,7 @@ lifecycle
   cancellation by customer: refund pro rata, fee 50
   cancellation by insurer: refund pro rata
   adjustment: reprice, charge pro rata difference, fee 25
+  instalments 12 monthly, charge 10%
   renewal
     invite 21 days before expiry
     index ncd_years by 1, at most 9
@@ -149,6 +150,10 @@ scenario "A family hatchback with one experienced driver"
   expect tax IPT 15.46
   expect fee "Arrangement fee" 25.00
   expect premium 169.26
+  # paid monthly: 10% credit charge on 169.26 is 16.93, so 186.19 over twelve; eleven of 15.52 and a first of 15.47
+  expect instalment charge 16.93
+  expect instalment 1 15.47
+  expect instalment 12 15.52
 
 scenario "An unrecognised registration is referred"
   given registration "ZZ99 ZZZ", vehicle_value 12000, annual_mileage 8000, ncd_years 5, voluntary_excess 250, cover_type comprehensive

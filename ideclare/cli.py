@@ -5,7 +5,7 @@ import csv
 import os
 import sys
 
-from .engine import check_eligibility, cover_state, rate
+from .engine import check_eligibility, cover_state, instalments, rate
 from .expr import ExprError
 from .parser import Line, ParseError, given_value, items_from_file, parse
 from .scenarios import run_all
@@ -82,6 +82,10 @@ def quote(path: str, args: list[str]) -> int:
     for label, amount in q.lines:
         print(f"  {label:<20} {'':>10}  + {amount:.2f}")
     print(f"  {'total':<20} {'':>10}  = {q.total:.2f} {product.currency}")
+    lc = product.lifecycle
+    if lc.instalments:
+        charge, parts = instalments(q.total, lc.instalments, lc.instalment_charge)
+        print(f"  or {lc.instalments} monthly: {parts[0]:.2f} then {parts[1]:.2f} (credit charge {charge:.2f})")
     return 0
 
 

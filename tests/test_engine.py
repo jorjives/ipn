@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 
 from ideclare.parser import parse
-from ideclare.engine import check_eligibility, context, cover_state, cover_states
+from ideclare.engine import check_eligibility, context, cover_state, cover_states, instalments
 from ideclare.scenarios import run_all
 from tests.test_parser import FULL
 
@@ -743,3 +743,15 @@ class TableEngine(unittest.TestCase):
         from ideclare.tables import TableError
         with self.assertRaisesRegex(TableError, "no row in Rates for driver_age 16, area 1"):
             rate(self.p, {"area": Decimal(1), "vans": [{"value": Decimal(1000), "driver_age": Decimal(16)}]}, set())
+
+
+class Instalments(unittest.TestCase):
+    def test_charge_then_equal_parts_with_the_first_absorbing_the_rounding(self):
+        # 98.70 + 8% (7.90) = 106.60; 106.60 / 12 = 8.883.. so eleven of 8.88 and a first of 8.92
+        charge, parts = instalments(Decimal("98.70"), 12, Decimal("0.08"))
+        self.assertEqual(charge, Decimal("7.90"))
+        self.assertEqual(parts, [Decimal("8.92")] + [Decimal("8.88")] * 11)
+        self.assertEqual(sum(parts), Decimal("106.60"))
+
+    def test_no_charge_splits_the_premium_exactly(self):
+        self.assertEqual(instalments(Decimal("100.00"), 4, Decimal(0)), (Decimal("0.00"), [Decimal("25.00")] * 4))
