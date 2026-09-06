@@ -20,6 +20,7 @@ python3 -m ideclare batch examples/cycle.idl risks.csv > priced.csv
 - `examples/motor.idl`: private motor; named drivers, a no claims discount that steps back after fault claims unless protected, an excess that depends on who was driving, monthly instalments.
 - `examples/life.idl`: level term life; a fixed benefit over a term of years chosen by the customer, BMI calculated, no renewal.
 - `examples/pi.idl`: professional indemnity; commercial, turnover-rated, claims-made with a retroactive date, an aggregate limit, short-rate cancellation and broker commission.
+- `examples/runoff.idl`: professional indemnity run-off; six years of claims-made cover bought with one premium when a practice closes, no renewal, no change, work after cessation excluded.
 - `examples/home.idl`: home contents; specified items on top of a sum insured, a cause-based excess, the average clause.
 - `examples/leasing.idl`: a cycle leasing scheme; a group policy held by the supplier, members who join and leave mid term, each covered for their own lease dates; the bordereau of 520 members comes from `leasing_members.csv`.
 - `examples/income.idl`: short-term income protection; a monthly benefit paid at the end of each month off work after a deferred period, up to a year's worth, carrying on into the next policy year.

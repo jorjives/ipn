@@ -33,7 +33,8 @@ takes the full rate. The other examples take the same language across the indust
 `travel.idl` (people, trip dates, sections that start on different days), `pet.idl` (an
 annual limit eroded by claims, waiting period, co-payment), `motor.idl` (named drivers, no
 claims discount, an excess that depends on who was driving), `life.idl` (a fixed benefit
-over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit) and
+over a term of years), `pi.idl` (claims-made commercial cover, aggregate limit), `runoff.idl` (six years of
+run-off cover after that practice closes) and
 `home.idl` (specified items, the average clause), `income.idl` (a benefit paid over time) and `leasing.idl` (a group scheme whose members join and leave).
 
 ## Writing conventions
@@ -650,5 +651,5 @@ Expectations:
 ## Not yet supported
 
 Multi-currency, more than one product per file, new-for-old versus indemnity as a named
-settlement basis (use a depreciation table), run-off cover after a claims-made policy
-ends. Each is a small addition to the engine; say which you need.
+settlement basis (use a depreciation table). Each is a small addition to the engine; say
+which you need.
