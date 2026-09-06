@@ -227,5 +227,5 @@ scenario "Three claims in a year load the renewal"
   when claim "Vet Fees" for 300 on 2026-05-01 with condition "limp"
   when claim "Vet Fees" for 300 on 2026-07-01 with condition "ear infection"
   expect claims in term 3
-  # age 3 keeps the 1.10 factor: 255.02 x 1.15
-  expect renewal premium 293.27
+  # age 3 keeps the 1.10 factor; the net is loaded, 227.70 x 1.15 = 261.86, then IPT 31.42
+  expect renewal premium 293.28

@@ -288,8 +288,10 @@ class ClaimsEngine(unittest.TestCase):
         self.assertEqual(len(self.pol.claims), 2)
         offer = self.pol.renew()
         self.assertEqual(offer.declined, "Too many claims")
-        self.assertEqual(offer.uncapped, Decimal("96.50"))  # 77.20 x 1.25
+        # the net is loaded, tax follows it and the fee is untouched: 60 x 1.25 = 75, IPT 9, fee 10
+        self.assertEqual(offer.uncapped, Decimal("94.00"))
         self.assertEqual(offer.premium, Decimal("92.64"))  # capped at 20%
+        self.assertEqual(rate(self.pol.product, self.pol.inputs, set(), loading=Decimal("1.25")).trail[-1].applied, "x 1.25")
 
 
 class CapAndCollar(unittest.TestCase):

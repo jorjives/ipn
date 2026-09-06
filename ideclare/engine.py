@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from .expr import evaluate, names
-from .model import Cover, Input, Lifecycle, Product
+from .model import Cover, Input, Lifecycle, Product, RatingStep
 
 
 def context(product: Product, inputs: dict, selected: set[str], item: dict | None = None, **extra) -> dict:
@@ -193,10 +193,12 @@ def apply_row(value: Decimal, row, ctx: dict) -> Decimal:
     return value * amount if row.op == "x" else value + amount if row.op == "+" else value - amount
 
 
-def rate(product: Product, inputs: dict, selected: set[str]) -> Quote:
+def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = Decimal(1)) -> Quote:
+    """Prices a risk. A claims loading is a final load on the net, so tax follows it and fees do not."""
     ctx = context(product, inputs, selected)
     lines, trail = [], []
-    net, quantum = run_steps(product, product.rating, ctx, Decimal(0), trail, lines)
+    steps = product.rating + ([RatingStep("load", "Claims loading", amount=("num", loading - 1))] if loading != 1 else [])
+    net, quantum = run_steps(product, steps, ctx, Decimal(0), trail, lines)
     net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
     lines = [(kind, label, (net * amount if kind == "tax" else amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
     taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
@@ -377,7 +379,7 @@ class Policy:
             else:
                 inputs[name] = indexed(inputs[name], *how)
         ctx = context(self.product, inputs, self.selected, claims_in_term=self.claims_in_term)
-        new = pence(rate(self.product, inputs, self.selected).total * self.claims_loading())
+        new = rate(self.product, inputs, self.selected, self.claims_loading()).total
         offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
         if not lc.renewable:
             offer.declined = "The policy is not renewable"
