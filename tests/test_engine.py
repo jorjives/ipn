@@ -374,12 +374,20 @@ class DepreciationAndIndexation(unittest.TestCase):
         self.assertEqual(c.amount, Decimal("800.00"))  # 1600 capped at 1000, less 200
 
     def test_indexation_raises_the_input_at_renewal(self):
-        self.assertEqual(self.p.lifecycle.renewal_index, [("item_value", "%", Decimal(5), None, None)])
+        self.assertEqual(self.p.lifecycle.renewal_index, [("item_value", "%", ("num", Decimal(5)), None, None)])
         self.assertEqual(self.pol.renew().inputs["item_value"], Decimal("1050.00"))
         self.assertEqual(self.pol.inputs["item_value"], Decimal(1000))  # offer only
         self.pol.accept_renewal()
         self.assertEqual(self.pol.inputs["item_value"], Decimal("1050.00"))
         self.assertEqual(self.pol.renew().inputs["item_value"], Decimal("1102.50"))
+
+    def test_index_by_an_expression_rolls_claims_history_forward(self):
+        p = parse(DEPRECIATION.replace("    index item_value by 5%\n", "    index item_value by 5%\n    index item_age by claims in term\n"))
+        pol = Policy(p, {"item_value": Decimal(1000), "item_age": Decimal(2)}, set())
+        pol.bind(date(2026, 1, 1))
+        self.assertEqual(pol.renew().inputs["item_age"], Decimal(2))
+        pol.claim("Damage", Decimal(500), date(2026, 2, 1), date(2026, 2, 1), set())
+        self.assertEqual(pol.renew().inputs["item_age"], Decimal(3))
 
     def test_index_unknown_input_is_error(self):
         from ideclare.parser import ParseError

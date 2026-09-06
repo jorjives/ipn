@@ -402,7 +402,7 @@ class Collections(unittest.TestCase):
         self.assertEqual(sc.given["bikes"][1], {"value": Decimal(1000), "age": Decimal(3), "security": "silver"})
 
     def test_index_item_field(self):
-        self.assertEqual(parse(FLEET).lifecycle.renewal_index, [("bike.value", "%", Decimal(10), None, None)])
+        self.assertEqual(parse(FLEET).lifecycle.renewal_index, [("bike.value", "%", ("num", Decimal(10)), None, None)])
 
 
 ENRICHED = FLEET.replace("  rider_age: integer\n", "  rider_age: integer\n  postcode: text\n") + '''
@@ -676,9 +676,9 @@ class MotorFeatures(unittest.TestCase):
 
     def test_index_bounds_and_negative(self):
         p = parse(MOTOR)
-        self.assertEqual(p.lifecycle.renewal_index[0], ("ncd_years", "+", Decimal(1), None, Decimal(9)))
+        self.assertEqual(p.lifecycle.renewal_index[0], ("ncd_years", "+", ("num", Decimal(1)), None, Decimal(9)))
         imposed = p.claims_terms[0][1]
-        self.assertEqual(imposed.renewal_index, [("ncd_years", "+", Decimal(-2), Decimal(0), None)])
+        self.assertEqual(imposed.renewal_index, [("ncd_years", "+", ("neg", ("num", Decimal(2))), Decimal(0), None)])
 
     def test_counting(self):
         p = parse(MOTOR)

@@ -498,20 +498,21 @@ def parse_renewal(line: Line, product: Product) -> None:
 
 
 def parse_index(line: Line, toks: list[str], product: Product) -> tuple:
-    """`index <input> by [-]N[%][, at least A][, at most B]` -> (input, "%" or "+", amount, at least, at most)."""
+    """`index <input> by <amount>[%][, at least A][, at most B]` -> (input, "%" or "+", amount expression, at least, at most).
+
+    The amount may use `claims in term`, so a claims count can roll forward: `index previous_claims by claims in term`.
+    """
     target, rest = toks[1:toks.index("by")], toks[toks.index("by") + 1:]
     coll = product.collection_for(target[0]) if len(target) == 2 else None
     inp = coll.fields.get(target[1]) if coll else product.inputs.get(target[0]) if len(target) == 1 else None
     if inp is None or inp.kind not in ("money", "number", "integer"):
         raise line.error(f"index needs a money, number or integer input, not {' '.join(target)!r}")
-    sign = -1 if rest[:1] == ["-"] else 1
-    rest = rest[1:] if sign < 0 else rest
-    if not rest or not rest[0][0].isdigit():
-        raise line.error("expected 'index <input> by N', 'by N%' or 'by -N'")
-    amount, rest = Decimal(rest[0]) * sign, rest[1:]
+    if not rest:
+        raise line.error("expected 'index <input> by N', 'by N%', 'by -N' or 'by claims in term'")
+    amount, rest = expression(line, rest, product, stop={","})
     how = "+"
-    if rest[:1] == ["%"]:
-        how, rest = "%", rest[1:]
+    if amount[0] == "pct":
+        how, amount = "%", amount[1]
     bounds = {"least": None, "most": None}
     while rest[:2] == [",", "at"] and rest[2:3] and rest[2] in bounds and len(rest) >= 4:
         bounds[rest[2]], rest = Decimal(rest[3]), rest[4:]

@@ -375,8 +375,10 @@ class Policy:
     def renew(self) -> RenewalOffer:
         lc = self.terms
         inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in self.inputs.items()}
+        before = context(self.product, self.inputs, self.selected, claims_in_term=self.claims_in_term)
 
-        def indexed(v, how, amount, least, most):
+        def indexed(v, how, node, least, most):
+            amount = Decimal(evaluate(node, before))
             v = pence(v * (1 + amount / 100)) if how == "%" else v + amount
             v = v if least is None else max(v, least)
             return v if most is None else min(v, most)

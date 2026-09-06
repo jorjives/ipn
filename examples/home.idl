@@ -85,6 +85,8 @@ lifecycle
     increase capped at 20%
     index contents_sum by 4%
     index item value by 4%
+    # This year's claims become next year's claims history.
+    index previous_claims by claims in term
 
 claims
   claim Contents
@@ -221,3 +223,13 @@ scenario "Renewal indexes the sum insured and every specified item"
   expect renewal premium 282.52
   when renewed on 2027-01-01
   expect cover "Specified Items" on item 1 limit 3120
+
+scenario "A claim this year is claims history next year"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 4000 on 2026-03-01 with cause fire, true_value 40000
+  # 41,600 indexed: 208 x 1.10 x 0.90 = 205.92, x 1.20 for one previous claim = 247.10, IPT 29.65 = 276.75;
+  # held to the 20% cap on 221.76
+  expect renewal premium 266.11
+  when renewed on 2027-01-01
+  expect factor "Claims history" x 1.20
