@@ -1,0 +1,15 @@
+industry,occupation,occupation_class,rate
+Office & Professional,Accountant,1,1.00
+Office & Professional,Solicitor,1,1.00
+Office & Professional,Software developer,1,1.00
+Office & Professional,Sales representative,2,1.25
+Retail & Hospitality,Shop manager,2,1.25
+Retail & Hospitality,Chef,3,1.60
+Retail & Hospitality,Bar staff,3,1.60
+Health & Social Care,Nurse,3,1.60
+Health & Social Care,Care worker,3,1.60
+Health & Social Care,Paramedic,3,1.60
+Construction,Site manager,2,1.25
+Construction,Electrician,3,1.60
+Construction,Labourer,4,2.00
+Construction,Scaffolder,4,2.00
