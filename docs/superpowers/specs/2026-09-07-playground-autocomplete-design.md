@@ -23,15 +23,17 @@ over-offer on those; `check` still reports the error.
 
 ## Decisions
 
-- **Buy-vs-build: CodeMirror 6, loaded as ES modules from jsdelivr.** The playground is a
-  `<textarea>`; dropdowns need an editor with decorations, and hand-rolling them on a textarea
-  (a mirror element to find the caret, overlays) is the commodity trap. CodeMirror's
+- **Buy-vs-build: CodeMirror 6, loaded as ES modules through an import map.** The playground
+  is a `<textarea>`; dropdowns need an editor with decorations, and hand-rolling them on a
+  textarea (a mirror element to find the caret, overlays) is the commodity trap. CodeMirror's
   `@codemirror/autocomplete` supplies the dropdown, keyboard handling and accessibility; its
-  `StreamLanguage` takes the regexes `idl.js` already uses so the editor colours as the
-  reference pages do. jsdelivr's `+esm` endpoint serves it without a bundler, which the site
-  (Jekyll, no build tooling) requires, and the page already loads Pyodide from jsdelivr. Monaco
-  was the alternative: heavier, an AMD loader, and its extra machinery (diagnostics, workers)
-  is not needed.
+  `StreamLanguage` takes the classifier `idl.js` already uses so the editor colours as the
+  reference pages do. The site (Jekyll, no build tooling) needs a CDN: the page carries an
+  import map pinning every CodeMirror package to one exact esm.sh URL with its dependencies
+  marked external (`esm.sh/*pkg@version`), because per-package CDN builds otherwise resolve
+  their shared `@codemirror/state` independently and an editor with two copies of it breaks.
+  Monaco was the alternative: heavier, an AMD loader, and its extra machinery (diagnostics,
+  workers) is not needed.
 - **Buy-vs-build: derive, do not transcribe.** The grammar page is EBNF in fenced blocks. A
   compiler reads it and writes the table; nothing about the language is written twice. The
   cost is making the page's notation precise enough to read by machine, which also makes it
@@ -84,13 +86,16 @@ page gains one sentence saying it is read by the site's tooling. The contract:
 - A bracket group opens and closes on lines of the same indent, so nesting and bracketing
   cannot cross. `[ 'asks' { field_line } ]` in `claim_block` breaks this today and becomes
   `[ asks_block ]` with `asks_block = 'asks'` and its nested `{ field_line }`.
-- **A line is a line.** Walking from `file`, each element of `file` and each alternative of an
-  indented group is a *line position*. A line position that is a single rule reference
-  (possibly wrapped in `[ ]` or `{ }`) delegates: that rule is a *line rule* and each of its
-  alternatives is a line position. Every other line position ends with `NEWLINE`; when it
-  contains an `INDENT`, the `NEWLINE` goes before it. So `cover_line`'s alternatives each end a
-  line, `dated` does not (it is not in line position), and `'renewal'` followed by its nested
-  `renewal_line`s reads `'renewal' NEWLINE INDENT { renewal_line } DEDENT`.
+- **A line is a line.** `file` and the content of every indented run are *runs* of lines: each
+  bracket group at the top level of a run has line positions for alternatives, and the elements
+  between groups form a line position of their own. A line position that ends in a rule
+  reference delegates to a *line variant* of that rule, `name$line`, whose alternatives are
+  line positions in turn; the variant is made per use, so `expression` mid-line and
+  `expression` ending a line stay distinct rules. Any other line position ends with `NEWLINE`,
+  and `NEWLINE` always precedes an `INDENT`. So `cover_line$line`'s alternatives each end a
+  line, `dated` does not (it never ends one), and `'renewal'` with its nested `renewal_line`s
+  reads `'renewal' NEWLINE INDENT { renewal_line$line } DEDENT`, the nested part optional when
+  it may be empty.
 - Literals match a token by text, so `'"not selected"'` matches that string token. Terminal
   classes match by token kind: `string`, `date`, `number`, `integer` (a number without a
   point), and the word classes `name`, `word`, `item_name`, `field_name`, `collection_name`,
@@ -168,7 +173,8 @@ Given the document and the cursor:
   silence completion; an error earlier in the same block does, and offering nothing is the
   honest answer there. (`ponytail:` walking the whole file would work and be as fast; per-block
   is the resilience choice.)
-- The current line is fed without its `NEWLINE`. If the cursor sits on a whitespace-only line,
+- The current line is fed without its `NEWLINE`. At column 0 of a line, once the block walked
+  has been accepted, the keywords that start a new block are offered as well. If the cursor sits on a whitespace-only line,
   the cursor column is that line's indent, so pressing two spaces under `cover Theft` offers
   the cover lines and pressing none offers the block keywords. The word under the cursor, if
   any, is the filter prefix, not a token.
@@ -177,7 +183,7 @@ Given the document and the cursor:
 
   | Class | Offered |
   |---|---|
-  | `name` | inputs, enrichment-provided fields, `asks` facts, collection fields, plus the built-in words `claim`, `claimed`, `position`, `territory` |
+  | `name` | inputs, enrichment-provided fields, `asks` facts, collection fields, the built-in words `claim`, `claimed`, `position`, `territory`, and, as the page's Words paragraph allows in expressions, choice values and unquoted cover names |
   | `word` | choice values, `yes`, `no` |
   | `collection_name` | inputs declared `collection of` |
   | `item_name`, `old_item_name` | the singular item names of those collections |
