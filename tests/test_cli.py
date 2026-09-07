@@ -148,3 +148,20 @@ class CheckErrors(unittest.TestCase):
             code, out = run("check", path)
         self.assertEqual(code, 1)
         self.assertEqual(out, f"{path}: line 8: unknown word 'agee'\n")
+
+
+class BatchColumnsForPerItemLines(unittest.TestCase):
+    def test_a_tax_inside_for_each_has_its_own_column(self):
+        import csv
+        src = FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax \"Fire\" 22% of 20% of net\n")
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "fleet.idl"), "w") as f:
+                f.write(src)
+            with open(os.path.join(d, "bikes.csv"), "w") as f:
+                f.write("value,age,security\n1000,2,gold\n")
+            with open(os.path.join(d, "risks.csv"), "w") as f:
+                f.write("rider_age,bikes\n30,bikes.csv\n")
+            code, out = run("batch", os.path.join(d, "fleet.idl"), os.path.join(d, "risks.csv"))
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "Fire", "IPT", "total", "currency", "error"])
+        self.assertEqual(rows[1][4], "1.32")  # 22% of 20% of 30.00

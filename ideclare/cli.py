@@ -110,8 +110,9 @@ def batch(path: str, risks: str, out=None) -> int:
         if unknown:
             writer.writerow([f"unknown column {unknown[0]!r}; expected input names and select"])
             return 2
-        lines = [s.label for s in product.rating if s.kind in ("tax", "fee")]
-        commission = [s.label for s in product.rating if s.kind == "commission"]
+        steps = [s for step in product.rating for s in ([step] + step.steps)]  # a tax may sit inside 'for each'
+        lines = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "fee")))
+        commission = [s.label for s in steps if s.kind == "commission"]
         writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "currency", *commission, "error"])
         for n, record in enumerate(reader, start=1):
             blank = [""] * (len(lines) + len(commission) + 5)
