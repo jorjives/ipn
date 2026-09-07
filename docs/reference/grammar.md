@@ -338,12 +338,12 @@ expectation     = 'eligible' | ( 'declined' | 'referred' ) [ string ]
                 | 'factor' string operator number
                 | 'instalment' 'charge' number | 'instalment' integer number
                 | 'status' word [ 'on' date ] | 'expiry' date
-                | 'refund' number | 'additional' 'premium' number | 'return' 'premium' number
+                | 'refund' [ 'for' share ] number | 'additional' 'premium' [ 'for' share ] number | 'return' 'premium' [ 'for' share ] number
                 | 'refused' [ string ]
                 | 'claim' 'paid' | 'claim' 'declined' [ string ] | 'payout' number
                 | 'claims' 'in' 'term' integer
                 | 'benefit' 'paid' number 'by' date
-                | 'renewal' 'premium' number | 'renewal' 'invite' date
+                | 'renewal' 'premium' [ 'for' share ] number | 'renewal' 'invite' date
                 | 'renewal' 'offered' | 'renewal' 'declined' [ string ]
                 | 'renewal' 'needs' name { ',' name }
                 | 'version' date

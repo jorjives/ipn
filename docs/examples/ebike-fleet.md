@@ -9,7 +9,7 @@ nav_order: 8
 E-bike Fleet: pedal and electric bikes on one policy. Every bike carries theft and accidental damage. Fire cover prices itself on each e-bike (the battery is the fire risk) and is excluded on pedal bikes, so its premium is exactly the e-bikes' share. Each cover carries the class it reports under, a fire levy is charged on the fire premium alone, and the tax on the rest is split by cover.
 
 {: .proof }
-> 4 scenarios, all passing. Run them yourself:
+> 5 scenarios, all passing. Run them yourself:
 > ```sh
 > python3 -m ideclare check examples/ebike-fleet.idl
 > ```
@@ -147,4 +147,21 @@ scenario "A fire claim pays on an e-bike and is excluded on a pedal bike"
   expect payout 750.00
   when claim Fire on bike 2 for 500 on 2026-04-01
   expect claim declined "Fire is excluded: Fire cover is for e-bikes"
+
+# --- Lifecycle ------------------------------------------------------------
+
+scenario "A refund is split between the covers as the premium was"
+  given rider_age 30
+  given bike value 2000, ebike yes, security gold
+  given bike value 1000, ebike no, security gold
+  given bike value 3000, ebike yes, security silver
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-07-01
+  # net and taxes 271.94 earn over the term; 184 of 365 days are left, less the 10 fee: 127.09
+  # each cover takes the share of it that its net plus taxes had: fire 27.00 of 271.94
+  expect refund 127.09
+  expect refund for Fire 12.62
+  expect refund for Theft 76.31
+  expect refund for "Accidental Damage" 38.16
+  expect refund for class 3 38.16
 ```
