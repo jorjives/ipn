@@ -11,7 +11,7 @@ The audience is insurance professionals, not developers. The DSL reads like Engl
 ## Commands
 
 ```bash
-# Run all engine tests
+# Run all engine tests (GitHub Actions runs the same on pull requests and on main)
 python3 -m unittest
 
 # Run a single test file or test
