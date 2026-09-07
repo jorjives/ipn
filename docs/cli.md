@@ -75,7 +75,8 @@ A product with `instalments` also prints the schedule; one with `commission` pri
 intermediary's share. One that attributes its premium to covers (see
 [rating](reference/rating.md#shares-by-cover)) prints each cover's share of the net and of
 each tax under `Shares:`, and the totals per class under `By class:`. An input left out takes its `default`; one without a default is
-reported as missing, with exit status 2. A quote reads only the undated lines of a cover:
+reported as missing, with exit status 2, as is a keyed choice the table does not list under
+the keys given (`occupation "Nurse" is not an occupation for industry "Construction"`). A quote reads only the undated lines of a cover:
 dated amendments apply to events on a policy, not to a price.
 
 ## batch: price a book

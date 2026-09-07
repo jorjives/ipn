@@ -85,7 +85,9 @@ field_line      = name ':' type [ ',' 'default' value ]
                 | name ':' 'calculated'
                     { rating_step }
 type            = 'money' | 'number' | 'integer' | 'text' | 'yes/no' | 'date'
-                | 'choice' 'of' word { ',' word }
+                | 'choice' 'of' choice_value { ',' choice_value }
+                | 'choice' 'of' name 'from' string [ 'for' name { ',' name } ]
+choice_value    = word | string
 bounds          = ',' integer 'to' integer | ',' 'at' 'least' integer | ',' 'at' 'most' integer
 value           = number | date | word | string
 ```
@@ -93,6 +95,12 @@ value           = number | date | word | string
 A collection needs at least one field; a field cannot itself be a collection, and cannot
 share a name with an input. The steps under `calculated` are those allowed inside `for
 each` (see `rating`), with the item's other fields, or the other inputs, in scope.
+
+A choice value that is not one word is a string. A choice `from` a table takes the distinct
+cells of that key column of the table named; the names after `for` are keys of the same
+table and inputs (or, for an item's field, the item's other fields), and a value is then
+accepted only when the table lists it on a row matching them. The table is declared after
+the inputs that draw on it.
 
 ## enrichment
 
@@ -121,8 +129,10 @@ cell            = number | number '%' | number '-' number | number '+' | '*' | w
 
 Rows come from the file or from the lines below, never both. The header names every key
 column (as the input's name; `months_in_force` for `months in force`) and at least one
-value column. A key cell is checked against its input: a choice must be one of the
-choices, a `yes/no` cell `yes`, `no` or `*`, a numeric cell a number, a band or `*`.
+value column, unless a choice draws on the table, when it may be keys alone. A key cell is
+checked against its input: a choice must be one of the choices, a `yes/no` cell `yes`,
+`no` or `*`, a numeric cell a number, a band or `*`. A key column a choice draws on is
+read as text: every cell is a value, and `*` or a band there is an error.
 
 ## eligibility
 

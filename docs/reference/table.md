@@ -42,6 +42,11 @@ table "Theft excess" keyed on area, use
   the row number rather than a row that never fires. Rows are indexed on their exact
   cells, so a table of a hundred thousand rows looks up in microseconds.
 
+A key column that a `choice of <column> from` [input](inputs.md#choices-from-a-table)
+draws on is read as text: every cell is one of the values offered, so `*` or a band there
+is an error, and `1234` is a code rather than a number. Such a table may be keys alone,
+with no value column, when it is only a list.
+
 A stepped table becomes a curve with `interpolated [linearly | geometrically] on <key>`
 (linearly is the default). The named key's cells are then single numbers, the knots; the
 other keys match as in a plain lookup. On a knot the value is the knot's, between two knots

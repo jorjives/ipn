@@ -13,7 +13,8 @@ What you ask at quote. Each line is `name: type`.
 | `money`, `number` | a decimal amount |
 | `integer` | a whole number |
 | `yes/no` | `yes` or `no` |
-| `choice of a, b, c` | exactly one of the listed words |
+| `choice of a, b, c` | exactly one of the listed values; a value that is not one word is quoted, `choice of construction, "Health & Social Care"` |
+| `choice of <column> from "Table" [for key, ...]` | one of the values in that key column of a [table](table.md); see [choices from a table](#choices-from-a-table) |
 | `text` | free text; compare it to a quoted value, `make is "Brompton"`; scenarios may leave it out |
 | `date` | a calendar date, `2026-07-10` |
 | `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
@@ -49,6 +50,35 @@ Items appear in conditions and amounts like this:
 | `any bike where value > 5000` | true if one item matches |
 | `every bike where security is gold` | true if all items match |
 | `value`, `age` on their own | the current item's field, inside `for each`, a cover, a claim or a `where` |
+
+## Choices from a table
+
+A list too long to write inline, or one that depends on an earlier answer, lives in a
+[table](table.md) and the choice names the key column it draws on:
+
+```idl
+inputs
+  industry: choice of industry from "Occupations"
+  occupation: choice of occupation from "Occupations" for industry
+
+table "Occupations" from "occupations.csv" keyed on industry, occupation
+```
+
+`industry` offers the distinct values of that column. `for industry` narrows
+`occupation` to the rows whose industry matches the one given, so a platform shows the
+occupations of the chosen industry and a quote giving a pair the table does not list is
+refused: `occupation "Nurse" is not an occupation for industry "Construction"`. Several
+keys narrow on all of them: `for industry, sector`. The same lines work as the fields of
+a collection item, keyed on the item's other fields (each person's industry and
+occupation), and the keyed check runs per item.
+
+The table is declared after the inputs that draw on it. Its other columns are looked up
+as usual, so the same file carries the class or rate of every occupation:
+`factor "Occupation" x rate from "Occupations"`. A value from the file is written in the
+product as it appears there: a single word bare, `industry is Construction`, anything
+else quoted, `industry is "Health & Social Care"`. A code such as `1234` is text, not a
+number. [`examples/income.idl`](../examples/income.md) rates on an occupation drawn this
+way.
 
 ## Formulas
 
