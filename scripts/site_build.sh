@@ -3,7 +3,7 @@
 #   scripts/site_build.sh [true]     # true for verbose Jekyll output
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-rm -rf /tmp/oidl-out && mkdir -p /tmp/oidl-out
+mkdir -p /tmp/oidl-out  # Jekyll cleans it; the files are root-owned after a run
 docker run --rm -v "$ROOT/docs:/work/src:ro" -v /tmp/oidl-out:/work/out \
   -e GITHUB_WORKSPACE=/work -e INPUT_SOURCE=src -e INPUT_DESTINATION=out -e INPUT_FUTURE=false \
   -e INPUT_BUILD_REVISION=HEAD -e INPUT_VERBOSE="${1:-false}" -e INPUT_TOKEN="$(gh auth token)" \

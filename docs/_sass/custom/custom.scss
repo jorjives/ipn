@@ -19,7 +19,7 @@
 .nav-list .nav-list-item .nav-list-link { font-size: 0.92rem; }
 
 // --- .idl highlighting (spans added by assets/js/idl.js) ------------------
-.language-idl {
+.language-idl, code.language-idl, code.idl {
   .k  { color: $oidl-marine; font-weight: 600; }   // block opener
   .kw { color: $oidl-marine; }                     // statement word
   .ty { color: $oidl-teal; }                       // input type
@@ -29,7 +29,7 @@
 }
 
 // --- check output blocks ---------------------------------------------------
-.language-check .highlight, .check-out {
+.language-check .highlight, code.language-check, .check-out {
   .pass { color: $oidl-pass; font-weight: 600; }
   .fail { color: $oidl-fail; font-weight: 600; }
 }
@@ -43,18 +43,13 @@
   .actions .btn { font-family: $body-font-family; font-size: 1rem; padding: 0.55rem 1.1rem; }
 }
 .oidl-proof {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: 1.25rem;
-  align-items: start;
   border: 1px solid $oidl-rule;
   border-radius: 4px;
   background: $oidl-paper;
   padding: 1rem 1.25rem;
-  @media (max-width: 800px) { grid-template-columns: minmax(0, 1fr); }
   .file, .out {
     font-family: $mono-font-family;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     line-height: 1.55;
     margin: 0;
     white-space: pre;
@@ -63,8 +58,7 @@
     border: 0;
     padding: 0;
   }
-  .out { border-left: 1px solid $oidl-rule; padding-left: 1.25rem; min-height: 100%;
-    @media (max-width: 800px) { border-left: 0; border-top: 1px solid $oidl-rule; padding: 1rem 0 0; } }
+  .out { border-top: 1px solid $oidl-rule; margin-top: 1rem; padding-top: 1rem; }
   .cmd { color: lighten($oidl-ink, 25%); }
   .out .line { display: block; }
   .out .pass { color: $oidl-pass; font-weight: 600; }
@@ -90,7 +84,7 @@
   .step h3 { margin: 0 0 0.4rem; font-size: 1.05rem; }
   .step p { margin: 0; font-size: 0.97rem; color: lighten($oidl-ink, 10%); }
   .step .highlighter-rouge { margin: 0; }
-  .step pre { margin: 0; }
+  .step pre { margin: 0; overflow-x: auto; min-width: 0; }
 }
 
 .oidl-lines {

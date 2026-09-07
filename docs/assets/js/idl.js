@@ -44,7 +44,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll(".language-idl pre code, code.idl").forEach(colour);
-    document.querySelectorAll(".language-check pre code").forEach(checkOutput);
+    document.querySelectorAll(".language-idl pre code, code.language-idl, code.idl").forEach(colour);
+    document.querySelectorAll(".language-check pre code, code.language-check").forEach(checkOutput);
   });
 })();

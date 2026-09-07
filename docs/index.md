@@ -32,7 +32,7 @@ eligibility
 cover Theft
   limit bike_value
   excess 10% of claim, minimum 50
-  excludes when lock is bronze and bike_value > 2000 because "A silver or gold lock is required"
+  excludes when lock is bronze and bike_value > 2000 because "Needs a silver or gold lock"
 
 rating
   base 3% of bike_value
@@ -121,7 +121,7 @@ One block per section: the limit, the excess, when it is excluded, whether it is
 cover Theft
   limit bike_value
   excess 10% of claim, minimum 50
-  excludes when lock is bronze and bike_value > 2000 because "A silver or gold lock is required"
+  excludes when lock is bronze and bike_value > 2000 because "Needs a silver or gold lock"
 
 cover Racing optional
   limit 5000
