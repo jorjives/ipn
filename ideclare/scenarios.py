@@ -413,7 +413,7 @@ class Run:
         """`for Cover X` or `for class C X` on a lifecycle amount: that cover's, or class's, part of it."""
         parts = quote.split(amount)
         if rest[0] == "class":
-            covers = [c.name for c in self.product.covers if c.class_ == rest[1] and c.name in parts]
+            covers = [s.name for s in quote.shares if s.class_ == rest[1] and s.name in parts]  # the quote's own classes: a renewal may be on another version
             if not covers:
                 return self.fail(step.line, f"no share for class {rest[1]!r}")
             return self.check(step, f"{what} for class {rest[1]}", money(Decimal(rest[2])), money(sum(parts[c] for c in covers)))

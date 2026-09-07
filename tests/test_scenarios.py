@@ -759,6 +759,17 @@ class LifecycleShares(unittest.TestCase):
 ''')
         self.assertEqual(res["renewal"], [])
 
+    def test_a_renewal_class_is_read_from_the_renewal_quote(self):
+        from tests.test_engine import EBIKES
+        from ideclare.versions import History
+        src = EBIKES.replace('  factor "Fleet"\n', '  add cover premiums\n  factor "Fleet"\n')
+        old = src.replace('product "Family Cycle Cover"\n', 'product "Family Cycle Cover"\n  published 2026-01-01\n')
+        new = src.replace('product "Family Cycle Cover"\n', 'product "Family Cycle Cover"\n  published 2026-06-01\n').replace("cover Fire\n  class 8\n", "cover Fire\n  class 7\n")
+        history = History([parse(old), parse(new)])
+        scenario = 'scenario "renewal"' + self.GIVEN + "  expect renewal premium for class 7 11.70\n  expect renewal premium for class 8 1.00\n"
+        res = {r.scenario.name: r.failures for r in run_all(parse(old + scenario), history=history)}
+        self.assertEqual(res["renewal"], ["line 63: no share for class '8'"])
+
     def test_a_cover_without_a_share_fails_plainly(self):
         from tests.test_engine import FLEET
         res = {r.scenario.name: r.failures for r in run_all(parse(FLEET + '''
