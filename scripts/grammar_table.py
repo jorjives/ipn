@@ -361,31 +361,31 @@ CLASS_KINDS = {"str": {"string"}, "date": {"date"}, "num": {"number", "integer"}
 
 
 def product_tokens(text: str) -> list:
-    """A product's tokens as (kind, text): the parser's kinds plus NEWLINE, INDENT and DEDENT."""
+    """A product's tokens as (kind, text, line): the parser's kinds plus NEWLINE, INDENT and DEDENT."""
     from ideclare import parser
-    out, stack = [], [0]
-    for raw in text.splitlines():
+    out, stack, number = [], [0], 0
+    for number, raw in enumerate(text.splitlines(), start=1):
         body = parser._strip_comment(raw)
         if not body.strip():
             continue
         indent = len(body) - len(body.lstrip(" "))
         if indent > stack[-1]:
             stack.append(indent)
-            out.append(("INDENT", ""))
+            out.append(("INDENT", "", number))
         while indent < stack[-1]:
             stack.pop()
-            out.append(("DEDENT", ""))
+            out.append(("DEDENT", "", number))
         if indent != stack[-1]:
-            raise ValueError(f"inconsistent indentation: {raw!r}")
+            raise ValueError(f"line {number}: inconsistent indentation")
         pos, line = 0, body.strip()
         while pos < len(line):
             m = parser.TOKEN.match(line, pos)
             if not m or m.end() == pos:
-                raise ValueError(f"cannot read {line[pos:]!r}")
-            out.append((m.lastgroup, m.group(0).strip()))
+                raise ValueError(f"line {number}: cannot read {line[pos:]!r}")
+            out.append((m.lastgroup, m.group(0).strip(), number))
             pos = m.end()
-        out.append(("NEWLINE", ""))
-    out.extend([("DEDENT", "")] * (len(stack) - 1))
+        out.append(("NEWLINE", "", number))
+    out.extend([("DEDENT", "", number)] * (len(stack) - 1))
     return out
 
 

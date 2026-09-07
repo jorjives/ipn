@@ -1,7 +1,8 @@
 """The grammar page compiles to the playground's completion table, and every product parses under it."""
 import unittest
+from pathlib import Path
 
-from scripts.grammar_table import GrammarError, Walker, build, mark_lines, product_tokens, read
+from scripts.grammar_table import GRAMMAR, ROOT, GrammarError, Walker, build, mark_lines, product_tokens, read
 
 
 class Reader(unittest.TestCase):
@@ -148,7 +149,8 @@ class Compiled(unittest.TestCase):
 class ProductTokens(unittest.TestCase):
     def test_structure_tokens(self):
         toks = product_tokens('cover Theft  # note\n\n  limit 5\n  excess 10% of claim\nrating\n')
-        self.assertEqual(toks, [
+        self.assertEqual([t[2] for t in toks], [1, 1, 1, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5])
+        self.assertEqual([t[:2] for t in toks], [
             ("id", "cover"), ("id", "Theft"), ("NEWLINE", ""), ("INDENT", ""),
             ("id", "limit"), ("num", "5"), ("NEWLINE", ""),
             ("id", "excess"), ("num", "10"), ("op", "%"), ("id", "of"), ("id", "claim"), ("NEWLINE", ""),
@@ -156,9 +158,35 @@ class ProductTokens(unittest.TestCase):
         ])
 
     def test_two_dedents_at_once_and_strings_with_hashes(self):
-        toks = product_tokens('a\n  b\n    c "x # y"\nd\n')
+        toks = [t[:2] for t in product_tokens('a\n  b\n    c "x # y"\nd\n')]
         self.assertEqual([t for t in toks if t[0] in ("INDENT", "DEDENT")], [("INDENT", ""), ("INDENT", ""), ("DEDENT", ""), ("DEDENT", "")])
         self.assertIn(("str", '"x # y"'), toks)
+
+
+CORPUS = sorted(list((ROOT / "examples").glob("*.idl")) + list((ROOT / "examples" / "versioned").glob("*.idl"))
+                + list((ROOT / "templates").glob("*.idl")) + list((ROOT / "templates" / "versioned").glob("*.idl")))
+
+
+class Corpus(unittest.TestCase):
+    """The grammar page is complete: every example and template parses under it, and at every
+    token the token that comes next was among those expected. This is the drift guard between
+    the page and the parser."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.table = build(GRAMMAR.read_text(encoding="utf-8"))
+
+    def test_every_product_parses_and_every_next_token_was_expected(self):
+        self.assertTrue(CORPUS)
+        for path in CORPUS:
+            with self.subTest(path.relative_to(ROOT)):
+                text = path.read_text(encoding="utf-8")
+                walker = Walker(self.table, self.table["start"])
+                for kind, tok, line in product_tokens(text):
+                    expected = walker.expected()
+                    self.assertTrue(walker.feed(kind, tok),
+                                    f"line {line}: {tok or kind!r} not expected; the page allows " + ", ".join(sorted(v for _, _, v in expected)))
+                self.assertTrue(walker.accepted(), "file ended where the page expects more")
 
 
 if __name__ == "__main__":
