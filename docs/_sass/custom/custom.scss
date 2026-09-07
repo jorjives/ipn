@@ -90,3 +90,14 @@
 .oidl-lines {
   td:first-child { white-space: nowrap; }
 }
+
+// Rouge has no lexer for idl, so ```idl and ```check blocks are bare <pre><code>. Give them
+// the same box the theme gives div.highlighter-rouge.
+.main-content pre:has(> code.language-idl), .main-content pre:has(> code.language-check) {
+  margin: 0 0 $sp-3;
+  padding: $sp-3;
+  overflow-x: auto;
+  background-color: $code-background-color;
+  border-radius: $border-radius;
+  > code { padding: 0; margin: 0; border: 0; background: transparent; }
+}
