@@ -86,3 +86,48 @@ class Upgrade(unittest.TestCase):
         h = History([parse(V1), parse(V2), parse(v3)])
         answers, _ = h.upgrade({"bike_value": Decimal(1), "security": "gold"}, h.versions[0], h.versions[2])
         self.assertEqual(answers, {"bike_value": Decimal(1), "security": "gold", "racing": False, "helmet": True})
+
+
+import os
+import tempfile
+
+
+class ForFile(unittest.TestCase):
+    def write(self, d, name, text):
+        path = os.path.join(d, name)
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
+    def test_the_history_is_the_same_named_products_in_the_directory_published_up_to_this_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            v1 = self.write(d, "bike-2026-01-01.idl", V1)
+            v2 = self.write(d, "bike-2026-07-01.idl", V2)
+            self.write(d, "bike-2027-01-01.idl", version("2027-01-01", "  bike_value: money\n  security: choice of bronze, silver, gold\n  racing: yes/no, default no\n  helmet: yes/no, default yes\n"))
+            self.write(d, "other.idl", 'product "Other"\n  published 2025-01-01\n  term 12 months\n')
+            self.write(d, "notes.txt", "not a product")
+            self.assertEqual([p.published for p in History.for_file(v2).versions], [date(2026, 1, 1), date(2026, 7, 1)])
+            self.assertEqual([p.published for p in History.for_file(v1).versions], [date(2026, 1, 1)])
+
+    def test_the_file_itself_is_the_version_returned_for_its_own_date(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "bike-2026-01-01.idl", V1)
+            v2 = self.write(d, "bike-2026-07-01.idl", V2)
+            h = History.for_file(v2)
+            self.assertEqual(h.live_on(date(2026, 8, 1)).published, date(2026, 7, 1))
+            self.assertTrue(h.live_on(date(2026, 8, 1)).base.startswith(d))
+
+    def test_an_unpublished_file_ignores_its_neighbours(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "bike-2026-01-01.idl", V1)
+            lone = self.write(d, "lone.idl", 'product "Bike"\n  term 12 months\n')
+            self.assertEqual(len(History.for_file(lone).versions), 1)
+            self.assertIsNone(History.for_file(lone).versions[0].published)
+
+    def test_a_broken_neighbour_of_the_same_product_is_reported_with_its_file_name(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "bike-2026-01-01.idl", V1.replace("base 100", "base banana"))
+            v2 = self.write(d, "bike-2026-07-01.idl", V2)
+            with self.assertRaises(ParseError) as cm:
+                History.for_file(v2)
+            self.assertIn("bike-2026-01-01.idl", str(cm.exception))

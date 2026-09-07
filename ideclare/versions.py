@@ -11,7 +11,7 @@ import os
 from datetime import date
 
 from .model import Input, Product
-from .parser import ParseError, parse
+from .parser import ParseError, parse, unquote
 
 
 class History:
@@ -21,6 +21,23 @@ class History:
             if earlier.published == later.published:
                 raise ParseError(f"two versions of {later.name} are published {later.published}")
             check_upgrade(earlier, later)
+
+    @classmethod
+    def for_file(cls, path: str) -> "History":
+        """The history a product file sees: itself, plus the other .idl files in its directory that
+        declare the same product name and were published on or before it. A file without a
+        published date is a history of one."""
+        me = load(path)
+        if me.published is None:
+            return cls([me])
+        versions = [me]
+        for other in sorted(glob.glob(os.path.join(os.path.dirname(path) or ".", "*.idl"))):
+            if os.path.abspath(other) == os.path.abspath(path) or not same_product(other, me.name):
+                continue
+            product = load(other)
+            if product.published is not None and product.published <= me.published:
+                versions.append(product)
+        return cls(versions)
 
     @property
     def name(self) -> str:
@@ -41,6 +58,23 @@ class History:
         for earlier, later in zip(self.versions[start:end], self.versions[start + 1:end + 1]):
             answers = upgrade_step(answers, earlier, later)
         return answers, needs
+
+
+def load(path: str) -> Product:
+    try:
+        return parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
+    except ParseError as e:
+        raise ParseError(f"{os.path.basename(path)}: {e}")
+
+
+def same_product(path: str, name: str) -> bool:
+    """Whether the file's product line names this product; read cheaply, without parsing the rest."""
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if line and not line.startswith("#"):
+                return line.startswith("product ") and unquote(line.split(None, 1)[1].split("#")[0].strip()) == name
+    return False
 
 
 def carries(old: Input | None, new: Input) -> bool:
