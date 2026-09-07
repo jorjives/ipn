@@ -89,6 +89,9 @@ CH`. With one territory it is assumed. The currency follows the territory (GBP f
 EUR for DE, CHF for CH, and so on); a product priced in another currency, or sold
 somewhere the engine does not know, says `currency EUR`. See `examples/gadget.idl`.
 
+`published 2026-07-01` says when this version of the product went on sale; see
+[Versions](#versions). A product without it is a single version.
+
 `term` is the length of one policy period: `term 12 months`, `term 10 days`, `term 25
 years`. A policy bound on 31 January with a 1 month term expires on 28 February. The
 number may be an input the customer chooses, `term term_years years`, and a product that
@@ -641,7 +644,7 @@ Events:
 | `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
 | `when adjusted on DATE removing bike 2` | remove the second item |
 | `when claim Cover [on bike N] [for AMOUNT] on DATE [reported DATE] [with item, fact value, ...]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence words and asked facts (`with death_certificate, cause suicide`); a fixed benefit claims no amount, so `for` may be left out |
-| `when renewed on DATE` | accept the renewal offer (fails if it is declined) |
+| `when renewed on DATE` | accept the renewal offer (fails if it is declined); the new term is on the version live that day |
 
 Expectations:
 
@@ -668,6 +671,34 @@ Expectations:
 | `expect claims in term N` | paid claims this policy year |
 | `expect benefit paid AMOUNT by DATE` | everything paid out on or before that date, whichever term the claims arose in |
 | `expect renewal premium AMOUNT`, `expect renewal invite DATE`, `expect renewal offered`, `expect renewal declined ["reason"]` | the renewal offer as things stand |
+| `expect version DATE` | the `published` date of the version the policy is on |
+| `expect <input> <value>` | an answer as the policy now holds it, after indexing at renewal, an upgrade or an adjustment: `expect bike_value 2100` |
+
+## Versions
+
+A customer stays on the version of a product they bought until it renews. A version is
+identified by the date it went on sale, `published 2026-07-01` in the `product` block; there
+are no version numbers. The other versions of a product are the `.idl` files in the same
+directory that declare the same product name. `check` finds them itself, and a file sees
+only the versions published on or before its own date, so a proof written in an old version
+stays true when new ones are published. See `examples/versioned/`.
+
+- The version **live** on a date is the one with the latest `published` on or before it.
+  `when bound on DATE` binds under that version; binding before the first version is
+  refused with "no version of X was on sale on DATE".
+- A scenario that binds before the file's own `published` date is on an earlier version,
+  so its `given` is written in that version's words and checked when it runs.
+- **Renewal** moves the policy to the version live on the first day of the new term. The
+  expiring version's `index` lines move the answers on, then the answers are carried to the
+  new version, then the new version prices them, with the claims loading, cap and collar
+  as usual. The cap and collar hold against the premium charged for the expiring term,
+  whichever version charged it.
+- An answer is **carried** when the new version has an input of the same name and
+  compatible type: the same kind, a choice that still lists every old value, a collection
+  whose fields carry likewise. A new input takes its `default`. A new input with neither is
+  an error when the history loads: "x is new in the version published DATE; add it to
+  upgrading, or give it a default". Inputs the new version dropped are left behind.
+  Calculated and enrichment-provided values are recomputed, `territory` is carried.
 
 ## Not yet supported
 
