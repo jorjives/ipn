@@ -112,6 +112,11 @@ class Table:
             raise TableError(f"{self.name} is ambiguous for {where}")
         return hits[0]
 
+    def values_for(self, column: str, keys: list[str], ctx: dict) -> list:
+        """The distinct cells of the column, in file order, on the rows whose named keys match the context."""
+        rows = [r for r in self.candidates(ctx, keys) if all(matches(r[k], ctx.get(k)) for k in keys)]
+        return list(dict.fromkeys(r[column] for r in rows))
+
     def interpolate(self, ctx: dict, column: str, key: str, method: str):
         """The column's value at ctx[key], between the two knots that bracket it on the rows whose other keys match."""
         others = [k for k in self.keys if k != key]
@@ -145,11 +150,14 @@ def _show(cell_value) -> str:
     return str(cell_value)
 
 
-def load_table(name: str, keys: list[str], lines: list[str], line: int = 0, kinds: dict | None = None) -> Table:
+def load_table(name: str, keys: list[str], lines: list[str], line: int = 0, kinds: dict | None = None,
+               text_columns: set[str] = frozenset(), allow_no_values: bool = False) -> Table:
     """Builds a Table from CSV lines, header first. Every non-key column is a value column.
 
     kinds says what each key is matched against (a list of choices, "yes/no", a numeric kind or text),
     so a cell that could never match is an error at load rather than a row that never fires.
+    text_columns are key columns a choice lists: every cell is kept as written, and `*` or a band is an error.
+    allow_no_values lets a table be keys alone: a list with nothing to look up.
     """
     records = [r for r in csv.reader(l for l in lines if l.strip()) if r]
     if not records:
@@ -159,7 +167,7 @@ def load_table(name: str, keys: list[str], lines: list[str], line: int = 0, kind
         if k not in header:
             raise TableError(f"{name} has no column {k!r}; columns are {', '.join(header)}")
     values = [h for h in header if h not in keys]
-    if not values:
+    if not values and not allow_no_values:
         raise TableError(f"{name} has no value column; every column is a key")
     table = Table(name, keys, values, line=line)
     if len(records) == 1:
@@ -168,9 +176,12 @@ def load_table(name: str, keys: list[str], lines: list[str], line: int = 0, kind
     for n, record in enumerate(records[1:], start=2):
         if len(record) != len(header):
             raise TableError(f"{name} row {n} has {len(record)} cells, expected {len(header)}")
-        row = {h: cell(v) for h, v in zip(header, record)}
+        row = {h: v.strip() if h in text_columns else cell(v) for h, v in zip(header, record)}
+        for h in text_columns:
+            if isinstance(cell(row[h]), tuple):
+                raise TableError(f"{name} row {n}: {row[h]!r} is not a value; {h} lists choices")
         for k in keys:
-            if kinds and k in kinds and (why := check_cell(row[k], kinds[k])):
+            if kinds and k in kinds and k not in text_columns and (why := check_cell(row[k], kinds[k])):
                 raise TableError(f"{name} row {n}: {record[header.index(k)].strip()!r} {why}")
         key = tuple(record[header.index(k)].strip() for k in keys)
         if key in seen:

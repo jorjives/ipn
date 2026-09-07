@@ -171,3 +171,35 @@ class Interpolation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+OCC = ["industry, occupation, code, rate",
+       "construction, Site manager, 1001, 1.2",
+       "construction, Labourer, 1002, 1.8",
+       "Health & Social Care, Nurse, 2001, 1.1"]
+
+
+class ChoiceLists(unittest.TestCase):
+    def test_whole_column_in_file_order(self):
+        t = load_table("Occ", ["industry", "occupation"], OCC, text_columns={"industry", "occupation"})
+        self.assertEqual(t.values_for("industry", [], {}), ["construction", "Health & Social Care"])
+
+    def test_narrowed_by_a_key(self):
+        t = load_table("Occ", ["industry", "occupation"], OCC, text_columns={"industry", "occupation"})
+        self.assertEqual(t.values_for("occupation", ["industry"], {"industry": "construction"}), ["Site manager", "Labourer"])
+        self.assertEqual(t.values_for("occupation", ["industry"], {"industry": "farming"}), [])
+
+    def test_text_column_keeps_codes_as_text(self):
+        t = load_table("Occ", ["industry", "occupation", "code"], OCC, text_columns={"code"})
+        self.assertEqual(t.values_for("code", [], {}), ["1001", "1002", "2001"])
+
+    def test_text_column_rejects_wildcards_and_bands(self):
+        with self.assertRaisesRegex(TableError, r"Occ row 2: '\*' is not a value; industry lists choices"):
+            load_table("Occ", ["industry"], ["industry, rate", "*, 1"], text_columns={"industry"})
+        with self.assertRaisesRegex(TableError, r"Occ row 2: '17-20' is not a value; industry lists choices"):
+            load_table("Occ", ["industry"], ["industry, rate", "17-20, 1"], text_columns={"industry"})
+
+    def test_a_table_of_keys_alone_is_allowed_only_when_asked(self):
+        with self.assertRaisesRegex(TableError, "no value column"):
+            load_table("L", ["industry"], ["industry", "a"])
+        self.assertEqual(load_table("L", ["industry"], ["industry", "a"], allow_no_values=True).values, [])
