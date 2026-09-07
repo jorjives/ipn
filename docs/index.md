@@ -132,7 +132,7 @@ cover Racing optional
 <div class="step" markdown="1">
 <div markdown="1">
 ### rating
-The premium, step by step, in the order written. Factors, flat additions, discounts and loads, floors and caps, then tax on the rounded net and any fees. Big tables come from the pricing team's spreadsheet.
+The premium, step by step, in the order written. Factors, flat additions, discounts and loads, floors and caps, tax on the rounded net and any fees, each line where it stands; and, when a regulator wants it, every figure split by cover and class. Big tables come from the pricing team's spreadsheet.
 </div>
 ```idl
 rating

@@ -40,7 +40,7 @@ The pipeline is: **parser → model → engine**, with scenarios driving the eng
 
 | Module | Role |
 |---|---|
-| `parser.py` (764 lines) | Line-oriented, indentation-based parser. Turns `.idl` text into a `Product`. Tokenises, builds an indent tree, then walks each block type. |
+| `parser.py` (~1200 lines) | Line-oriented, indentation-based parser. Turns `.idl` text into a `Product`. Tokenises, builds an indent tree, then walks each block type. |
 | `model.py` | Pure dataclasses (`Product`, `Input`, `Cover`, `RatingStep`, `ClaimRule`, `Lifecycle`, `Enrichment`, `Table`, etc.). Filled by parser, read by engine. No logic. |
 | `engine.py` | Applies a `Product` to a risk: eligibility, cover states, rating (with per-item `for each` loops), lifecycle (bind/cancel/adjust/renew), claims settlement. All arithmetic is `Decimal`, never float. |
 | `expr.py` | Expression sub-language: comparisons, boolean logic, arithmetic, functions (`exp`, `ln`, `sqrt`, `min`, `max`, `round`), `N% of x`, `rate from "Table"`. Returns plain tuples as AST nodes; `evaluate()` walks them. |
@@ -61,6 +61,8 @@ Expressions are tuples: `("num", Decimal("3.5"))`, `("<", ("name", "rider_age"),
 
 - **`pays` clause order is semantic**: `up to limit, less excess` (cap then deduct) differs from `less excess, up to limit` (deduct then cap). The order written is the order applied.
 - **Tax is on the rounded net**, not pre-round.
+- **Lines are steps in order**: `tax`, `fee` and `commission` are evaluated where they stand, so a step written after a tax is not taxed. A line's base may be `net`, `premium`, an earlier tax or a cover (`12% of net less Fire`). Claims and underwriter loads are inserted before the first line.
+- **The net is a partition across covers** (`engine.run_steps` carries `shares`, `""` = unattributed pool): `for Cover` on a step, `allocate` for the pool, `class` on a cover, `premium` on a cover joined by `add cover premiums`. Rounded splits give the residue to the largest share (`engine.split`). Fees are never attributed. Reporting is the platform's job: no report command.
 - **Fees never refund** (except during cooling off).
 - **Waiting periods and `within N months of inception`** run from the original inception, not the latest renewal.
 - **Only paid claims that `count`** go towards `claims in term`, but every paid claim erodes an aggregate limit.
