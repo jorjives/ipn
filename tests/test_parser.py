@@ -1358,3 +1358,14 @@ class ChoiceFromTable(unittest.TestCase):
         with self.assertRaisesRegex(ParseError, "'platinum' is not one of bronze, silver"):
             parse(occupations('inputs\n  security: choice of bronze, silver\n  industry: choice of industry from "Occupations"\n  occupation: text\n')
                   + 'table "Other" keyed on industry, security\n  industry, security, rate\n  construction, platinum, 1\n')
+
+    def test_a_claim_fact_lists_its_own_choices(self):
+        text = ('product "X"\n  territory UK\n\ninputs\n  x: integer\n\ncover Loss\n  limit 100\n\nclaims\n  claim Loss\n    asks\n      why: choice of reason from "Reasons"\n    pays claimed amount\n')
+        with self.assertRaisesRegex(ParseError, "line 12: 'why' cannot draw on a table; a claim fact lists its choices"):
+            parse(text)
+
+    def test_a_table_keyed_on_a_choice_whose_table_comes_later_is_an_error(self):
+        text = occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: text\n')
+        other = 'table "Other" keyed on industry\n  industry, rate\n  construction, 1\n\n'
+        with self.assertRaisesRegex(ParseError, "line 8: Other is keyed on industry, which draws on table 'Occupations'; declare Occupations first"):
+            parse(text.replace('table "Occupations"', other + 'table "Occupations"'))

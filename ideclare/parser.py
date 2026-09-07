@@ -803,6 +803,8 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
             for f in rule_.asks.values():
                 if f.kind in ("calculated", "collection") or f.name in known_words(product):
                     raise child.error(f"{f.name!r} cannot be asked in a claim; it is already known or not a plain type")
+                if f.source:
+                    raise child.error(f"{f.name!r} cannot draw on a table; a claim fact lists its choices")
     rule_.lines = [dated(child, CLAIM_KEYS, CLAIM_LISTS) for child in line.children if tokens(child) != ["asks"]]
     for d in rule_.lines:
         if d.dated and d.key == "asks":
@@ -1159,6 +1161,8 @@ def parse_table(line: Line, product: Product) -> None:
         inp = find_input(product, k)
         if inp is None:
             raise line.error(f"unknown input {k!r}; table keys must be inputs")
+        if inp.source and inp.source[0] not in product.tables and k not in listed:
+            raise line.error(f"{name} is keyed on {k}, which draws on table {inp.source[0]!r}; declare {inp.source[0]} first")
         if k not in listed:
             kinds[k] = inp.choices if inp.kind == "choice" else inp.kind
     if path is not None and line.children:
