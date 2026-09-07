@@ -23,4 +23,6 @@ standard library only. `python3 -m unittest` runs its tests.
 - `docs/`: the site, built by GitHub Pages; `docs/examples/` and `docs/templates/` are
   generated from the files above by `scripts/site_pages.py`.
 
-The licence is still to be chosen before the first tagged release.
+Licence: Apache-2.0 for the language and the engine; the files in `examples/` and
+`templates/` are CC0-1.0, so they can be copied into your own products without
+attribution.

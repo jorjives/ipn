@@ -50,7 +50,7 @@ gh_edit_branch: "main"
 gh_edit_source: docs
 gh_edit_view_mode: "tree"
 
-footer_content: "Open IDL. The reference engine is written in Python with no dependencies; every page of examples on this site is generated from files that pass their own scenarios."
+footer_content: "Open IDL is licensed under Apache 2.0; the examples and templates are CC0. The reference engine is written in Python with no dependencies; every page of examples on this site is generated from files that pass their own scenarios."
 
 callouts:
   note:

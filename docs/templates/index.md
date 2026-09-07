@@ -11,7 +11,9 @@ Starting points, one per shape of product. Each is a small working product with 
 that say what to change, and each passes its own scenarios, so you begin from something
 proven and keep it that way. Copy the file from
 [`templates/`](https://github.com/jorjives/open-idl/tree/main/templates), rename the product,
-and run `check` after every change.
+and run `check` after every change. The templates are dedicated to the public domain under
+[CC0](https://github.com/jorjives/open-idl/blob/main/templates/LICENSE), so what you build
+from one is yours without attribution.
 
 | Template | For |
 |---|---|

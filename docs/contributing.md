@@ -73,5 +73,15 @@ the best bug report there is: it says exactly what was expected and what happene
 
 ## Licence
 
-The licence for the language and the reference engine is still to be chosen before the
-first tagged release. Until then the code is published for review and comment.
+The language, the reference engine and this site are licensed under the
+[Apache License 2.0](https://github.com/jorjives/open-idl/blob/main/LICENSE). It is permissive,
+carries an explicit patent grant, and gives no rights to the name, so anyone can implement
+or embed Open IDL while "Open IDL" itself stays the name of the specification.
+
+The [examples](examples/index.md) and [templates](templates/index.md) are meant to be copied
+into your own products, so they are dedicated to the public domain under
+[CC0 1.0](https://github.com/jorjives/open-idl/blob/main/templates/LICENSE): take them without
+attribution.
+
+By contributing you agree that your contribution is licensed the same way (Apache 2.0, or
+CC0 for a file under `examples/` or `templates/`), as section 5 of the Apache licence says.
