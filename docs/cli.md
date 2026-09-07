@@ -83,7 +83,7 @@ optional `select` column) and writes one row per risk to standard output: the el
 outcome and reasons, the net, every tax and fee line, the total, the currency, and each
 commission. A row the product cannot price says why in its own `error` column instead of
 stopping the run, so an impact analysis over a hundred thousand policies reports the
-rows that fell off a table rather than dying on the first one:
+rows that fell off a table instead of stopping at the first one:
 
 ```sh
 python3 -m ideclare batch examples/cycle.idl risks.csv > priced.csv
@@ -111,7 +111,6 @@ published runs it on the version live that day, and moves it here at renewal. Se
 
 ## Determinism
 
-Every figure is a decimal, never a floating-point number, and every rounding is half up
-to the smallest unit of the risk's currency (or the product's `round to`). The same file
-and the same answers give the same premium on every machine, which is what makes a
-scenario a proof rather than a snapshot.
+Every figure is a decimal, and every rounding is half up to the smallest unit of the
+risk's currency (or the product's `round to`), so the same file and answers give the same
+premium wherever they run. See [design](design.md).
