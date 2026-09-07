@@ -46,7 +46,7 @@
       py.FS.writeFile("/work/product.idl", src.value);
       Object.keys(siblings).forEach(function (f) { py.FS.writeFile("/work/" + f, siblings[f]); });
       out.textContent = py.runPython(CHECK).replace(/\/work\/product\.idl/g, "product.idl");
-      window.oidlCheckOutput(out);
+      if (window.oidlCheckOutput) window.oidlCheckOutput(out);  // idl.js may still be a cached copy without it
       say("Ready.");
     }).catch(function (e) { out.textContent = String(e); say("Ready."); });
   });
