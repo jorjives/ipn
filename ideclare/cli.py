@@ -6,7 +6,7 @@ from decimal import Decimal
 import os
 import sys
 
-from .engine import check_eligibility, cover_state, instalments, rate
+from .engine import check_eligibility, check_inputs, cover_state, instalments, rate
 from .expr import ExprError
 from .parser import Line, ParseError, given_value, items_from_file, parse, with_defaults
 from .scenarios import run_all
@@ -48,10 +48,6 @@ def risk_inputs(product, pairs: list[tuple[str, str]], line: Line) -> tuple[dict
     return with_defaults(product.inputs, inputs), selected
 
 
-def missing_inputs(product, inputs: dict) -> list[str]:
-    return [n for n, i in product.inputs.items() if n not in inputs and i.kind not in ("text", "calculated", "collection") and not i.provided]
-
-
 def quote(path: str, args: list[str]) -> int:
     """quote FILE name=value ... [select=Cover ...] [items=file.csv]"""
     product = load(path)
@@ -61,9 +57,9 @@ def quote(path: str, args: list[str]) -> int:
         print(f"unknown input {unknown[0]!r}; expected one of {', '.join(product.inputs)}")
         return 2
     inputs, selected = risk_inputs(product, pairs, Line(0, 0, ""))
-    missing = missing_inputs(product, inputs)
-    if missing:
-        print(f"missing: {' '.join(f'{n}=...' for n in missing)}")
+    problems = check_inputs(product, inputs)
+    if problems:
+        print(problems[0])
         return 2
     e = check_eligibility(product, inputs, selected)
     print(f"Eligibility: {e.outcome}" + (f" ({'; '.join(e.reasons)})" if e.reasons else ""))
@@ -133,9 +129,9 @@ def batch(path: str, risks: str, out=None) -> int:
             blank = [""] * (len(lines) + len(commission) + len(shares) + 5)
             try:
                 inputs, selected = risk_inputs(product, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()], Line(n, 0, f"row {n}"))
-                missing = missing_inputs(product, inputs)
-                if missing:
-                    raise ParseError(f"missing {', '.join(missing)}")
+                problems = check_inputs(product, inputs)
+                if problems:
+                    raise ParseError(problems[0])
                 e = check_eligibility(product, inputs, selected)
                 q = rate(product, inputs, selected)
             except (ParseError, TableError, ExprError) as err:

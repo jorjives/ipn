@@ -1,3 +1,4 @@
+import csv
 import io
 import os
 import tempfile
@@ -5,7 +6,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from ideclare.cli import main
-from tests.test_parser import DEFAULTS, FLEET, LIFECYCLE, RATING
+from tests.test_parser import DEFAULTS, FLEET, LIFECYCLE, RATING, occupations
 
 
 def run(*argv) -> tuple[int, str]:
@@ -207,3 +208,30 @@ class SharesInTheCli(unittest.TestCase):
         self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "currency",
                                    "net:Theft", "IPT:Theft", "net:Accidental Damage", "IPT:Accidental Damage", "net:Racing", "IPT:Racing", "error"])
         self.assertEqual(rows[1][8:14], ["21.60", "2.59", "32.40", "3.89", "40.50", "4.86"])
+
+
+class KeyedChoices(unittest.TestCase):
+    PRODUCT = occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: choice of occupation from "Occupations" for industry\n') + 'rating\n  base 100\n'
+
+    def test_quote_rejects_an_occupation_outside_its_industry(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "x.idl"), "w") as f:
+                f.write(self.PRODUCT)
+            code, out = run("quote", os.path.join(d, "x.idl"), "industry=construction", "occupation=Nurse")
+            self.assertEqual((code, out), (2, 'occupation "Nurse" is not an occupation for industry "construction"\n'))
+            code, out = run("quote", os.path.join(d, "x.idl"), "industry=construction")
+            self.assertEqual((code, out), (2, "missing occupation\n"))
+            code, out = run("quote", os.path.join(d, "x.idl"), "industry=Health & Social Care", "occupation=Nurse")
+        self.assertEqual(code, 0, out)
+        self.assertIn("= 100.00", out)
+
+    def test_batch_records_the_reason_in_the_error_column(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "x.idl"), "w") as f:
+                f.write(self.PRODUCT)
+            with open(os.path.join(d, "risks.csv"), "w") as f:
+                f.write('industry,occupation\nconstruction,Nurse\nconstruction,Labourer\n')
+            code, out = run("batch", os.path.join(d, "x.idl"), os.path.join(d, "risks.csv"))
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(rows[1][-1], 'occupation "Nurse" is not an occupation for industry "construction"')
+        self.assertEqual(rows[2][-1], "")
