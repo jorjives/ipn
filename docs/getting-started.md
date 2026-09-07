@@ -78,7 +78,7 @@ Camera Cover: 1 passed, 0 failed
 ```
 
 That is a complete, proven product: a question, a cover, a price with tax, and a scenario
-that holds it to the number you meant. Everything else is more of the same.
+that holds it to the number you meant.
 
 ### Add eligibility and a rating factor
 
