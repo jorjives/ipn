@@ -44,6 +44,7 @@ rating                      # steps run top to bottom: the order written is the 
   add "Personal accident" 30 when "Personal Accident" selected
   minimum 50
   tax IPT 12%               # on the rounded net
+  tax "Surcharge" 10% of IPT  # a tax on a tax: a line may take any base; delete if there is none
   fee "Administration" 15   # never refunded, except in cooling off
   round to 0.01
 
@@ -76,10 +77,11 @@ claims                      # what each claim needs and how it is settled
 scenario "A standard customer is eligible and priced"
   given sum_insured 10000, customer_age 35, alarm yes
   expect eligible
-  # 2% of 10,000 = 200, x 1.00 age, less 5% alarm = 190; IPT 22.80; fee 15
+  # 2% of 10,000 = 200, x 1.00 age, less 5% alarm = 190; IPT 22.80; surcharge 2.28; fee 15
   expect net 190.00
   expect tax IPT 22.80
-  expect premium 227.80
+  expect tax "Surcharge" 2.28
+  expect premium 230.08
 
 scenario "Under 18 is declined"
   given sum_insured 10000, customer_age 17, alarm yes
@@ -98,14 +100,14 @@ scenario "Selecting personal accident adds a flat amount before tax"
   given sum_insured 10000, customer_age 35, alarm yes
   select "Personal Accident"
   expect net 220.00
-  expect premium 261.40
+  expect premium 264.04
 
 scenario "The customer cancels mid term"
   given sum_insured 10000, customer_age 35, alarm yes
   when bound on 2026-01-01
   when cancelled by customer on 2026-07-02
-  # 183 of 365 days unused: 212.80 earning premium x 183/365 = 106.69, less the 20 fee
-  expect refund 86.69
+  # 183 of 365 days unused: 215.08 earning premium x 183/365 = 107.83, less the 20 fee
+  expect refund 87.83
   expect status cancelled
 
 scenario "A theft claim pays up to the limit less the percentage excess"
@@ -119,8 +121,8 @@ scenario "A theft claim pays up to the limit less the percentage excess"
 scenario "Renewal is priced on the indexed answers"
   given sum_insured 10000, customer_age 35, alarm yes
   when bound on 2026-01-01
-  # sum insured 10,300 and age 36 at renewal: 206 less 5% = 195.70; IPT 23.48; fee 15
-  expect renewal premium 234.18
+  # sum insured 10,300 and age 36 at renewal: 206 less 5% = 195.70; IPT 23.48; surcharge 2.35; fee 15
+  expect renewal premium 236.53
   when renewed on 2027-01-01
   expect sum_insured 10300
-  expect premium 234.18
+  expect premium 236.53

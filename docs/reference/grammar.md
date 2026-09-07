@@ -182,9 +182,11 @@ operator        = 'x' | '+' | '-'
 ```
 
 Inside `for each` and under `calculated` only `base`, `factor`, `add`, `discount`, `load`,
-`minimum` and `maximum` are allowed, and `position` is a word. A `for each` block cannot
-nest. The rows of a factor need not end in `otherwise`; a factor with no matching row
-applies nothing.
+`minimum` and `maximum` are allowed (and `tax` inside `for each`), and `position` is a
+word. A `for each` block cannot nest. The rows of a factor need not end in `otherwise`; a
+factor with no matching row applies nothing. A `tax` or `commission` expression without
+`N% of` is a rate of the net; with it, the expression is the amount. In a line's expression
+or condition `net`, `premium` and every word-named `tax` above it are words.
 
 ## lifecycle
 

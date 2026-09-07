@@ -41,8 +41,10 @@ rating
   tax IPT 12%
 ```
 
-`tax`, `fee` and `round` belong outside the block. The quote trail shows each item's steps
-as `bike 1 base`, `bike 1 Bike age` and so on.
+`fee`, `commission` and `round` belong outside the block. A `tax` may sit inside it, worked
+out on each item's net as it stands at that step (a fire levy on e-bikes only, say); the
+items' amounts, each rounded, add up into one line of that name. The quote trail shows each
+item's steps as `bike 1 base`, `bike 1 Bike age` and so on.
 
 To rate items in a chosen order, add `ordered by` with one or more keys. Each key is a field
 or an expression, ascending unless followed by `descending`; later keys break ties and items
@@ -103,22 +105,34 @@ inputs
 | `discount N% [when ...]`, `load N% [when ...]` | multiplies by (1 - N%) or (1 + N%) |
 | `minimum <amount>` | raises it to at least this |
 | `maximum <amount>` | lowers it to at most this |
-| `tax Name N% [when ...]` | adds a tax line of N% of the rounded net |
+| `tax Name N% [of <base>] [when ...]` | adds a tax line of N% of the rounded net, or of the base named after `of` |
 | `fee "Label" <amount> [when ...]` | adds a flat fee line |
-| `commission "Label" N% [when ...]` | reports N% of the rounded net as owed to that intermediary; never added to the premium |
+| `commission "Label" N% [of <base>] [when ...]` | reports N% of the rounded net (or of the base) as owed to that intermediary; never added to the premium |
 | `round to 0.01` | rounding unit for every figure, half up; without it, the smallest unit of the currency (0.01 for GBP or EUR, 1 for JPY, 0.001 for KWD) |
 
 A product with no tax simply has no `tax` line (life premiums, for example). A product
-may carry several: each is its own line, each on the rounded net, in the order written.
-A `when` on any step can read `net`, the running net so far rounded as the customer
-would see it, so a levy charged only above a threshold, or only when a cover is taken,
-reads as the law does:
+may carry several: each is its own line, in the order written.
+
+Lines are steps like any other: a line is worked out where it stands, on the figures above
+it, and a step written after a tax is not taxed. A line's amount or `when` may read `net`
+(the running net so far, rounded as the customer sees it), `premium` (the net plus every
+line above), and any tax above it that was named with a word rather than a quoted label
+(`tax IPT 12%` makes `IPT` a word; `tax "Government levy" 3%` cannot be referred to). A bare
+rate, `12%` or `ipt from "Territory"`, is that rate of `net`; with `of`, the expression is
+the amount, so a levy charged on another tax, on the running total, on a deemed proportion,
+only above a threshold or only when a cover is taken, reads as the law does:
 
 ```idl
   tax "Government levy" 3%
   tax "Fire brigade levy" 2% when Fire selected
+  tax "Surcharge" 10% of IPT
+  tax "QST" 9% of premium
+  tax "Fire protection" 22% of 20% of net when ebike is yes
   fee "Stamp duty" 1 when net >= 20
 ```
+
+A claims loading or an underwriter's load is applied just before the first line, so tax
+follows a load and a fee does not.
 
 The result is the net premium, one line per tax and fee, the total, and the commission
 split of the net. The `quote` command prints the full trail of applied steps and
