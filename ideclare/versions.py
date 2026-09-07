@@ -10,8 +10,11 @@ import glob
 import os
 from datetime import date
 
-from .model import Input, Product
-from .parser import ParseError, parse, unquote
+from decimal import Decimal
+
+from .expr import evaluate, names
+from .model import Input, Product, Upgrade
+from .parser import ParseError, known_words, parse, unquote
 
 
 class History:
@@ -52,11 +55,11 @@ class History:
 
     def upgrade(self, answers: dict, from_version: Product, to_version: Product) -> tuple[dict, list[str]]:
         """Answers in from_version's shape turned into to_version's, one published version at a time.
-        Returns the answers and the names of the inputs still to be asked."""
+        Returns the answers and the names of the inputs still to be asked (an item's field as `bike.lock`)."""
         start, end = self.versions.index(from_version), self.versions.index(to_version)
         needs: list[str] = []
         for earlier, later in zip(self.versions[start:end], self.versions[start + 1:end + 1]):
-            answers = upgrade_step(answers, earlier, later)
+            answers, needs = upgrade_step(answers, earlier, later)
         return answers, needs
 
 
@@ -84,27 +87,119 @@ def carries(old: Input | None, new: Input) -> bool:
     if new.kind == "choice":
         return set(old.choices) <= set(new.choices)
     if new.kind == "collection":
-        return all(carries(old.fields.get(n), f) for n, f in new.fields.items() if f.kind not in ("calculated",) and not f.provided)
+        return all(carries(old.fields.get(n), f) for n, f in new.fields.items() if f.kind != "calculated" and not f.provided)
     return True
 
 
+def upgradable(inputs: dict[str, Input]) -> list[Input]:
+    """The inputs an upgrade has to produce: not calculated or provided, which are recomputed."""
+    return [i for i in inputs.values() if i.kind != "calculated" and not i.provided]
+
+
 def check_upgrade(earlier: Product, later: Product) -> None:
-    """Every input of the later version must be carried or defaulted; otherwise the author has to say."""
-    for name, inp in later.inputs.items():
-        if inp.kind == "calculated" or inp.provided or name == "territory":
-            continue
-        if carries(earlier.inputs.get(name), inp) or inp.default is not None:
-            continue
-        raise ParseError(f"line {inp.line}: {name} is new in the version published {later.published}; add it to upgrading, or give it a default")
+    """Every input of the later version must be mentioned, carried or defaulted, and every word in an
+    upgrading expression must be one the earlier version knows, or a choice of the target."""
+    lines = {u.target: u for u in later.upgrading}
+    words = known_words(earlier)
+    for inp in upgradable(later.inputs):
+        up = lines.get(inp.name)
+        if up is None:
+            if inp.name == "territory" or inp.kind == "text" or carries(earlier.inputs.get(inp.name), inp) or inp.default is not None:
+                continue  # free text is optional everywhere, so a new text input needs no line
+            raise ParseError(f"line {inp.line}: {inp.name} is new in the version published {later.published}; add it to upgrading, or give it a default")
+        if up.item:
+            coll = earlier.collection_for(up.item)
+            if coll is None:
+                raise ParseError(f"line {up.line}: {up.item!r} is not an item in the version published {earlier.published}")
+            item_words = words | set(coll.fields) | {c for f in coll.fields.values() for c in f.choices}
+            field_lines = {f.target: f for f in up.fields}
+            for f in upgradable(inp.fields):
+                if f.name in field_lines:
+                    check_words(field_lines[f.name], f, item_words, earlier)
+                elif f.kind != "text" and not carries(coll.fields.get(f.name), f) and f.default is None:
+                    raise ParseError(f"line {f.line}: {f.name} is new in the version published {later.published}; add it to upgrading, or give it a default")
+        else:
+            check_words(up, inp, words, earlier)
 
 
-def upgrade_step(answers: dict, earlier: Product, later: Product) -> dict:
-    out = {}
-    for name, inp in later.inputs.items():
-        if inp.kind == "calculated" or inp.provided:
-            continue
-        if name in answers and (name == "territory" or carries(earlier.inputs.get(name), inp)):
-            out[name] = answers[name]
+def check_words(up: Upgrade, target: Input, words: set[str], earlier: Product) -> None:
+    allowed = words | set(target.choices)
+    for cond, value in up.rows:
+        used = (names(cond) if cond is not None else set()) | (names(value) if value != ("ask",) else set())
+        unknown = sorted(used - allowed)
+        if unknown:
+            raise ParseError(f"line {up.line}: unknown word {unknown[0]!r} in the version published {earlier.published}")
+
+
+UNKNOWN = object()  # an answer that has to be asked for
+
+
+def upgrade_step(answers: dict, earlier: Product, later: Product) -> tuple[dict, list[str]]:
+    lines = {u.target: u for u in later.upgrading}
+    ctx = {**answers, "tables": earlier.tables, "selected": set()}
+    missing = set(earlier.inputs) - set(answers)  # asked earlier in the chain and still unanswered
+    out, needs = {}, []
+    for inp in upgradable(later.inputs):
+        up = lines.get(inp.name)
+        if up is not None and up.item:
+            coll = earlier.collection_for(up.item)
+            field_lines = {f.target: f for f in up.fields}
+            out[inp.name] = []
+            for item in answers.get(coll.name, []):
+                new_item = {}
+                item_missing = missing | (set(coll.fields) - set(item))
+                for f in upgradable(inp.fields):
+                    if f.name in field_lines:
+                        value = resolve(field_lines[f.name], f, {**ctx, **item}, item_missing)
+                    elif f.name in item and carries(coll.fields.get(f.name), f):
+                        value = item[f.name]
+                    elif f.default is not None:
+                        value = f.default
+                    else:
+                        value = UNKNOWN if f.kind != "text" else None
+                    if value is None:
+                        continue
+                    if value is UNKNOWN:
+                        if f"{inp.singular}.{f.name}" not in needs:
+                            needs.append(f"{inp.singular}.{f.name}")
+                    else:
+                        new_item[f.name] = value
+                out[inp.name].append(new_item)
+        elif up is not None:
+            value = resolve(up, inp, ctx, missing)
+            if value is UNKNOWN:
+                needs.append(inp.name)
+            else:
+                out[inp.name] = value
+        elif inp.name in answers and (inp.name == "territory" or carries(earlier.inputs.get(inp.name), inp)):
+            out[inp.name] = answers[inp.name]
         elif inp.default is not None:
-            out[name] = inp.default
-    return out
+            out[inp.name] = inp.default
+        elif inp.name in missing:
+            needs.append(inp.name)
+    return out, needs
+
+
+def resolve(up: Upgrade, target: Input, ctx: dict, missing: set[str]):
+    """The first row whose condition holds gives the value; an ask, or a word still unanswered, is UNKNOWN."""
+    for cond, value in up.rows:
+        if cond is not None:
+            if names(cond) & missing:
+                return UNKNOWN
+            if not evaluate(cond, ctx):
+                continue
+        if value == ("ask",) or names(value) & missing:
+            return UNKNOWN
+        return fitted(target, evaluate(value, ctx))
+    return UNKNOWN
+
+
+def fitted(target: Input, value):
+    """The value if the target input can hold it; otherwise a loud error."""
+    ok = {"money": lambda v: isinstance(v, Decimal), "number": lambda v: isinstance(v, Decimal), "integer": lambda v: isinstance(v, Decimal),
+          "yes/no": lambda v: isinstance(v, bool), "choice": lambda v: v in target.choices, "text": lambda v: isinstance(v, str),
+          "date": lambda v: isinstance(v, date)}[target.kind]
+    if isinstance(value, bool) and target.kind != "yes/no" or not ok(value):
+        kind = f"a choice of {', '.join(target.choices)}" if target.kind == "choice" else target.kind
+        raise ValueError(f"{target.name} cannot be {value!r}; it is {kind}")
+    return value

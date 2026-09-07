@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from .expr import ExprError, lookups, names, parse_expr
 from .tables import TableError, load_table
-from .model import Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step
+from .model import Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step, Upgrade
 
 
 class ParseError(Exception):
@@ -846,6 +846,93 @@ def parse_enrichment(line: Line, product: Product) -> None:
     product.enrichments.append(e)
 
 
+def parse_upgrading(line: Line, product: Product) -> None:
+    """How this version's inputs are derived from the previous version's answers. The words on the
+    right-hand side belong to the previous version, which the parser does not have: the History
+    checks them when the versions are put together."""
+    product.upgrading = [parse_upgrade(child, product.inputs, "input") for child in line.children]
+
+
+def parse_upgrade(line: Line, targets: dict[str, Input], what: str) -> Upgrade:
+    toks = tokens(line)
+    if len(toks) > 1 and toks[1] != ":":
+        raise line.error("expected 'input: value', 'input: ask', 'input: for each <item>' or 'input' with rows below")
+    name, rest = toks[0], toks[2:]
+    if name not in targets:
+        raise line.error(f"unknown {what} {name!r}")
+    up = Upgrade(name, line=line.number)
+    if rest[:2] == ["for", "each"] and len(rest) == 3:
+        if targets[name].kind != "collection":
+            raise line.error(f"{name} is not a collection; 'for each' upgrades the items of one")
+        up.item = rest[2]
+        up.fields = [parse_upgrade(child, targets[name].fields, f"{targets[name].singular} field") for child in line.children]
+    elif not rest and line.children:
+        for child in line.children:
+            ctoks = tokens(child)
+            if up.rows and up.rows[-1][0] is None:
+                raise child.error("'otherwise' must be the last row")
+            if ctoks[:2] == ["otherwise", ":"]:
+                cond, value = None, ctoks[2:]
+            else:
+                cond, value = loose_expression(child, ctoks, stop={":"})
+                value = value[1:]
+            up.rows.append((cond, upgrade_value(child, value)))
+        if not up.rows or up.rows[-1][0] is not None:
+            raise line.error("an upgrading table must end with an 'otherwise' row; say what the answer is when no row matches")
+    elif rest and not line.children:
+        up.rows = parse_upgrade_rows(line, rest)
+    else:
+        raise line.error("expected 'input: value', 'input: ask', 'input: for each <item>' or 'input' with rows below")
+    return up
+
+
+def parse_upgrade_rows(line: Line, toks: list[str]) -> list[tuple]:
+    """`value [when cond][, value when cond]...[, otherwise value]` on one line."""
+    rows = []
+    while toks:
+        if toks[:1] == ["otherwise"]:
+            rows.append((None, upgrade_value(line, toks[1:])))
+            return rows
+        value, toks = split_at(toks, {"when", ","})
+        cond = None
+        if toks[:1] == ["when"]:
+            cond, toks = loose_expression(line, toks[1:], stop={","})
+        rows.append((cond, upgrade_value(line, value)))
+        if toks[:1] == [","]:
+            toks = toks[1:]
+            if not toks:
+                raise line.error("expected another value after ','")
+    if rows[-1][0] is not None:
+        raise line.error("a conditional value needs ', otherwise <value>' last")
+    return rows
+
+
+def split_at(toks: list[str], stop: set[str]) -> tuple[list[str], list[str]]:
+    for i, t in enumerate(toks):
+        if t in stop:
+            return toks[:i], toks[i:]
+    return toks, []
+
+
+def upgrade_value(line: Line, toks: list[str]) -> tuple:
+    if toks == ["ask"]:
+        return ("ask",)
+    node, rest = loose_expression(line, toks)
+    if rest:
+        raise line.error(f"unexpected {' '.join(rest)!r}")
+    return node
+
+
+def loose_expression(line: Line, toks: list[str], stop: set[str] = frozenset()) -> tuple[tuple, list[str]]:
+    """An expression whose words are checked later, against another version."""
+    if not toks or toks[0] in stop:
+        raise line.error("expected a value")
+    try:
+        return parse_expr(fold_phrases(toks), stop)
+    except ExprError as e:
+        raise line.error(str(e))
+
+
 def parse_table(line: Line, product: Product) -> None:
     """table "Name" [from "file.csv"] keyed on input, input; rows indented below when there is no file."""
     toks = tokens(line)
@@ -892,6 +979,7 @@ BLOCKS = {
     "lifecycle": parse_lifecycle,
     "claims": parse_claims,
     "scenario": parse_scenario,
+    "upgrading": parse_upgrading,
 }
 
 

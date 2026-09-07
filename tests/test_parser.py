@@ -995,3 +995,51 @@ class Published(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             parse('product "X"\n  published soon\n')
         self.assertIn("line 2", str(cm.exception))
+
+
+class Upgrading(unittest.TestCase):
+    SRC = 'product "X"\n  published 2027-01-01\ninputs\n  lock_rating: choice of bronze, silver, gold, diamond\n  total_value: money\n  mileage: integer\n  bikes: collection of bike\n    value: money\n    lock: choice of low, high\n'
+
+    def test_one_line_forms(self):
+        p = parse(self.SRC + 'upgrading\n  total_value: bike_value + accessories_value\n  mileage: ask\n')
+        total, mileage = p.upgrading
+        self.assertEqual((total.target, total.rows), ("total_value", [(None, ("+", ("name", "bike_value"), ("name", "accessories_value")))]))
+        self.assertEqual((mileage.target, mileage.rows), ("mileage", [(None, ("ask",))]))
+        self.assertEqual(total.line, 11)
+
+    def test_block_form_has_rows_ending_in_otherwise(self):
+        p = parse(self.SRC + 'upgrading\n  lock_rating\n    security is gold: diamond\n    security is silver: silver\n    otherwise: ask\n')
+        self.assertEqual(p.upgrading[0].rows, [(("is", ("name", "security"), ("name", "gold")), ("name", "diamond")), (("is", ("name", "security"), ("name", "silver")), ("name", "silver")), (None, ("ask",))])
+
+    def test_block_form_needs_otherwise_last(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(self.SRC + 'upgrading\n  lock_rating\n    security is gold: diamond\n')
+        self.assertIn("otherwise", str(cm.exception))
+        with self.assertRaises(ParseError):
+            parse(self.SRC + 'upgrading\n  lock_rating\n    otherwise: bronze\n    security is gold: diamond\n')
+
+    def test_for_each_upgrades_items(self):
+        p = parse(self.SRC + 'upgrading\n  bikes: for each cycle\n    lock: high when security is gold, otherwise low\n    value: price\n')
+        up = p.upgrading[0]
+        self.assertEqual((up.target, up.item), ("bikes", "cycle"))
+        self.assertEqual([f.target for f in up.fields], ["lock", "value"])
+        self.assertEqual(up.fields[1].rows, [(None, ("name", "price"))])
+
+    def test_a_one_line_value_may_carry_a_condition_and_otherwise(self):
+        p = parse(self.SRC + 'upgrading\n  lock_rating: diamond when security is gold, otherwise bronze\n')
+        self.assertEqual(p.upgrading[0].rows, [(("is", ("name", "security"), ("name", "gold")), ("name", "diamond")), (None, ("name", "bronze"))])
+
+    def test_target_must_be_an_input_of_this_version(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(self.SRC + 'upgrading\n  colour: red\n')
+        self.assertIn("unknown input 'colour'", str(cm.exception))
+
+    def test_for_each_target_must_be_a_collection(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(self.SRC + 'upgrading\n  mileage: for each bike\n    value: 1\n')
+        self.assertIn("mileage is not a collection", str(cm.exception))
+
+    def test_item_field_target_must_be_a_field(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(self.SRC + 'upgrading\n  bikes: for each bike\n    colour: red\n')
+        self.assertIn("unknown bike field 'colour'", str(cm.exception))

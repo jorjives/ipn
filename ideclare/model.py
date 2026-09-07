@@ -51,6 +51,7 @@ class Product:
     claims_terms: list[tuple[int, "Lifecycle", tuple | None]] = field(default_factory=list)  # (paid claims in term, lifecycle in force from then, unless condition)
     scenarios: list["Scenario"] = field(default_factory=list)
     enrichments: list["Enrichment"] = field(default_factory=list)
+    upgrading: list["Upgrade"] = field(default_factory=list)  # how the previous version's answers become this version's
     tables: dict[str, "Table"] = field(default_factory=dict)
     base: str = field(default=".", repr=False)  # directory that table files are read from
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
@@ -179,6 +180,16 @@ class ClaimRule:
     decline: list[Rule] = field(default_factory=list)
     depreciation: list[FactorRow] = field(default_factory=list)
     counts: tuple = ("bool", True)  # condition under which a paid claim counts towards claims in term
+
+
+@dataclass
+class Upgrade:
+    """How one input of this version is derived from the previous version's answers."""
+    target: str
+    rows: list[tuple] = field(default_factory=list)  # (condition or None for otherwise, value expression or ("ask",))
+    item: str = ""  # `for each <old item>`: the target is a collection and fields holds the per-field upgrades
+    fields: list["Upgrade"] = field(default_factory=list)
+    line: int = 0
 
 
 @dataclass

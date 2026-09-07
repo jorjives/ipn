@@ -131,3 +131,95 @@ class ForFile(unittest.TestCase):
             with self.assertRaises(ParseError) as cm:
                 History.for_file(v2)
             self.assertIn("bike-2026-01-01.idl", str(cm.exception))
+
+
+class UpgradingBlock(unittest.TestCase):
+    OLD = version("2026-01-01", "  bike_value: money\n  accessories_value: money\n  security: choice of bronze, silver, gold\n")
+
+    def new(self, inputs, upgrading):
+        return version("2027-01-01", inputs) + "upgrading\n" + upgrading
+
+    def history(self, inputs, upgrading):
+        return History([parse(self.OLD), parse(self.new(inputs, upgrading))])
+
+    def up(self, h, answers):
+        return h.upgrade(answers, h.versions[0], h.versions[1])
+
+    def test_a_choice_is_remapped_by_rows(self):
+        h = self.history("  bike_value: money\n  lock_rating: choice of bronze, silver, gold, diamond\n",
+                         "  lock_rating\n    security is gold: diamond\n    security is silver: silver\n    otherwise: bronze\n")
+        self.assertEqual(self.up(h, {"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "gold"})[0]["lock_rating"], "diamond")
+        self.assertEqual(self.up(h, {"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "bronze"})[0]["lock_rating"], "bronze")
+
+    def test_inputs_merge_by_expression(self):
+        h = self.history("  total_value: money\n  security: choice of bronze, silver, gold\n", "  total_value: bike_value + accessories_value\n")
+        answers, needs = self.up(h, {"bike_value": Decimal(1000), "accessories_value": Decimal(250), "security": "gold"})
+        self.assertEqual((answers["total_value"], needs), (Decimal(1250), []))
+
+    def test_ask_makes_the_input_needed(self):
+        h = self.history("  bike_value: money\n  mileage: integer\n", "  mileage: ask\n")
+        answers, needs = self.up(h, {"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "gold"})
+        self.assertEqual(needs, ["mileage"])
+        self.assertNotIn("mileage", answers)
+
+    def test_ask_in_a_row_is_needed_only_when_reached(self):
+        h = self.history("  bike_value: money\n  lock_rating: choice of low, high\n", "  lock_rating\n    security is gold: high\n    otherwise: ask\n")
+        self.assertEqual(self.up(h, {"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "gold"})[1], [])
+        self.assertEqual(self.up(h, {"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "silver"})[1], ["lock_rating"])
+
+    def test_unknown_words_are_checked_against_the_previous_version(self):
+        with self.assertRaises(ParseError) as cm:
+            self.history("  bike_value: money\n  lock_rating: choice of low, high\n", "  lock_rating: high when lock is gold, otherwise low\n")
+        self.assertEqual(str(cm.exception), "line 12: unknown word 'lock' in the version published 2026-01-01")
+
+    def test_a_literal_outside_the_target_choices_is_an_error_at_load(self):
+        with self.assertRaises(ParseError) as cm:
+            self.history("  bike_value: money\n  lock_rating: choice of low, high\n", "  lock_rating: platinum\n")
+        self.assertIn("unknown word 'platinum'", str(cm.exception))
+
+    def test_a_value_the_target_cannot_hold_fails_the_upgrade(self):
+        h = self.history("  bike_value: money\n  lock_rating: choice of low, high\n", "  lock_rating: security\n")
+        with self.assertRaises(ValueError) as cm:
+            self.up(h, {"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "gold"})
+        self.assertEqual(str(cm.exception), "lock_rating cannot be 'gold'; it is a choice of low, high")
+
+    def test_a_mentioned_input_needs_no_default(self):
+        self.history("  bike_value: money\n  mileage: integer\n", "  mileage: 5000\n")
+
+    def test_ask_poisons_what_reads_it_along_the_chain(self):
+        v2 = version("2026-07-01", "  bike_value: money\n  mileage: integer\n") + "upgrading\n  mileage: ask\n"
+        v3 = version("2027-01-01", "  bike_value: money\n  heavy_use: yes/no\n") + "upgrading\n  heavy_use: mileage > 5000\n"
+        h = History([parse(self.OLD), parse(v2), parse(v3)])
+        answers, needs = h.upgrade({"bike_value": Decimal(1), "accessories_value": Decimal(2), "security": "gold"}, h.versions[0], h.versions[2])
+        self.assertEqual((needs, "heavy_use" in answers), (["heavy_use"], False))
+        answers, needs = h.upgrade({"bike_value": Decimal(1), "mileage": Decimal(6000)}, h.versions[1], h.versions[2])
+        self.assertEqual((answers["heavy_use"], needs), (True, []))
+
+    def test_items_upgrade_one_by_one_and_unmentioned_fields_carry(self):
+        old = version("2026-01-01", "  rider_age: integer\n  bikes: collection of bike\n    value: money\n    security: choice of bronze, silver, gold\n")
+        new = version("2027-01-01", "  rider_age: integer\n  cycles: collection of cycle\n    value: money\n    lock: choice of low, high\n") + "upgrading\n  cycles: for each bike\n    lock: high when security is gold, otherwise low\n"
+        h = History([parse(old), parse(new)])
+        answers, needs = h.upgrade({"rider_age": Decimal(30), "bikes": [{"value": Decimal(1), "security": "gold"}, {"value": Decimal(2), "security": "bronze"}]}, h.versions[0], h.versions[1])
+        self.assertEqual(answers, {"rider_age": Decimal(30), "cycles": [{"value": Decimal(1), "lock": "high"}, {"value": Decimal(2), "lock": "low"}]})
+        self.assertEqual(needs, [])
+
+    def test_an_asked_item_field_is_reported_by_item_name(self):
+        old = version("2026-01-01", "  bikes: collection of bike\n    value: money\n")
+        new = version("2027-01-01", "  bikes: collection of bike\n    value: money\n    make: text\n    lock: choice of low, high\n") + "upgrading\n  bikes: for each bike\n    lock: ask\n"
+        h = History([parse(old), parse(new)])
+        answers, needs = h.upgrade({"bikes": [{"value": Decimal(1)}]}, h.versions[0], h.versions[1])
+        self.assertEqual(needs, ["bike.lock"])
+        self.assertEqual(answers["bikes"], [{"value": Decimal(1)}])
+
+    def test_for_each_must_name_an_item_of_the_previous_version(self):
+        new = version("2027-01-01", "  bikes: collection of bike\n    value: money\n") + "upgrading\n  bikes: for each cycle\n    value: 1\n"
+        with self.assertRaises(ParseError) as cm:
+            History([parse(self.OLD), parse(new)])
+        self.assertIn("'cycle' is not an item in the version published 2026-01-01", str(cm.exception))
+
+    def test_a_new_item_field_without_a_line_or_default_is_an_error(self):
+        old = version("2026-01-01", "  bikes: collection of bike\n    value: money\n")
+        new = version("2027-01-01", "  bikes: collection of bike\n    value: money\n    lock: choice of low, high\n")
+        with self.assertRaises(ParseError) as cm:
+            History([parse(old), parse(new)])
+        self.assertIn("bikes is new in the version published 2027-01-01", str(cm.exception))
