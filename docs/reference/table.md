@@ -45,7 +45,7 @@ table "Theft excess" keyed on area, use
 A stepped table becomes a curve with `interpolated [linearly | geometrically] on <key>`
 (linearly is the default). The named key's cells are then single numbers, the knots; the
 other keys match as in a plain lookup. On a knot the value is the knot's, between two knots
-it is interpolated, and outside the knots it is an error, never a clamp:
+it is interpolated, and outside the knots it is an error:
 
 ```idl
 table "Mortality" keyed on age, smoker
@@ -83,6 +83,5 @@ The parser checks that the file exists, every key is an input the product knows 
 column of the table, at least one value column exists, every cell reads, and no two rows
 repeat the same keys. When a risk is priced, exactly one row must match: none is reported
 as `no row in Van rates for driver_age 16, area 3, vehicle_group 5`, and two equally
-specific rows (overlapping bands) as ambiguous. A value between bands is an error, never a
-silent default, so the scenarios that prove the product are how the pricing team checks a
-reissued table. [`examples/van.idl`](../examples/van.md) rates from a three-dimensional table of 300 cells.
+specific rows (overlapping bands) as ambiguous. A value between bands is an error, so the
+scenarios that prove the product are how the pricing team checks a reissued table. [`examples/van.idl`](../examples/van.md) rates from a three-dimensional table of 300 cells.
