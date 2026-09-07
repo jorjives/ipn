@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 
 from .tables import Table  # noqa: F401  (re-exported: a Product holds its tables)
@@ -30,11 +31,13 @@ class Input:
     steps: list["RatingStep"] = field(default_factory=list)
     provided: str = ""  # name of the enrichment that supplies this field, if any
     default: object = None  # the typed value assumed when the input is not given; None means it must be given
+    line: int = 0
 
 
 @dataclass
 class Product:
     name: str
+    published: date | None = None  # when this version went on sale; None is a lone product, live on every date
     territories: list[str] = field(default_factory=list)  # where it is sold; more than one makes `territory` a choice at quote
     currency: str = ""
     term: tuple = (("num", Decimal(12)), "months")  # (amount expression, days | months | years | until)

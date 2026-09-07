@@ -981,3 +981,17 @@ class Interpolation(unittest.TestCase):
     def test_key_must_be_a_table_key(self):
         with self.assertRaisesRegex(ParseError, "line 19: 'Curve' is not keyed on bike_value; its keys are rider_age, security"):
             parse(self.CURVE + 'rating\n  base rate from "Curve" interpolated on bike_value\n')
+
+
+class Published(unittest.TestCase):
+    def test_published_date_in_header(self):
+        p = parse('product "X"\n  published 2027-01-01\n  term 12 months\n')
+        self.assertEqual(p.published, date(2027, 1, 1))
+
+    def test_no_published_line_means_none(self):
+        self.assertIsNone(parse('product "X"\n  term 12 months\n').published)
+
+    def test_published_needs_a_date(self):
+        with self.assertRaises(ParseError) as cm:
+            parse('product "X"\n  published soon\n')
+        self.assertIn("line 2", str(cm.exception))

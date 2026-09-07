@@ -100,6 +100,8 @@ def parse_product_header(line: Line, product: Product) -> None:
             product.term = (parse_expr([toks[1]])[0], toks[2])
         elif key == "term" and toks[1:2] == ["until"] and len(toks) == 3:
             product.term = (parse_expr([toks[2]])[0], "until")
+        elif key == "published" and len(toks) == 2 and DATE_TOKEN.fullmatch(toks[1]):
+            product.published = date.fromisoformat(toks[1])
         else:
             raise child.error(f"unknown product setting {child.text!r}")
     unknown = [t for t in product.territories if not product.currency_for(t)]
@@ -154,6 +156,7 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
             raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
         if default is not None:
             inputs[name].default = given_value(child, inputs[name], default)
+        inputs[name].line = child.number
     return inputs
 
 
