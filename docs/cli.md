@@ -72,7 +72,9 @@ Premium:
 ```
 
 A product with `instalments` also prints the schedule; one with `commission` prints each
-intermediary's share. An input left out takes its `default`; one without a default is
+intermediary's share. One that attributes its premium to covers (see
+[rating](reference/rating.md#shares-by-cover)) prints each cover's share of the net and of
+each tax under `Shares:`, and the totals per class under `By class:`. An input left out takes its `default`; one without a default is
 reported as missing, with exit status 2. A quote reads only the undated lines of a cover:
 dated amendments apply to events on a policy, not to a price.
 
@@ -80,8 +82,9 @@ dated amendments apply to events on a policy, not to a price.
 
 `batch` reads one risk per row from a CSV whose columns are the input names (plus an
 optional `select` column) and writes one row per risk to standard output: the eligibility
-outcome and reasons, the net, every tax and fee line, the total, the currency, and each
-commission. A row the product cannot price says why in its own `error` column instead of
+outcome and reasons, the net, every tax and fee line, the total, the currency, each
+commission, and, when the product attributes its premium to covers, a column per cover
+for the net and for each tax and commission (`net:Theft`, `IPT:Theft`, ...). A row the product cannot price says why in its own `error` column instead of
 stopping the run, so an impact analysis over a hundred thousand policies reports the
 rows that fell off a table instead of stopping at the first one:
 
@@ -90,11 +93,11 @@ python3 -m ideclare batch examples/cycle.idl risks.csv > priced.csv
 ```
 
 ```
-risk,eligibility,reasons,net,IPT,Admin fee,total,currency,error
-1,eligible,,74.97,9.00,10.00,93.97,GBP,
-2,eligible,,191.30,22.96,10.00,224.26,GBP,
-3,declined,Rider must be at least 16,60.00,7.20,10.00,77.20,GBP,
-4,,,,,,,,"security is choice, cannot be 'platinum'"
+risk,eligibility,reasons,net,IPT,Admin fee,total,currency,net:Theft,IPT:Theft,net:Accidental Damage,IPT:Accidental Damage,net:Racing,IPT:Racing,error
+1,eligible,,74.97,9.00,10.00,93.97,GBP,29.99,3.60,44.98,5.40,0.00,0.00,
+2,eligible,,191.30,22.96,10.00,224.26,GBP,58.52,7.02,87.78,10.54,45.00,5.40,
+3,declined,Rider must be at least 16,60.00,7.20,10.00,77.20,GBP,24.00,2.88,36.00,4.32,0.00,0.00,
+4,,,,,,,,,,,,,,"security is choice, cannot be 'platinum'"
 ```
 
 A declined risk is still priced, so the book can be compared before and after a rule

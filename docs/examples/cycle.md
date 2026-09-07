@@ -38,15 +38,18 @@ eligibility
   refer when previous_claims >= 3 because "Claims history needs an underwriter"
 
 cover Theft
+  class 9
   limit bike_value
   excess 10% of claim, minimum 50
   excludes when security is bronze and bike_value > 2000 because "Gold or silver rated lock required"
 
 cover "Accidental Damage"
+  class 3
   limit bike_value
   excess 100
 
 cover Racing optional
+  class 3
   limit 5000
   excess 250
   available when racing is yes
@@ -65,7 +68,10 @@ rating
     previous_claims is 0: x 0.90
     previous_claims is 1: x 1.10
     otherwise: x 1.35
-  add "Racing cover" 45 when Racing selected
+  add "Racing cover" 45 for Racing when Racing selected
+  allocate
+    "Accidental Damage" 60%
+    Theft 40%
   minimum 60
   maximum 800
   tax IPT 12%
@@ -159,6 +165,11 @@ scenario "Young rider with a gold lock"
   expect tax IPT 9.00
   expect fee "Admin fee" 10.00
   expect premium 93.97
+  # the net is allocated 60/40; the odd cent of IPT goes to the larger share
+  expect net for "Accidental Damage" 44.98
+  expect net for Theft 29.99
+  expect tax IPT for "Accidental Damage" 5.40
+  expect tax IPT for Theft 3.60
 
 scenario "Minimum premium applies to a cheap bike"
   given bike_value 500, rider_age 45, security gold, racing no, previous_claims 0, bike_age 0
@@ -173,6 +184,11 @@ scenario "Racing cover adds a flat amount before the minimum and tax"
   expect net 191.30
   expect tax IPT 22.96
   expect premium 224.26
+  # Racing keeps its own 45; the rest is allocated, and class 3 is Accidental Damage plus Racing
+  expect net for Racing 45.00
+  expect net for Theft 58.52
+  expect net for class 3 132.78
+  expect tax IPT for class 3 15.94
 
 scenario "Maximum premium caps an expensive high risk"
   given bike_value 15000, rider_age 22, security bronze, racing no, previous_claims 2, bike_age 0

@@ -50,9 +50,12 @@ Expectations:
 | `expect cover Name excess remaining AMOUNT` | what the insured still bears of an aggregate excess this term |
 | `expect net AMOUNT`, `expect premium AMOUNT` | net and total premium; once bound, the premium is what was charged for the term (capped or loaded at renewal, repriced by an adjustment) |
 | `expect net for bike 2 AMOUNT` | one item's share of the net, before the steps after `for each` |
+| `expect net for Theft AMOUNT`, `expect net for class 3 AMOUNT` | one cover's share of the net, or the total for the covers of that class (see [rating](rating.md#shares-by-cover)) |
 | `expect tax Name AMOUNT`, `expect fee "Label" AMOUNT` | one line of the premium |
+| `expect tax Name for Theft AMOUNT`, `expect tax Name for class 3 AMOUNT` | one cover's, or one class's, share of a tax line |
 | `expect currency CODE` | the currency the risk is quoted in, from its territory |
 | `expect commission "Label" AMOUNT` | that intermediary's share of the net |
+| `expect commission "Label" for Theft AMOUNT`, `... for class 3 AMOUNT` | how much of that commission one cover, or one class, carries |
 | `expect factor "Label" x 1.40` | what a factor applied |
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
 | `expect expiry DATE` | end of the current term |

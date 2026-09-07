@@ -117,8 +117,8 @@ Lines are steps like any other: a line is worked out where it stands, on the fig
 it, and a step written after a tax is not taxed. A line's amount or `when` may read `net`
 (the running net so far, rounded as the customer sees it), `premium` (the net plus every
 line above), and any tax above it that was named with a word rather than a quoted label
-(`tax IPT 12%` makes `IPT` a word; `tax "Government levy" 3%` cannot be referred to). A bare
-rate, `12%` or `ipt from "Territory"`, is that rate of `net`; with `of`, the expression is
+(`tax IPT 12%` makes `IPT` a word; a quoted label is read as `of "Government levy"`), and
+any cover's name (its share of the net, see below). A bare rate, `12%` or `ipt from "Territory"`, is that rate of `net`; with `of`, the expression is
 the amount, so a levy charged on another tax, on the running total, on a deemed proportion,
 only above a threshold or only when a cover is taken, reads as the law does:
 
@@ -137,3 +137,52 @@ follows a load and a fee does not.
 The result is the net premium, one line per tax and fee, the total, and the commission
 split of the net. The `quote` command prints the full trail of applied steps and
 `batch` gives each commission its own column.
+
+## Shares by cover
+
+A regulator, a reinsurer or a bordereau may want each policy's premium split by cover,
+or by the class each cover reports under. The product says which steps belong to which
+cover, and the engine keeps every cover's share of the net through each step:
+
+```idl
+cover Theft
+  class 9
+cover "Accidental Damage"
+  class 3
+cover Racing optional
+  class 3
+
+rating
+  base 3.5% of bike_value
+  factor "Theft area" x 1.30 for Theft when theft_area is high
+  add "Racing cover" 45 for Racing when Racing selected
+  allocate
+    "Accidental Damage" 60%
+    Theft 40%
+  minimum 60
+  tax IPT 12%
+  tax "Racing levy" 5% of Racing
+```
+
+- `for <Cover>` after the amount of a `base`, `add`, `factor`, `discount` or `load` credits
+  that amount to the cover, or scales that cover's share only. It goes before `when`. It
+  cannot be written on `minimum`, `maximum` or a line.
+- Steps without `for` work on the whole: a `base` or `add` goes into a shared pool; a
+  `factor`, `discount`, `load`, `minimum` or `maximum` scales every share alike.
+- `allocate` divides the pool between covers by the percentages given, which must sum to
+  100%. It is a key like `round to`: where it sits in the block makes no difference.
+- The shares are rounded to the same unit as the net, and any odd cent goes to the largest
+  share, so the shares always add up to the net.
+- A tax or commission is attributed in proportion to its base worked out per cover: a
+  plain `12%` follows the net shares, `5% of Racing` belongs wholly to Racing, and
+  `12% of net less Racing` is split over the others. A fee is a policy charge and has no
+  share.
+
+Once any cover has a `class`, any step has `for` or the block has `allocate`, every pound
+of the net must belong to a cover: a pool left over with no `allocate` is a rating error
+naming the amount. A product that uses none of these has no shares and prices as it
+always has.
+
+The `quote` command prints each cover's share and the class subtotals; `batch` gives each
+cover a column per figure; scenarios check them with `expect net for Theft 29.99` and
+`expect tax IPT for class 3 5.40`.

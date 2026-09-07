@@ -15,12 +15,17 @@ cover Theft
   excludes when security is bronze and bike_value > 2000 because "Gold or silver rated lock required"
 
 cover Racing optional
+  class 3
   limit 5000
   excess 250
   available when racing is yes
 ```
 
 - `optional` covers are only included when the customer selects them.
+- `class 3` names the class the cover reports under (a regulator's cover class, say). It is
+  a word the engine does not interpret, so `class 8`, `class 9a` and `class Kasko` all
+  work, and several covers may share one. A product whose covers have classes attributes
+  its premium to them; see [rating](rating.md#shares-by-cover).
 - `available when` says when an optional cover may be offered at all.
 - `excludes when` removes the cover for this risk and records the reason.
 - `limit` and `excess` are amounts; `claim` inside an excess means the amount claimed.

@@ -138,7 +138,8 @@ cover_block     = 'cover' cover_name [ 'optional' ]
                     { [ dated ] cover_line }
 cover_name      = word | string
 dated           = { 'from' date | 'until' date }
-cover_line      = 'limit' expression [ 'per' 'term' [ 'per' name ] ]
+cover_line      = 'class' ( word | number )
+                | 'limit' expression [ 'per' 'term' [ 'per' name ] ]
                 | excess_word expression [ 'per' 'term' ] [ ',' 'minimum' expression ] [ ',' 'maximum' expression ]
                 | excess_word
                     { excess_row }
@@ -161,16 +162,18 @@ may use the facts the cover's claim asks for. See [Versions](versions.md) for wh
 
 ```
 rating_block    = 'rating'
-                    { rating_step | each_block }
+                    { rating_step | each_block | allocate_block }
+allocate_block  = 'allocate'
+                    { cover_name number '%' }
 each_block      = 'for' 'each' name [ ',' 'ordered' 'by' order_key { ',' order_key } ]
                     { rating_step }
 order_key       = expression [ 'descending' ]
-rating_step     = 'base' [ string ] expression [ 'when' condition ]
-                | 'factor' string
+rating_step     = 'base' [ string ] expression [ 'for' cover_name ] [ 'when' condition ]
+                | 'factor' string [ 'for' cover_name ]
                     { factor_row }
-                | 'factor' string operator expression [ 'when' condition ]
-                | 'add' [ string ] expression [ 'when' condition ]
-                | ( 'discount' | 'load' ) [ string ] expression [ 'when' condition ]
+                | 'factor' string operator expression [ 'for' cover_name ] [ 'when' condition ]
+                | 'add' [ string ] expression [ 'for' cover_name ] [ 'when' condition ]
+                | ( 'discount' | 'load' ) [ string ] expression [ 'for' cover_name ] [ 'when' condition ]
                 | ( 'minimum' | 'maximum' ) [ string ] expression [ 'when' condition ]
                 | 'tax' ( word | string ) expression [ 'when' condition ]
                 | 'fee' string expression [ 'when' condition ]
@@ -186,7 +189,8 @@ Inside `for each` and under `calculated` only `base`, `factor`, `add`, `discount
 word. A `for each` block cannot nest. The rows of a factor need not end in `otherwise`; a
 factor with no matching row applies nothing. A `tax` or `commission` expression without
 `N% of` is a rate of the net; with it, the expression is the amount. In a line's expression
-or condition `net`, `premium` and every word-named `tax` above it are words.
+or condition `net`, `premium`, every `tax` above it (a quoted label as a string) and every
+cover name are words. A cover's `class` is a word or a number. The rows of `allocate` must sum to 100%.
 
 ## lifecycle
 
@@ -314,9 +318,9 @@ expectation     = 'eligible' | ( 'declined' | 'referred' ) [ string ]
                 | 'cover' cover_name [ 'on' item_name integer ] 'limit' number
                 | 'cover' cover_name [ 'on' item_name integer ] 'remaining' number [ 'for' name string ]
                 | 'cover' cover_name 'excess' 'remaining' number
-                | 'net' [ 'for' item_name integer ] number
-                | 'premium' number | 'tax' ( word | string ) number | 'fee' string number
-                | 'commission' string number | 'currency' word
+                | 'net' [ 'for' item_name integer | 'for' share ] number
+                | 'premium' number | 'tax' ( word | string ) [ 'for' share ] number | 'fee' string number
+                | 'commission' string [ 'for' share ] number | 'currency' word
                 | 'factor' string operator number
                 | 'instalment' 'charge' number | 'instalment' integer number
                 | 'status' word [ 'on' date ] | 'expiry' date
@@ -331,6 +335,7 @@ expectation     = 'eligible' | ( 'declined' | 'referred' ) [ string ]
                 | 'version' date
                 | name value                 -- an input as the policy now holds it
 cover_state     = 'included' | 'excluded' | '"not selected"' | '"not available"'
+share           = cover_name | 'class' ( word | number )
 ```
 
 Amounts in expectations are compared as numbers, so `2100` equals `2100.00`.
