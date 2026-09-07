@@ -13,7 +13,11 @@ transcribed from the reference parser (`ideclare/parser.py`, `expr.py` and
 is a bug to report.
 
 Notation: `[ x ]` optional, `{ x }` zero or more, `a | b` alternatives, `'word'` a literal
-word, and lower-case names are rules. Indented rules are lines nested under the line above.
+word, and lower-case names are rules. Indented rules are lines nested under the line above:
+indentation in the grammar is indentation in the product, and a bracket opens and closes at
+one indent. The site's tooling reads the grammar from this page (`scripts/grammar_table.py`
+compiles it into the playground's completion table, and `tests.test_grammar` checks every
+example and template parses under it), so the notation is held to exactly.
 
 ## Lexical structure
 
@@ -70,7 +74,8 @@ unless `currency` is given; a territory the engine has no currency for needs one
 ## inputs
 
 ```
-inputs_block    = 'inputs' { input_line }
+inputs_block    = 'inputs'
+                    { input_line }
 input_line      = name ':' type [ ',' 'default' value ]
                 | name ':' 'collection' 'of' name [ bounds ]
                     { field_line }
@@ -121,13 +126,15 @@ choices, a `yes/no` cell `yes`, `no` or `*`, a numeric cell a number, a band or 
 ## eligibility
 
 ```
-eligibility_block = 'eligibility' { ( 'decline' | 'refer' ) 'when' condition 'because' string }
+eligibility_block = 'eligibility'
+                      { ( 'decline' | 'refer' ) 'when' condition 'because' string }
 ```
 
 ## cover
 
 ```
-cover_block     = 'cover' cover_name [ 'optional' ] { [ dated ] cover_line }
+cover_block     = 'cover' cover_name [ 'optional' ]
+                    { [ dated ] cover_line }
 cover_name      = word | string
 dated           = { 'from' date | 'until' date }
 cover_line      = 'limit' expression [ 'per' 'term' [ 'per' name ] ]
@@ -152,7 +159,8 @@ may use the facts the cover's claim asks for. See [Versions](versions.md) for wh
 ## rating
 
 ```
-rating_block    = 'rating' { rating_step | each_block }
+rating_block    = 'rating'
+                    { rating_step | each_block }
 each_block      = 'for' 'each' name [ ',' 'ordered' 'by' order_key { ',' order_key } ]
                     { rating_step }
 order_key       = expression [ 'descending' ]
@@ -180,7 +188,8 @@ applies nothing.
 ## lifecycle
 
 ```
-lifecycle_block = 'lifecycle' { lifecycle_line }
+lifecycle_block = 'lifecycle'
+                    { lifecycle_line }
 lifecycle_line  = 'cooling' 'off' expression 'days' ',' 'full' 'refund'
                 | 'cancellation' 'by' ( 'customer' | 'insurer' ) ':' refund [ ',' 'fee' number ]
                 | 'adjustment' ':' 'not' 'allowed'
@@ -206,11 +215,13 @@ Restating `index` for the same target replaces the earlier line.
 ## claims
 
 ```
-claims_block    = 'claims' { claim_block | loading_line | terms_block }
+claims_block    = 'claims'
+                    { claim_block | loading_line | terms_block }
 claim_block     = 'claim' cover_name
-                    [ 'asks'
-                        { field_line } ]
+                    [ asks_block ]
                     { [ dated ] claim_line }
+asks_block      = 'asks'
+                    { field_line }
 claim_line      = 'requires' name { ',' name }
                 | 'pays' 'claimed' 'amount' [ pays_clause { ',' pays_clause } ]
                 | 'pays' expression [ 'per' 'month' 'for' expression 'months'
@@ -238,7 +249,8 @@ known word; `asks` cannot be dated. Lines in a `terms_block` cannot be dated. Th
 ## upgrading
 
 ```
-upgrading_block = 'upgrading' { upgrade }
+upgrading_block = 'upgrading'
+                    { upgrade }
 upgrade         = name ':' 'ask'
                 | name ':' old_expression
                 | name ':' old_expression 'when' old_condition { ',' old_expression 'when' old_condition } ',' 'otherwise' old_value
@@ -249,6 +261,8 @@ upgrade         = name ':' 'ask'
 upgrade_row     = old_condition ':' old_value
                 | 'otherwise' ':' old_value          -- required, and last
 old_value       = 'ask' | old_expression
+old_expression  = expression
+old_condition   = condition
 ```
 
 `name` is an input of this version (or, under `for each`, a field of the collection).
@@ -259,7 +273,8 @@ set.
 ## scenario
 
 ```
-scenario_block  = 'scenario' string { given_line | select_line | when_line | expect_line }
+scenario_block  = 'scenario' string
+                    { given_line | select_line | when_line | expect_line }
 given_line      = 'given' name value { ',' name value }
                 | 'given' item_name field_name value { ',' field_name value }
                 | 'given' collection_name 'from' string
@@ -342,6 +357,10 @@ primary         = number | string | date | 'yes' | 'no' | name
                 | 'count' 'of' collection_name
                 | ( 'total' | 'highest' | 'lowest' ) field_name 'of' collection_name
                 | ( 'any' | 'every' ) item_name 'where' condition
+                | 'claims' 'in' 'term'
+                | ( 'days' | 'months' ) 'in' 'force'
+                | 'reported' 'after' number 'days'
+                | 'within' number ( 'days' | 'months' ) 'of' 'inception'
 function        = 'exp' | 'ln' | 'sqrt' | 'round' | 'min' | 'max'
 ```
 
@@ -349,7 +368,8 @@ function        = 'exp' | 'ln' | 'sqrt' | 'round' | 'min' | 'max'
 the number N/100; `N% of x` multiplies. `X selected` names an optional cover. Dates
 subtract to a number of days and compare like numbers.
 
-Before an expression is parsed, these English phrases are folded into single words:
+The last four `primary` forms are English phrases the engine folds into single words before
+it parses the expression; they are only meaningful in some places:
 
 | Phrase | Becomes | Where |
 |---|---|---|
