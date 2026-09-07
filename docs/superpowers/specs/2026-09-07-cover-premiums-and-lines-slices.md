@@ -1,6 +1,7 @@
 # Cover premiums, ordered lines and cover classes: slice scope
 
 **Spec:** `docs/superpowers/specs/2026-09-07-cover-premiums-and-lines-design.md`
+> **Status:** ✅ Complete — 2026-09-07 — all 4 slices delivered
 
 Each slice is a working end-to-end increment proven by scenarios in `examples/` and by the
 `quote` command. A product that uses none of the new words must price exactly as before after
@@ -101,6 +102,8 @@ e-bike fleet example; reference pages updated.
 the e-bikes' share and classes 3, 8 and 9 on the quote.
 
 ## Slice 4: Lifecycle amounts split by cover
+
+**Status:** ✅ Complete — 2026-09-07 — `bb86bc8`
 
 **Scope:** `Policy.split(amount)` in proportion to each cover's earning share of the current
 quote; `expect refund for Cover`, `expect additional premium for Cover`, `expect return

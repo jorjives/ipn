@@ -1,5 +1,7 @@
 # Cover premiums, ordered premium lines and cover classes
 
+> **Status:** ✅ Complete — 2026-09-07 — all 4 slices delivered
+
 Date: 2026-09-07. From a brainstorm with Jorj that began with "how would IDL apply two taxes"
 and arrived at premium attribution. Three requirements drive it:
 
