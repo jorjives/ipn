@@ -43,7 +43,7 @@ claims
   `less excess`, `less co-payment`, and `up to <amount> [when <condition>]` for a
   sub-limit. A sum insured is usually capped then the excess deducted (`up to limit, less
   excess`); a liability or aggregate limit caps what the insurer pays after the excess
-  (`less excess, up to limit`). Write what the wording says. A sub-limit caps only the
+  (`less excess, up to limit`). A sub-limit caps only the
   claims its condition picks out, `up to 400 when kind is valuables`, and the claim still
   erodes the aggregate it sits within.
 - `pays <amount>` is a fixed benefit instead of the amount claimed: `pays sum_assured`,
