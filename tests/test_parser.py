@@ -1162,3 +1162,59 @@ class LinesInOrder(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             parse(FLEET.replace("    age: integer\n", "    age: integer\n    rank: calculated\n      base value\n      tax IPT 12%\n"))
         self.assertIn("'tax' cannot be used", str(cm.exception))
+
+
+class Attribution(unittest.TestCase):
+    """class on a cover, for on a step, allocate for the pool, and quoted labels as a line's base."""
+
+    def test_class_is_a_word_on_the_cover(self):
+        p = parse(FULL.replace("cover Theft\n", "cover Theft\n  class 9a\n"))
+        self.assertEqual(p.covers[0].class_, "9a")
+        self.assertTrue(p.attributed)
+
+    def test_for_credits_a_step_to_a_cover(self):
+        p = parse(FULL + 'rating\n  base 100\n  add "Racing cover" 45 for Racing when Racing selected\n  factor "Theft area" x 1.3 for Theft when rider_age > 50\n  discount 10% for Theft\n')
+        self.assertEqual([s.cover for s in p.rating], ["", "Racing", "Theft", "Theft"])
+        self.assertEqual(p.rating[1].condition, ("selected", ("name", "Racing")))
+        self.assertEqual(p.rating[2].rows[0].amount, ("num", Decimal("1.3")))
+        self.assertTrue(p.attributed)
+
+    def test_for_on_a_factor_table(self):
+        p = parse(FULL + 'rating\n  base 100\n  factor "Theft area" for Theft\n    rider_age > 50: x 1.3\n    otherwise: x 1.0\n')
+        self.assertEqual((p.rating[1].cover, len(p.rating[1].rows)), ("Theft", 2))
+
+    def test_for_is_refused_on_bounds_and_lines(self):
+        for line in ("minimum 10 for Theft", "maximum 10 for Theft", "tax IPT 12% for Theft", 'fee "Admin" 5 for Theft'):
+            with self.assertRaises(ParseError) as cm:
+                parse(FULL + f"rating\n  base 100\n  {line}\n")
+            self.assertIn("'for' cannot be used on", str(cm.exception))
+
+    def test_for_must_name_a_cover(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + "rating\n  base 100\n  add 5 for Nowhere\n")
+        self.assertEqual(str(cm.exception), "line 38: unknown cover 'Nowhere'")
+
+    def test_allocate_rows_must_sum_to_100(self):
+        p = parse(FULL + 'rating\n  base 100\n  allocate\n    "Accidental Damage" 60%\n    Theft 40%\n')
+        self.assertEqual(p.allocation, [("Accidental Damage", Decimal("0.6")), ("Theft", Decimal("0.4"))])
+        self.assertEqual([s.kind for s in p.rating], ["base"])
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + 'rating\n  base 100\n  allocate\n    Theft 90%\n')
+        self.assertEqual(str(cm.exception), "line 38: allocate rows sum to 90%, not 100%")
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + 'rating\n  base 100\n  allocate\n    Nowhere 100%\n')
+        self.assertIn("unknown cover 'Nowhere'", str(cm.exception))
+        with self.assertRaises(ParseError):
+            parse(FULL + 'rating\n  base 100\n  for each bike\n    allocate\n      Theft 100%\n')
+
+    def test_a_quoted_cover_or_tax_label_is_a_base(self):
+        p = parse(FULL + 'rating\n  base 100\n  tax "Government levy" 3%\n  tax "Surcharge" 10% of "Government levy"\n  tax "Fire tax" 22% of "Accidental Damage"\n  tax "Theft tax" 5% of Theft\n')
+        self.assertEqual(p.rating[2].amount, ("*", ("pct", ("num", Decimal(10))), ("name", "Government levy")))
+        self.assertEqual(p.rating[3].amount, ("*", ("pct", ("num", Decimal(22))), ("name", "Accidental Damage")))
+        self.assertEqual(p.rating[4].amount, ("*", ("pct", ("num", Decimal(5))), ("name", "Theft")))
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + 'rating\n  base 100\n  tax "Surcharge" 10% of "Nothing"\n')
+        self.assertEqual(str(cm.exception), "line 38: unknown base 'Nothing'; name a cover or a tax above")
+
+    def test_a_plain_product_is_not_attributed(self):
+        self.assertFalse(parse(RATING).attributed)

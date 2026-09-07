@@ -374,6 +374,8 @@ def fill_cover(cover: Cover, children: list[Line], product: Product, deferred: l
         elif key == "excludes":
             cover.exclusions.append(rule(child, "excludes", toks[1:], product))
             rest = []
+        elif key == "class" and len(toks) >= 2:
+            cover.class_, rest = "".join(toks[1:]), []  # a code such as 8, 9a or Kasko; the engine does not read it
         elif key == "available" and toks[1:2] == ["when"]:
             cover.available, rest = expression(child, toks[2:], product)
         elif toks[:3] == ["in", "force", "from"]:
@@ -463,6 +465,50 @@ LINE_WORDS = {"net", "premium"}  # the running net so far, and net plus every li
 ITEM_WORDS = {"position"}  # words only meaningful inside 'for each'
 
 
+def parse_for(line: Line, rest: list[str], product: Product) -> tuple[str, list[str]]:
+    """An optional `for Cover` after a step's amount: the cover the step credits or scales."""
+    if rest[:1] != ["for"]:
+        return "", rest
+    if len(rest) < 2:
+        raise line.error("expected 'for Cover'")
+    return cover_name(line, rest[1], product), rest[2:]
+
+
+def cover_name(line: Line, tok: str, product: Product) -> str:
+    name = unquote(tok)
+    if name not in {c.name for c in product.covers}:
+        raise line.error(f"unknown cover {name!r}")
+    return name
+
+
+def parse_allocation(line: Line, product: Product) -> list[tuple[str, Decimal]]:
+    """`allocate` rows: `Cover N%`, summing to 100%. How the unattributed premium is shared; not a step."""
+    if not line.children:
+        raise line.error("allocate needs rows indented below it, e.g. Theft 40%")
+    rows = []
+    for child in line.children:
+        toks = tokens(child)
+        node, rest = expression(child, toks[1:], product) if len(toks) > 1 else (None, [])
+        if node is None or node[0] != "pct" or node[1][0] != "num" or rest:
+            raise child.error("expected 'Cover N%'")
+        rows.append((cover_name(child, toks[0], product), node[1][1] / 100))
+    total = sum(share for _, share in rows)
+    if total != 1:
+        raise line.error(f"allocate rows sum to {(total * 100).normalize():f}%, not 100%")
+    return rows
+
+
+def quoted_bases(line: Line, node: tuple, product: Product, taxes: set[str]) -> tuple:
+    """A quoted string in a line's amount is a cover or a tax above it, by label: rewrite it to a name."""
+    if node[0] == "str":
+        if node[1] not in {c.name for c in product.covers} | taxes:
+            raise line.error(f"unknown base {node[1]!r}; name a cover or a tax above")
+        return ("name", node[1])
+    if node[0] == "fn":
+        return (node[0], node[1], [quoted_bases(line, a, product, taxes) for a in node[2]])
+    return tuple(quoted_bases(line, c, product, taxes) if isinstance(c, tuple) else c for c in node)
+
+
 def has_base(node: tuple) -> bool:
     """True when a line's expression names its own base (`N% of x`), so it is an amount rather than a rate of the net."""
     return node[0] == "*" and node[1][0] == "pct"
@@ -510,18 +556,28 @@ def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | 
                 raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
             step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, allowed=PER_ITEM_STEPS | {"tax"}, extra=ITEM_WORDS, taxes=taxes),
                               order=order, line=child.number)
-        elif kind == "factor" and rest and rest[0] in ("x", "+", "-"):  # one row: factor "Label" x <amount> [when ...]
+        elif kind == "allocate" and allowed is None and not rest:
+            product.allocation = parse_allocation(child, product)
+            continue
+        elif kind == "factor" and rest and rest[0] in ("x", "+", "-"):  # one row: factor "Label" x <amount> [for Cover] [when ...]
             op, rest = rest[0], rest[1:]
-            amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
+            amount, rest = expression(child, rest, product, stop={"when", "for"}, extra=extra)
             step.rows = [FactorRow(None, op, amount)]
+            step.cover, rest = parse_for(child, rest, product)
             if rest[:1] == ["when"]:
                 step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind == "factor":
             step = parse_factor(child, label, product, extra)
+            step.cover, rest = parse_for(child, rest, product)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
-            step.amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
+            step.amount, rest = expression(child, rest, product, stop={"when", "for"}, extra=extra)
+            if kind in ("minimum", "maximum") and rest[:1] == ["for"]:
+                raise child.error(f"'for' cannot be used on {kind}: a bound rescales every cover's share alike")
+            step.cover, rest = parse_for(child, rest, product)
             if rest[:1] == ["when"]:
                 step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
             if rest:
@@ -532,13 +588,16 @@ def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | 
             if not label:
                 raise child.error(f'{kind} needs a name, e.g. {kind} "Label" ...')
             step.label = label
-            words = extra | LINE_WORDS | taxes
-            step.amount, rest = expression(child, rest, product, stop={"when"}, extra=words)
+            words = extra | LINE_WORDS | {t for t in taxes if t.isidentifier()}
+            step.amount, rest = expression(child, rest, product, stop={"when", "for"}, extra=words)
+            if rest[:1] == ["for"]:
+                raise child.error(f"'for' cannot be used on {kind}: a line is attributed by its base")
+            step.amount = quoted_bases(child, step.amount, product, taxes)
             if kind != "fee" and not has_base(step.amount):
                 step.amount = ("*", step.amount, ("name", "net"))  # tax IPT 12% is 12% of the net
             if rest[:1] == ["when"]:
                 step.condition, rest = expression(child, rest[1:], product, extra=words)
-            if kind == "tax" and label.isidentifier():
+            if kind == "tax":
                 taxes.add(label)
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")

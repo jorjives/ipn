@@ -53,9 +53,15 @@ class Product:
     enrichments: list["Enrichment"] = field(default_factory=list)
     upgrading: list["Upgrade"] = field(default_factory=list)  # how the previous version's answers become this version's
     tables: dict[str, "Table"] = field(default_factory=dict)
+    allocation: list[tuple[str, Decimal]] = field(default_factory=list)  # (cover, proportion): how the unattributed premium is shared
     base: str = field(default=".", repr=False)  # directory that table files are read from
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
     parsing: bool = field(default=True, repr=False)  # False once the file is read: a wording built later runs its own deferred work
+
+    @property
+    def attributed(self) -> bool:
+        """Whether the premium is split by cover: a cover has a class, a step is for a cover, or the pool is allocated."""
+        return bool(self.allocation) or any(c.class_ for c in self.covers) or any(s.cover for step in self.rating for s in [step] + step.steps)
 
     def currency_for(self, territory: str) -> str:
         return self.currency or CURRENCY.get(territory, "")
@@ -156,6 +162,7 @@ class Cover(Wording):
     until: tuple | None = None  # date expression: the cover stops here rather than at expiry
     waiting_days: int = 0  # losses this soon after the policy first started are not covered
     item: str = ""  # singular item name when the cover's terms use an item's fields, so claims must name the item
+    class_: str = ""  # the regulatory class the cover reports under; a word the engine does not interpret
 
 
 @dataclass
@@ -187,6 +194,7 @@ class RatingStep:
     label: str = ""
     amount: tuple | None = None
     condition: tuple | None = None
+    cover: str = ""  # `for Cover`: the step credits or scales that cover's share only
     rows: list[FactorRow] = field(default_factory=list)
     steps: list["RatingStep"] = field(default_factory=list)  # kind == "each": label is the item name
     order: list[tuple[tuple, bool]] = field(default_factory=list)  # kind == "each": (key, descending)
