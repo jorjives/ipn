@@ -5,9 +5,8 @@ nav_order: 10
 
 # Contributing
 
-Open IDL is a proposal for an open language, and the reference engine is small enough to
-read in an afternoon. Both grow the same way: by writing a real product against them and
-adding only what the product's wording needs.
+Open IDL is a proposal for an open language with a small reference engine. Both grow by
+the same route: write a real product against them and add what its wording needs.
 
 ## Running the engine
 
@@ -48,8 +47,7 @@ for f in examples/*.idl examples/versioned/*.idl templates/*.idl templates/versi
    [grammar](reference/grammar.md).
 4. One construct per commit, with the commit message saying why.
 
-Keep every figure a `Decimal`; never introduce a float. Prefer an error with a line number
-to a default. A construct that only one product would ever use is probably a `calculated`
+Keep every figure a `Decimal`. Prefer an error with a line number to a default. A construct that only one product would ever use is probably a `calculated`
 input or a table, not a new keyword.
 
 ## Regenerating the site's generated files
@@ -70,8 +68,8 @@ The rest of the site is Markdown under `docs/`, built by GitHub Pages with the
 ## Reporting a disagreement
 
 If the [grammar](reference/grammar.md) and the parser disagree, or a scenario you believe
-is right fails, open an issue with the `.idl` file and the scenario. A failing scenario is
-the best bug report there is: it says exactly what was expected and what happened.
+is right fails, open an issue with the `.idl` file and the scenario: it says what was expected and what
+happened.
 
 ## Licence
 
