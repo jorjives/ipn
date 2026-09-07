@@ -21,7 +21,7 @@ python3 -m unittest tests.test_engine.TestRate.test_base_only
 # Check all example products and templates pass their scenarios
 for f in examples/*.idl examples/versioned/*.idl templates/*.idl templates/versioned/*.idl; do python3 -m ideclare check "$f" | tail -1; done
 
-# Regenerate the site's example and template pages (tests.test_site fails if they are stale)
+# Regenerate the site's example and template pages and the playground's completion table (tests.test_site fails if they are stale)
 python3 scripts/site_pages.py
 
 # Build the site locally with GitHub's own Pages image (Docker + gh); output in /tmp/oidl-out
@@ -75,4 +75,4 @@ Pattern: write an example `.idl` product that needs the new feature → run its 
 
 ## The website
 
-`docs/` is a Jekyll site published by GitHub Pages from `main` (Just the Docs remote theme, no build tooling in the repo). Hand-written pages: `index.md`, `getting-started.md`, `reference/*.md`, `cli.md`, `design.md`, `glossary.md`, `contributing.md`. Generated pages: `docs/examples/*.md` and `docs/templates/*.md`, written by `scripts/site_pages.py` from the `.idl` files; never edit them by hand. Fenced ```` ```idl ```` blocks are highlighted client-side by `docs/assets/js/idl.js`. `docs/playground.md` runs `check` in the browser through Pyodide, fetching the engine and the products from the repository at `main` (`docs/assets/js/playground.js`); `tests/test_site.py` keeps its file and example lists in step with the package and the generator. Design decisions are in `docs/superpowers/specs/2026-09-07-website-design.md`.
+`docs/` is a Jekyll site published by GitHub Pages from `main` (Just the Docs remote theme, no build tooling in the repo). Hand-written pages: `index.md`, `getting-started.md`, `reference/*.md`, `cli.md`, `design.md`, `glossary.md`, `contributing.md`. Generated pages: `docs/examples/*.md` and `docs/templates/*.md`, written by `scripts/site_pages.py` from the `.idl` files; never edit them by hand. The same script compiles `docs/reference/grammar.md` into `docs/assets/idl-grammar.json` (`scripts/grammar_table.py`), the automaton table the playground's completion walks; `tests/test_grammar.py` proves every example and template parses under the grammar page, so the page must be kept exact. Fenced ```` ```idl ```` blocks are highlighted client-side by `docs/assets/js/idl.js`. `docs/playground.md` runs `check` in the browser through Pyodide, fetching the engine and the products from the repository at `main` (`docs/assets/js/playground.js`); `tests/test_site.py` keeps its file and example lists in step with the package and the generator. Design decisions are in `docs/superpowers/specs/2026-09-07-website-design.md`.

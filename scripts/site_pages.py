@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from scripts import grammar_table  # noqa: E402
 from ideclare.scenarios import run_all  # noqa: E402
 from ideclare.versions import History  # noqa: E402
 
@@ -239,6 +240,7 @@ def render() -> dict[str, str]:
         pages[f"docs/templates/{stem}.md"] = template_page(stem, title, shows, n)
     stem, title, shows = VERSIONED_TEMPLATE
     pages[f"docs/templates/{stem}.md"] = versioned_page(sorted((ROOT / "templates" / "versioned").glob("*.idl")), title, shows, len(TEMPLATES) + 1, "Templates", "templates/versioned")
+    pages[str(grammar_table.TABLE.relative_to(ROOT))] = grammar_table.render()
     return pages
 
 

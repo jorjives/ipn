@@ -7,6 +7,7 @@ whose edges are literals, terminal classes, structural tokens and calls to other
 The browser walks the table to offer what may come next; the tests walk it over every
 example and template to prove the page complete.
 """
+import json
 import re
 from pathlib import Path
 
@@ -147,6 +148,11 @@ def _refs(tree):
             yield from _refs(sub)
     elif kind in ("opt", "rep", "indent"):
         yield from _refs(tree[1])
+
+
+def render() -> str:
+    """The committed table's text, byte-identical across machines."""
+    return json.dumps(build(GRAMMAR.read_text(encoding="utf-8")), separators=(",", ":"), sort_keys=True) + "\n"
 
 
 # --- lines ------------------------------------------------------------------
