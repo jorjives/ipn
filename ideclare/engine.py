@@ -137,18 +137,28 @@ class Quote:
 
 
 def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lines: list, prefix: str = "") -> tuple[Decimal, Decimal]:
-    """Runs rating steps in order against a running net. Returns the net and the rounding unit."""
+    """Runs rating steps in order against a running net. Returns the net and the rounding unit.
+    `lines` collects [kind, label, amount] for every tax, fee and commission, evaluated where it stands."""
     quantum = product.quantum_for(ctx.get("territory", ""))
 
-    def value(node):
-        return Decimal(evaluate(node, ctx))
+    def value(node, **words):
+        return Decimal(evaluate(node, {**ctx, **words} if words else ctx))
 
     def record(label, applied):
         trail.append(Trail(prefix + label, applied, net))
 
+    def line_words() -> dict:
+        """What a line may read: the net so far as the customer sees it, net plus the lines above, each word-named tax."""
+        rounded = net.quantize(quantum, ROUNDING)
+        above = sum((amount for kind, _, amount in lines if kind != "commission"), Decimal(0))
+        return {**{label: amount for kind, label, amount in lines if kind == "tax"}, "net": rounded, "premium": rounded + above}
+
     for step in steps:
-        if step.condition is not None and not evaluate(step.condition, {**ctx, "net": net.quantize(quantum, ROUNDING)}):
-            continue  # a line's condition sees the net so far, rounded as the customer would
+        if step.kind == "round":
+            quantum = value(step.amount)  # read before any step runs: the unit for every figure
+    for step in steps:
+        if step.condition is not None and not evaluate(step.condition, {**ctx, **line_words()}):
+            continue
         if step.kind == "base":
             net = value(step.amount)
             record("base", f"{net:.2f}")
@@ -184,9 +194,12 @@ def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lin
             net = max(net, bound) if step.kind == "minimum" else min(net, bound)
             record(step.label or step.kind, str(bound))
         elif step.kind in ("tax", "fee", "commission"):
-            lines.append((step.kind, step.label, value(step.amount)))
-        elif step.kind == "round":
-            quantum = value(step.amount)
+            amount = value(step.amount, **line_words()).quantize(quantum, ROUNDING)
+            same = next((l for l in lines if l[0] == step.kind and l[1] == step.label), None)
+            if same is None:
+                lines.append([step.kind, step.label, amount])
+            else:
+                same[2] += amount  # the same line across items, or repeated, is one line
     return net, quantum
 
 
@@ -196,14 +209,16 @@ def apply_row(value: Decimal, row, ctx: dict) -> Decimal:
 
 
 def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = Decimal(1), underwriter: Decimal = Decimal(0)) -> Quote:
-    """Prices a risk. A claims loading or an underwriter's load is a final load on the net, so tax follows it and fees do not."""
+    """Prices a risk. A claims loading or an underwriter's load is a final load on the net, applied before the
+    first tax, fee or commission line, so tax follows it and fees do not."""
     ctx = context(product, inputs, selected)
     lines, trail = [], []
-    steps = product.rating + ([RatingStep("load", "Claims loading", amount=("num", loading - 1))] if loading != 1 else [])
-    steps += [RatingStep("load", "Underwriter load", amount=("num", underwriter))] if underwriter else []
+    loads = [RatingStep("load", "Claims loading", amount=("num", loading - 1))] if loading != 1 else []
+    loads += [RatingStep("load", "Underwriter load", amount=("num", underwriter))] if underwriter else []
+    first = next((i for i, s in enumerate(product.rating) if s.kind in ("tax", "fee", "commission")), len(product.rating))
+    steps = product.rating[:first] + loads + product.rating[first:]
     net, quantum = run_steps(product, steps, ctx, Decimal(0), trail, lines)
-    net = net.quantize(quantum, ROUNDING)  # tax is charged on the rounded net, as on an invoice
-    lines = [(kind, label, (amount if kind == "fee" else net * amount).quantize(quantum, ROUNDING)) for kind, label, amount in lines]
+    net = net.quantize(quantum, ROUNDING)
     taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
     fees = sum((a for kind, _, a in lines if kind == "fee"), Decimal(0))
     return Quote(net, [(label, a) for kind, label, a in lines if kind != "commission"], net + taxes + fees, net + taxes, trail,

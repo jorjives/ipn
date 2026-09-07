@@ -278,7 +278,7 @@ class AggregatePer(unittest.TestCase):
 class Rating(unittest.TestCase):
     def test_commission_is_a_named_share_of_the_net(self):
         p = parse(FULL + 'rating\n  base 100\n  commission "Broker" 15%\n')
-        self.assertEqual((p.rating[1].kind, p.rating[1].label, p.rating[1].amount), ("commission", "Broker", ("pct", ("num", Decimal(15)))))
+        self.assertEqual((p.rating[1].kind, p.rating[1].label, p.rating[1].amount), ("commission", "Broker", ("*", ("pct", ("num", Decimal(15))), ("name", "net"))))
         with self.assertRaises(ParseError):
             parse(FULL + 'rating\n  base 100\n  commission 15%\n')
 
@@ -539,10 +539,6 @@ class Collections(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             parse(FLEET.replace("    count of bikes > 1: x 0.95\n", "    position is 1: x 0.95\n"))
         self.assertIn("position", str(cm.exception))
-
-    def test_tax_inside_for_each_is_error(self):
-        with self.assertRaises(ParseError):
-            parse(FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax IPT 5%\n"))
 
     def test_field_clashing_with_input_is_error(self):
         with self.assertRaises(ParseError) as cm:
@@ -1126,3 +1122,43 @@ claims
     def test_a_date_needs_a_line_after_it(self):
         with self.assertRaises(ParseError):
             parse(HEADER + 'cover Theft\n  from 2027-03-01\n')
+
+
+class LinesInOrder(unittest.TestCase):
+    """A tax or commission with no `of` is a rate of the net; with one, its expression is the amount."""
+
+    def test_a_bare_rate_is_of_the_net(self):
+        p = parse(FULL + "rating\n  base 100\n  tax IPT 12%\n")
+        self.assertEqual(p.rating[1].amount, ("*", ("pct", ("num", Decimal(12))), ("name", "net")))
+
+    def test_a_rate_from_a_table_is_of_the_net(self):
+        p = parse(FULL + 'table "Territory" keyed on security\n  security, ipt\n  *, 0.12\nrating\n  base 100\n  tax IPT ipt from "Territory"\n')
+        self.assertEqual(p.rating[1].amount, ("*", ("lookup", "ipt", "Territory"), ("name", "net")))
+
+    def test_of_names_the_base(self):
+        p = parse(FULL + 'rating\n  base 100\n  tax IPT 12%\n  tax "Surcharge" 10% of IPT\n  tax "QST" 9% of premium\n')
+        self.assertEqual(p.rating[2].amount, ("*", ("pct", ("num", Decimal(10))), ("name", "IPT")))
+        self.assertEqual(p.rating[3].amount, ("*", ("pct", ("num", Decimal(9))), ("name", "premium")))
+
+    def test_a_tax_is_a_word_only_once_declared(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + 'rating\n  base 100\n  tax "Surcharge" 10% of IPT\n  tax IPT 12%\n')
+        self.assertEqual(str(cm.exception), "line 38: unknown word 'IPT'")
+
+    def test_a_fee_is_an_amount_as_before(self):
+        p = parse(FULL + 'rating\n  base 100\n  fee "Admin" 10\n')
+        self.assertEqual(p.rating[1].amount, ("num", Decimal(10)))
+
+    def test_tax_may_sit_inside_for_each_but_fee_and_commission_may_not(self):
+        p = parse(FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax \"Fire\" 22% of 20% of net\n"))
+        self.assertEqual(p.rating[0].steps[1].kind, "tax")
+        with self.assertRaises(ParseError) as cm:
+            parse(FLEET.replace("    base 3% of value\n", "    base 3% of value\n    fee \"Admin\" 10\n"))
+        self.assertIn("'fee' cannot be used inside 'for each'", str(cm.exception))
+        with self.assertRaises(ParseError):
+            parse(FLEET.replace("    base 3% of value\n", "    base 3% of value\n    commission \"Broker\" 10%\n"))
+
+    def test_tax_is_not_a_calculated_step(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FLEET.replace("    age: integer\n", "    age: integer\n    rank: calculated\n      base value\n      tax IPT 12%\n"))
+        self.assertIn("'tax' cannot be used", str(cm.exception))

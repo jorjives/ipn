@@ -1246,3 +1246,45 @@ class ConditionalTaxAndFee(unittest.TestCase):
         p = parse(FULL + 'rating\n  base 100\n  tax "Levy" 3% when Racing selected\n')
         self.assertEqual(rate(p, risk(racing=True), {"Racing"}).lines, [("Levy", Decimal("3.00"))])
         self.assertEqual(rate(p, risk(), set()).lines, [])
+
+
+class LinesInOrder(unittest.TestCase):
+    """Tax, fee and commission lines are steps: evaluated where they stand, on the figures above them."""
+
+    def lines(self, rating, **over):
+        return rate(parse(FULL + "rating\n" + rating), risk(**over), set()).lines
+
+    def test_a_tax_on_a_tax(self):
+        self.assertEqual(self.lines('  base 100\n  tax IPT 12%\n  tax "Surcharge" 10% of IPT\n'),
+                         [("IPT", Decimal("12.00")), ("Surcharge", Decimal("1.20"))])
+
+    def test_a_tax_on_the_running_total(self):
+        self.assertEqual(self.lines('  base 100\n  tax IPT 12%\n  fee "Admin" 5\n  tax "QST" 9% of premium\n'),
+                         [("IPT", Decimal("12.00")), ("Admin", Decimal("5.00")), ("QST", Decimal("10.53"))])
+
+    def test_order_is_semantic(self):
+        q = rate(parse(FULL + "rating\n  base 100\n  tax IPT 12%\n  add 10\n"), risk(), set())
+        self.assertEqual((q.net, q.lines, q.total), (Decimal("110.00"), [("IPT", Decimal("12.00"))], Decimal("122.00")))
+
+    def test_loads_apply_before_the_first_line(self):
+        q = rate(parse(FULL + "rating\n  base 100\n  tax IPT 12%\n  fee \"Admin\" 5\n"), risk(), set(), loading=Decimal("1.5"), underwriter=Decimal("0.1"))
+        self.assertEqual((q.net, q.lines), (Decimal("165.00"), [("IPT", Decimal("19.80")), ("Admin", Decimal("5.00"))]))
+        self.assertEqual([t.label for t in q.trail], ["base", "Claims loading", "Underwriter load"])
+
+    def test_round_to_is_read_before_any_step(self):
+        q = rate(parse(FULL + "rating\n  base 100.4\n  tax IPT 12%\n  round to 1\n"), risk(), set())
+        self.assertEqual((q.net, q.lines), (Decimal("100"), [("IPT", Decimal("12"))]))
+
+    def test_a_tax_inside_for_each_is_on_each_items_net_and_lines_merge(self):
+        src = FLEET.replace("    value: money\n", "    value: money\n    ebike: yes/no, default no\n").replace(
+            "    base 3% of value\n", "    base 3% of value\n    tax \"Fire\" 22% of 20% of net when ebike is yes\n")
+        bikes = [dict(value=Decimal(1000), age=Decimal(2), security="gold", ebike=True), dict(value=Decimal(500), age=Decimal(0), security="gold", ebike=True),
+                 dict(value=Decimal(2000), age=Decimal(2), security="gold", ebike=False)]
+        q = rate(parse(src), {"rider_age": Decimal(30), "bikes": bikes}, set())
+        # the tax sits before the age factor: bike 1 net 30.00 -> 22% of 6.00 = 1.32; bike 2 15.00 -> 0.66; bike 3 none
+        self.assertEqual(q.lines[0], ("Fire", Decimal("1.98")))
+        self.assertEqual(q.lines[1][0], "IPT")
+
+    def test_a_commission_may_take_a_base_too(self):
+        q = rate(parse(FULL + 'rating\n  base 100\n  tax IPT 12%\n  commission "Broker" 15% of premium\n'), risk(), set())
+        self.assertEqual(q.commission, [("Broker", Decimal("16.80"))])

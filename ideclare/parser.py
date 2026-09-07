@@ -129,7 +129,7 @@ def parse_inputs(line: Line, product: Product) -> None:
 def calculated_steps(line: Line, product: Product) -> list[RatingStep]:
     if not line.children:
         raise line.error(f"{tokens(line)[0]} needs its steps indented below it, e.g. base value")
-    return parse_rating_steps(line.children, product, per_item=True)
+    return parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS)
 
 
 def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Input]:
@@ -457,9 +457,15 @@ def parse_rating(line: Line, product: Product) -> None:
 
 
 PER_ITEM_STEPS = {"base", "factor", "add", "discount", "load", "minimum", "maximum"}
+LINE_WORDS = {"net", "premium"}  # the running net so far, and net plus every line above: read by a line's expression or condition
 
 
 ITEM_WORDS = {"position"}  # words only meaningful inside 'for each'
+
+
+def has_base(node: tuple) -> bool:
+    """True when a line's expression names its own base (`N% of x`), so it is an amount rather than a rate of the net."""
+    return node[0] == "*" and node[1][0] == "pct"
 
 
 def parse_order(line: Line, toks: list[str], product: Product) -> list[tuple[tuple, bool]]:
@@ -479,8 +485,12 @@ def parse_order(line: Line, toks: list[str], product: Product) -> list[tuple[tup
     return order
 
 
-def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = False, extra: set[str] = frozenset()) -> list[RatingStep]:
+def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | None = None, extra: set[str] = frozenset(),
+                       taxes: set[str] | None = None) -> list[RatingStep]:
+    """Steps in order. `allowed` limits the kinds (inside 'for each' or a calculated field); `taxes` collects the
+    word-named taxes declared so far, which later lines may use as a base."""
     steps = []
+    taxes = set() if taxes is None else taxes
     for child in lines:
         toks = tokens(child)
         kind, rest = toks[0], toks[1:]
@@ -488,9 +498,9 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
         if rest and rest[0].startswith('"'):
             label, rest = unquote(rest[0]), rest[1:]
         step = RatingStep(kind, label, line=child.number)
-        if per_item and kind not in PER_ITEM_STEPS:
-            raise child.error(f"{kind!r} cannot be used inside 'for each'; only {', '.join(sorted(PER_ITEM_STEPS))}")
-        if toks[:2] == ["for", "each"] and len(toks) >= 3 and not per_item:
+        if allowed is not None and kind not in allowed:
+            raise child.error(f"{kind!r} cannot be used inside 'for each'; only {', '.join(sorted(allowed))}")
+        if toks[:2] == ["for", "each"] and len(toks) >= 3 and allowed is None:
             if product.collection_for(toks[2]) is None:
                 raise child.error(f"unknown item {toks[2]!r}; declare a collection of {toks[2]}")
             order = []
@@ -498,7 +508,8 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
                 order = parse_order(child, toks[6:], product)
             elif toks[3:]:
                 raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
-            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, per_item=True, extra=ITEM_WORDS), order=order, line=child.number)
+            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, allowed=PER_ITEM_STEPS | {"tax"}, extra=ITEM_WORDS, taxes=taxes),
+                              order=order, line=child.number)
         elif kind == "factor" and rest and rest[0] in ("x", "+", "-"):  # one row: factor "Label" x <amount> [when ...]
             op, rest = rest[0], rest[1:]
             amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
@@ -521,9 +532,14 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
             if not label:
                 raise child.error(f'{kind} needs a name, e.g. {kind} "Label" ...')
             step.label = label
-            step.amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
+            words = extra | LINE_WORDS | taxes
+            step.amount, rest = expression(child, rest, product, stop={"when"}, extra=words)
+            if kind != "fee" and not has_base(step.amount):
+                step.amount = ("*", step.amount, ("name", "net"))  # tax IPT 12% is 12% of the net
             if rest[:1] == ["when"]:
-                step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
+                step.condition, rest = expression(child, rest[1:], product, extra=words)
+            if kind == "tax" and label.isidentifier():
+                taxes.add(label)
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind == "round" and rest[:1] == ["to"]:
