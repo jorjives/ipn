@@ -72,7 +72,8 @@ keys narrow on all of them: `for industry, sector`. The same lines work as the f
 a collection item, keyed on the item's other fields (each person's industry and
 occupation), and the keyed check runs per item.
 
-The table is declared after the inputs that draw on it. Its other columns are looked up
+The table is declared after the inputs that draw on it, and before any other table keyed
+on them. A claim's `asks` list their choices inline. Its other columns are looked up
 as usual, so the same file carries the class or rate of every occupation:
 `factor "Occupation" x rate from "Occupations"`. A value from the file is written in the
 product as it appears there: a single word bare, `industry is Construction`, anything

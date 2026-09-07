@@ -30,8 +30,9 @@ Agreed with Jorj on 2026-09-07. Decisions marked (Jorj) are his.
 - **Multi-key is the same feature as single-key.** `for industry, sector` narrows on both.
   Nothing is built for one key that would be rebuilt for two.
 - **Not in scope**: display labels beside codes, a `list` block, interpolation on a
-  choice column, a key that is an enrichment-provided field, and any user-interface
-  behaviour. The engine offers the list and validates against it; showing it is the
+  choice column, a key that is an enrichment-provided field, a claim fact (`asks`) drawn
+  from a table (tables are keyed on inputs and a fact is not one; the parser refuses it),
+  and any user-interface behaviour. The engine offers the list and validates against it; showing it is the
   platform's job.
 
 ## Language
@@ -129,7 +130,7 @@ not in `values_for(column, keys from the same record)`, at the top level and for
 item of each collection, as `people item 2: occupation "Nurse" is not an occupation for
 industry "Construction"`. Scenarios and the `quote` and `batch` commands call it in
 place of their own missing-input checks, which are removed. A scenario that fails it
-fails with the reason on the scenario's line; `quote` prints the reason and exits 1;
+fails with the reason on the scenario's line; `quote` prints the reason and exits 2, as for a missing input;
 `batch` records it in the row's error column.
 
 ## Buy-vs-build
@@ -158,6 +159,8 @@ the forms; `not-yet-supported.md` names labels beside codes.
 | column or key not a key of the table | table line | `'occupation' is not a key of Occupations; keys are industry, occupation` |
 | key is not an input or sibling field | table line | `unknown input 'sector'; a choice's keys must be inputs` |
 | `*` or band in a column feeding a choice | table line | `Occupations row 4: '*' is not a value; industry lists choices` |
+| a table keyed on a choice whose own table comes later | table line | `Other is keyed on industry, which draws on table 'Occupations'; declare Occupations first` |
+| a claim fact drawn from a table | asks line | `'why' cannot draw on a table; a claim fact lists its choices` |
 | every column a key, no choice draws on it | table line | unchanged: `has no value column; every column is a key` |
 | value not in the list (unkeyed) | given / quote | unchanged: `industry is choice, cannot be 'farming'` |
 | value not listed under its keys | scenario / quote / batch | `occupation "Nurse" is not an occupation for industry "Construction"` |
