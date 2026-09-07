@@ -103,3 +103,37 @@ class BatchCommand(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CheckVersions(unittest.TestCase):
+    V1 = 'product "Bike"\n  published 2026-01-01\n  term 12 months\ninputs\n  bike_value: money\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\n'
+
+    def test_check_finds_the_earlier_versions_beside_the_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "bike-2026-01-01.idl"), "w") as f:
+                f.write(self.V1)
+            v2 = os.path.join(d, "bike-2026-07-01.idl")
+            with open(v2, "w") as f:
+                f.write(self.V1.replace("2026-01-01", "2026-07-01").replace("base 100", "base 150") + '''
+scenario "renews onto this version"
+  given bike_value 2000
+  when bound on 2026-03-01
+  expect premium 100.00
+  when renewed on 2027-03-01
+  expect version 2026-07-01
+  expect premium 150.00
+''')
+            code, out = run("check", v2)
+        self.assertEqual(code, 0, out)
+        self.assertIn("PASS renews onto this version", out)
+
+    def test_a_broken_history_is_reported_like_a_parse_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "bike-2026-01-01.idl"), "w") as f:
+                f.write(self.V1)
+            v2 = os.path.join(d, "bike-2026-07-01.idl")
+            with open(v2, "w") as f:
+                f.write(self.V1.replace("2026-01-01", "2026-07-01").replace("  bike_value: money\n", "  bike_value: money\n  mileage: integer\n"))
+            code, out = run("check", v2)
+        self.assertEqual(code, 1)
+        self.assertIn("mileage is new in the version published 2026-07-01", out)

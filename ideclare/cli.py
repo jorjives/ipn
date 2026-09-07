@@ -11,6 +11,7 @@ from .expr import ExprError
 from .parser import Line, ParseError, given_value, items_from_file, parse, with_defaults
 from .scenarios import run_all
 from .tables import TableError
+from .versions import History
 
 
 def load(path: str):
@@ -19,11 +20,12 @@ def load(path: str):
 
 def check(path: str) -> int:
     try:
-        product = load(path)
+        history = History.for_file(path)
+        product = history.versions[-1]  # the file itself: its history is the versions published before it
     except ParseError as e:
         print(f"{path}: {e}")
         return 1
-    results = run_all(product)
+    results = run_all(product, history)
     for r in results:
         print(("PASS " if r.passed else "FAIL ") + r.scenario.name)
         for f in r.failures:
