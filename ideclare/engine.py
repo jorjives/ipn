@@ -244,10 +244,13 @@ def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, pref
             for k, descending in reversed(step.order):  # stable sorts, last key first
                 items.sort(key=lambda pair: evaluate(k, {**ctx, **pair[1]}), reverse=descending)
             for position, (i, item) in enumerate(items, start=1):
-                sub, _ = run_steps(product, step.steps, {**ctx, **item, "position": position}, trail, lines, f"{prefix}{step.label} {i} ")
+                own: list = []  # the item's lines: its second line reads its own first, not every item's
+                sub, _ = run_steps(product, step.steps, {**ctx, **item, "position": position}, trail, own, f"{prefix}{step.label} {i} ")
                 trail.append(Trail(f"{prefix}{step.label} {i}", "net", total(sub)))  # the item's own share
                 for k, v in sub.items():
                     shares[k] = shares.get(k, Decimal(0)) + v
+                for l in own:
+                    merge_line(lines, *l)
                 added += total(sub)
             record(coll.name, f"{added:.2f}")
         elif step.kind == "factor":
@@ -285,13 +288,18 @@ def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, pref
                 weights = {c: value(step.amount, **words_for(covers[c], {k: covers[c] if k == c else Decimal(0) for k in covers}, lambda l: l[3].get(c, Decimal(0))))
                            for c in covers}
                 parts = split(amount, weights, quantum)
-            same = next((l for l in lines if l[0] == step.kind and l[1] == step.label), None)
-            if same is None:
-                lines.append([step.kind, step.label, amount, parts])
-            else:
-                same[2] += amount  # the same line across items, or repeated, is one line
-                same[3] = {c: same[3].get(c, Decimal(0)) + parts.get(c, Decimal(0)) for c in set(same[3]) | set(parts)}
+            merge_line(lines, step.kind, step.label, amount, parts)
     return shares, quantum
+
+
+def merge_line(lines: list, kind: str, label: str, amount: Decimal, parts: dict[str, Decimal]) -> None:
+    """Adds a line; the same line across items, or repeated, is one line."""
+    same = next((l for l in lines if l[0] == kind and l[1] == label), None)
+    if same is None:
+        lines.append([kind, label, amount, parts])
+    else:
+        same[2] += amount
+        same[3] = {c: same[3].get(c, Decimal(0)) + parts.get(c, Decimal(0)) for c in [*same[3], *(c for c in parts if c not in same[3])]}
 
 
 def apply_row(value: Decimal, row, ctx: dict) -> Decimal:

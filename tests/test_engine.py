@@ -1285,6 +1285,12 @@ class LinesInOrder(unittest.TestCase):
         self.assertEqual(q.lines[0], ("Fire", Decimal("1.98")))
         self.assertEqual(q.lines[1][0], "IPT")
 
+    def test_an_items_second_line_reads_only_that_items_lines(self):
+        src = FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax \"Fire\" 10% of net\n    tax \"QST\" 10% of premium\n")
+        q = rate(parse(src), fleet((1000, 2, "gold"), (1000, 2, "gold")), set())
+        # each bike: net 30.00, Fire 3.00, QST 10% of 33.00 = 3.30; not 10% of (30 + both bikes' Fire + the first bike's QST)
+        self.assertEqual(q.lines[:2], [("Fire", Decimal("6.00")), ("QST", Decimal("6.60"))])
+
     def test_a_commission_may_take_a_base_too(self):
         q = rate(parse(FULL + 'rating\n  base 100\n  tax IPT 12%\n  commission "Broker" 15% of premium\n'), risk(), set())
         self.assertEqual(q.commission, [("Broker", Decimal("16.80"))])
