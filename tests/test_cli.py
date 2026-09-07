@@ -165,3 +165,45 @@ class BatchColumnsForPerItemLines(unittest.TestCase):
         rows = list(csv.reader(io.StringIO(out)))
         self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "Fire", "IPT", "total", "currency", "error"])
         self.assertEqual(rows[1][4], "1.32")  # 22% of 20% of 30.00
+
+
+ATTRIBUTED = RATING.replace("cover Theft\n", "cover Theft\n  class 9\n").replace('cover "Accidental Damage"\n', 'cover "Accidental Damage"\n  class 3\n').replace(
+    "cover Racing optional\n", "cover Racing optional\n  class 3\n").replace(
+    '  add "Racing cover" 45 when Racing selected\n', '  add "Racing cover" 45 for Racing when Racing selected\n  allocate\n    "Accidental Damage" 60%\n    Theft 40%\n')
+
+
+class SharesInTheCli(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.d.name, "cycle.idl")
+        with open(self.path, "w") as f:
+            f.write(ATTRIBUTED)
+
+    def tearDown(self):
+        self.d.cleanup()
+
+    def test_quote_prints_each_covers_share_and_the_class_subtotals(self):
+        code, out = run("quote", self.path, "bike_value=2000", "rider_age=30", "security=gold", "racing=yes", "select=Racing")
+        self.assertEqual(code, 0, out)
+        # 70 - 10 = 60 pool, + 45 Racing, less 10% = 94.50: Theft 21.60, AD 32.40, Racing 40.50; IPT 12% each
+        self.assertIn("Shares:\n", out)
+        self.assertIn("  Theft (class 9)              net 21.60  IPT 2.59\n", out)
+        self.assertIn("  Accidental Damage (class 3)  net 32.40  IPT 3.89\n", out)
+        self.assertIn("  Racing (class 3)             net 40.50  IPT 4.86\n", out)
+        self.assertIn("By class:\n  9                            net 21.60  IPT 2.59\n  3                            net 72.90  IPT 8.75\n", out)
+
+    def test_a_plain_product_prints_no_shares(self):
+        with open(self.path, "w") as f:
+            f.write(RATING)
+        code, out = run("quote", self.path, "bike_value=2000", "rider_age=30", "security=gold", "racing=no")
+        self.assertNotIn("Shares", out)
+
+    def test_batch_has_a_column_per_cover_per_figure_after_the_existing_ones(self):
+        import csv
+        with open(os.path.join(self.d.name, "risks.csv"), "w") as f:
+            f.write("bike_value,rider_age,security,racing,select\n2000,30,gold,yes,Racing\n")
+        code, out = run("batch", self.path, os.path.join(self.d.name, "risks.csv"))
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "currency",
+                                   "net:Theft", "IPT:Theft", "net:Accidental Damage", "IPT:Accidental Damage", "net:Racing", "IPT:Racing", "error"])
+        self.assertEqual(rows[1][8:14], ["21.60", "2.59", "32.40", "3.89", "40.50", "4.86"])

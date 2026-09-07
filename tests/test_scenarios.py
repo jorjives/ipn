@@ -656,3 +656,52 @@ scenario "dated"
   expect payout 900.00
 '''))}
         self.assertEqual(res["dated"], [])
+
+
+class ShareExpectations(unittest.TestCase):
+    ATTRIBUTED = '''
+cover Fire
+  class 8
+rating
+  base 100
+  add "Racing cover" 45 for Racing when Racing selected
+  allocate
+    "Accidental Damage" 60%
+    Theft 40%
+  tax IPT 12% of net less Racing
+  tax "Racing levy" 10% of Racing
+  fee "Admin" 10
+  commission "Broker" 10%
+'''
+
+    def shares(self, extra):
+        from tests.test_engine import CLASSED
+        return {r.scenario.name: r.failures for r in run_all(parse(CLASSED + self.ATTRIBUTED + extra))}
+
+    def test_a_covers_share_of_the_net_and_of_each_line(self):
+        res = self.shares('''
+scenario "shares"
+  given bike_value 2000, rider_age 30, security gold, racing yes
+  select Racing
+  expect net for Theft 40.00
+  expect net for "Accidental Damage" 60.00
+  expect net for Racing 45.00
+  expect tax IPT for Theft 4.80
+  expect tax IPT for Racing 0.00
+  expect tax "Racing levy" for Racing 4.50
+  expect commission "Broker" for Theft 4.00
+  expect net for class 3 105.00
+  expect tax IPT for class 3 7.20
+  expect net 145.00
+''')
+        self.assertEqual(res["shares"], [])
+
+    def test_a_cover_without_a_share_and_a_wrong_figure_fail_plainly(self):
+        res = self.shares('''
+scenario "no share"
+  given bike_value 2000, rider_age 30, security gold, racing no
+  expect net for Fire 1.00
+  expect net for Theft 41.00
+  expect net for class 8 1.00
+''')
+        self.assertEqual(res["no share"], ["line 55: no share for 'Fire'", "line 56: expected net for Theft 41.00, got 40.00", "line 57: no share for class '8'"])

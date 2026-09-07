@@ -87,11 +87,23 @@ def quote(path: str, args: list[str]) -> int:
     print(f"  {'total':<20} {'':>10}  = {q.total:f} {q.currency}")
     for label, amount in q.commission:
         print(f"  of which {label} commission {amount:f}")
+    if q.shares:
+        print("Shares:")
+        for s in q.shares:
+            print(share_line(f"{s.name} (class {s.class_})" if s.class_ else s.name, s))
+        if any(s.class_ for s in q.shares):
+            print("By class:")
+            for s in q.by_class():
+                print(share_line(s.name, s))
     lc = product.lifecycle
     if lc.instalments:
         charge, parts = instalments(q.total, lc.instalments, lc.instalment_charge, product.quantum_for(inputs.get('territory', '')))
         print(f"  or {lc.instalments} monthly: {parts[0]:f} then {parts[1]:f} (credit charge {charge:f})")
     return 0
+
+
+def share_line(name: str, s) -> str:
+    return f"  {name:<29}net {s.net:f}" + "".join(f"  {label} {amount:f}" for label, amount in s.lines + s.commission)
 
 
 def batch(path: str, risks: str, out=None) -> int:
@@ -113,9 +125,12 @@ def batch(path: str, risks: str, out=None) -> int:
         steps = [s for step in product.rating for s in ([step] + step.steps)]  # a tax may sit inside 'for each'
         lines = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "fee")))
         commission = [s.label for s in steps if s.kind == "commission"]
-        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "currency", *commission, "error"])
+        attributed = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "commission")))
+        covers = [c.name for c in product.covers] if product.attributed else []
+        shares = [f"{figure}:{cover}" for cover in covers for figure in ["net", *attributed]]  # a cover's part of each attributed figure
+        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "currency", *commission, *shares, "error"])
         for n, record in enumerate(reader, start=1):
-            blank = [""] * (len(lines) + len(commission) + 5)
+            blank = [""] * (len(lines) + len(commission) + len(shares) + 5)
             try:
                 inputs, selected = risk_inputs(product, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()], Line(n, 0, f"row {n}"))
                 missing = missing_inputs(product, inputs)
@@ -127,8 +142,10 @@ def batch(path: str, risks: str, out=None) -> int:
                 writer.writerow([n, *blank, str(err).removeprefix(f"line {n}: ")])
                 continue
             by_label, split, none = dict(q.lines), dict(q.commission), Decimal(0).quantize(q.net)
+            by_cover = {s.name: {"net": s.net, **dict(s.lines), **dict(s.commission)} for s in q.shares}
             writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:f}", *(f"{by_label.get(l, none):f}" for l in lines), f"{q.total:f}", q.currency,
-                             *(f"{split.get(l, none):f}" for l in commission), ""])
+                             *(f"{split.get(l, none):f}" for l in commission),
+                             *(f"{by_cover.get(cover, {}).get(figure, none):f}" for cover in covers for figure in ["net", *attributed]), ""])
     return 0
 
 

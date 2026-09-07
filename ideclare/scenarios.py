@@ -331,7 +331,25 @@ class Run:
         else:
             raise ValueError(f"expected 'instalment charge X' or 'instalment N X' with N from 1 to {len(parts)}")
 
-    def expect_net(self, step, rest):  # net X | net for <item> N X
+    def share(self, step, rest) -> tuple:
+        """`for Cover X` or `for class C X`: one cover's, or one class's, share and the expected amount; None when there is none."""
+        if rest[0] == "class":
+            hit = next((s for s in self.quote().by_class() if s.name == rest[1]), None)
+            if hit is None:
+                self.fail(step.line, f"no share for class {rest[1]!r}")
+            return hit, f"class {rest[1]}", rest[2]
+        name = unquote(rest[0])
+        hit = next((s for s in self.quote().shares if s.name == name), None)
+        if hit is None:
+            self.fail(step.line, f"no share for {name!r}")
+        return hit, name, rest[1]
+
+    def expect_net(self, step, rest):  # net X | net for <item> N X | net for Cover X | net for class C X
+        if rest[:1] == ["for"] and (rest[1] == "class" or unquote(rest[1]) in {c.name for c in self.product.covers}):
+            hit, label, expected = self.share(step, rest[1:])
+            if hit is not None:
+                self.check(step, f"net for {label}", money(Decimal(expected)), money(hit.net))
+            return
         if rest[:1] == ["for"]:
             label = f"{rest[1]} {rest[2]}"
             hit = next((t for t in self.quote().trail if t.label == label and t.applied == "net"), None)
@@ -357,6 +375,12 @@ class Run:
     def _line(self, step, kind, rest):
         label = unquote(rest[0])
         q = self.quote()
+        if rest[1:2] == ["for"]:  # one cover's, or one class's, part of the line
+            hit, who, expected = self.share(step, rest[2:])
+            if hit is not None:
+                actual = dict(hit.commission if kind == "commission" else hit.lines).get(label, Decimal(0))
+                self.check(step, f"{kind} {label} for {who}", money(Decimal(expected)), money(actual))
+            return
         actual = dict(q.commission if kind == "commission" else q.lines).get(label)
         if actual is None:
             self.fail(step.line, f"no {kind} called {label!r} in the quote")
