@@ -244,6 +244,7 @@ class RenewalOffer:
     inputs: dict  # the answers the offer was priced on, after indexation and any upgrade
     declined: str | None = None
     version: Product | None = None  # the version the new term would be on
+    needs: list[str] = field(default_factory=list)  # answers the new version asks for before it can price; nothing else is decided while any remain
 
 
 @dataclass
@@ -456,7 +457,11 @@ class Policy:
         difference = (self.refundable - before) * self.days_remaining(on) / self.term_days()
         return self.round(difference + lc.adjustment_fee)
 
-    def renew(self) -> RenewalOffer:
+    def renewal_target(self) -> Product:
+        return self.live_on(self.expiry)
+
+    def renew(self, answers: dict | None = None) -> RenewalOffer:
+        """The offer as things stand; answers fill in what the new version's upgrade asked for."""
         lc = self.terms
         inputs = {k: [dict(i) for i in v] if isinstance(v, list) else v for k, v in self.inputs.items()}
         before = context(self.product, self.inputs, self.selected, claims_in_term=self.claims_in_term)
@@ -474,12 +479,20 @@ class Policy:
                     item[field_] = indexed(item[field_], *how)
             else:
                 inputs[name] = indexed(inputs[name], *how)
-        target = self.live_on(self.expiry)
+        target, needs = self.renewal_target(), []
         if target is not self.product:
-            inputs, _ = self.versions.upgrade(inputs, self.product, target)
+            inputs, needs = self.versions.upgrade(inputs, self.product, target)
+        for name, value in (answers or {}).items():
+            if name not in needs:
+                raise ValueError(f"{name} was not asked at renewal")
+            inputs[name] = value
+        needs = [n for n in needs if n not in (answers or {})]
+        invite = self.expiry - timedelta(days=lc.renewal_invite_days)
+        if needs:
+            return RenewalOffer(invite, Decimal(0), Decimal(0), inputs, version=target, needs=needs)
         ctx = context(target, inputs, self.selected, claims_in_term=self.claims_in_term)
         new = rate(target, inputs, self.selected, self.claims_loading(), self.underwriter_load).total
-        offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs, version=target)
+        offer = RenewalOffer(invite, new, new, inputs, version=target)
         if not lc.renewable:
             offer.declined = "The policy is not renewable"
             return offer
@@ -615,8 +628,10 @@ class Policy:
             paid += amount
         return payments
 
-    def accept_renewal(self) -> None:
-        offer = self.renew()
+    def accept_renewal(self, answers: dict | None = None) -> None:
+        offer = self.renew(answers)
+        if offer.needs:
+            raise ValueError(f"renewal needs {', '.join(offer.needs)}")
         if offer.declined:
             raise ValueError(f"renewal declined: {offer.declined}")
         self.previous_terms.append((self.inception, self.expiry))

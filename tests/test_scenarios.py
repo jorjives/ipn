@@ -573,3 +573,70 @@ scenario "typo"
   expect securty gold
 ''')
         self.assertEqual(res["typo"], ["line 17: do not understand 'expect securty gold' (unknown expectation)"])
+
+
+def lock_versions(scenarios: str):
+    v1 = '''product "Bike"
+  published 2026-01-01
+  term 12 months
+inputs
+  bike_value: money
+  security: choice of bronze, silver, gold
+rating
+  base 100
+lifecycle
+  renewal
+    invite 21 days before expiry
+'''
+    v2 = v1.replace("2026-01-01", "2026-07-01").replace("  security: choice of bronze, silver, gold\n", "  lock_rating: choice of low, high\n") + "upgrading\n  lock_rating: high when security is gold, otherwise ask\n"
+    current = parse(v2 + scenarios)
+    return {r.scenario.name: r.failures for r in run_all(current, History([parse(v1), current]))}
+
+
+class RenewalNeedsScenarios(unittest.TestCase):
+    def test_needs_are_expected_then_answered(self):
+        res = lock_versions('''
+scenario "asked"
+  given bike_value 2000, security bronze
+  when bound on 2026-03-01
+  expect renewal needs lock_rating
+  when renewed on 2027-03-01
+  expect refused "renewal needs lock_rating"
+  when renewed on 2027-03-01 with lock_rating low
+  expect version 2026-07-01
+  expect lock_rating low
+''')
+        self.assertEqual(res["asked"], [])
+
+    def test_the_offer_cannot_be_priced_while_it_needs_answers(self):
+        res = lock_versions('''
+scenario "unpriced"
+  given bike_value 2000, security bronze
+  when bound on 2026-03-01
+  expect renewal premium 100.00
+  expect renewal offered
+  expect renewal needs bike_value
+''')
+        self.assertEqual(res["unpriced"], ["line 18: expected renewal premium 100.00, but the renewal needs lock_rating",
+                                           "line 19: expected renewal offered, but the renewal needs lock_rating",
+                                           "line 20: expected renewal needs bike_value, got lock_rating"])
+
+    def test_a_policy_needing_nothing_has_no_needs(self):
+        res = lock_versions('''
+scenario "fine"
+  given bike_value 2000, security gold
+  when bound on 2026-03-01
+  expect renewal needs lock_rating
+  when renewed on 2027-03-01
+  expect lock_rating high
+''')
+        self.assertEqual(res["fine"], ["line 18: expected renewal needs lock_rating, got nothing"])
+
+    def test_the_answer_is_typed_against_the_new_version(self):
+        res = lock_versions('''
+scenario "typed"
+  given bike_value 2000, security bronze
+  when bound on 2026-03-01
+  when renewed on 2027-03-01 with lock_rating gold
+''')
+        self.assertEqual(res["typed"], ["line 18: do not understand 'when renewed on 2027-03-01 with lock_rating gold' (line 18: lock_rating is choice, cannot be 'gold')"])

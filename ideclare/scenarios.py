@@ -226,12 +226,21 @@ class Run:
         self.last_claim = self.policy.claim(cover, amount, on, reported, evidence, item, facts)
         self.last_amount = self.last_claim.amount
 
-    def when_renewed(self, step, on, toks):
-        offer = self.policy.renew()
+    def when_renewed(self, step, on, toks):  # renewed on DATE [with input value, ...]: the answers the new version asked for
+        target = self.policy.renewal_target()
+        answers = {}
+        pairs = [t for t in toks[toks.index("with") + 1:] if t != ","] if "with" in toks else []
+        for name, value in zip(pairs[::2], pairs[1::2]):
+            if name not in target.inputs:
+                raise ValueError(f"unknown input {name!r} in the version published {target.published}")
+            answers[name] = given_value(Line(step.line, 0, ""), target.inputs[name], value)
+        offer = self.policy.renew(answers)
+        if offer.needs:
+            raise ValueError(f"renewal needs {', '.join(offer.needs)}")
         if offer.declined:
             self.fail(step.line, f"renewal was declined: {offer.declined}")
         else:
-            self.policy.accept_renewal()
+            self.policy.accept_renewal(answers)
 
     # --- expect -------------------------------------------------------------
 
@@ -385,7 +394,11 @@ class Run:
     def expect_renewal(self, step, rest):
         offer = self.policy.renew()
         what = rest[0]
-        if what == "declined":
+        if what == "needs":
+            self.check(step, "renewal needs", ", ".join(t for t in rest[1:] if t != ","), ", ".join(offer.needs) or "nothing")
+        elif offer.needs:
+            self.fail(step.line, f"expected renewal {' '.join(rest)}, but the renewal needs {', '.join(offer.needs)}")
+        elif what == "declined":
             if not offer.declined:
                 self.fail(step.line, f"expected renewal declined, got offered at {money(offer.premium)}")
             elif len(rest) > 1 and unquote(rest[1]) != offer.declined:

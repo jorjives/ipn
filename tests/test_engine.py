@@ -1071,3 +1071,47 @@ class Versions(unittest.TestCase):
         p.bind(date(2026, 9, 1))
         self.assertIs(p.renew().version, self.v1)
         self.assertEqual(p.version, date(2026, 1, 1))
+
+
+class RenewalNeeds(unittest.TestCase):
+    def setUp(self):
+        v1 = versioned("2026-01-01", "100")
+        v2 = versioned("2026-07-01", "150", "  lock_rating: choice of low, high\n").replace("  security: choice of bronze, silver, gold\n", "") + "upgrading\n  lock_rating: high when security is gold, otherwise ask\n"
+        self.h = History([parse(v1), parse(v2)])
+        self.v1, self.v2 = self.h.versions
+
+    def policy(self, security):
+        p = Policy(self.v2, {"bike_value": Decimal(2000), "security": security}, set(), history=self.h)
+        p.bind(date(2026, 3, 1))
+        return p
+
+    def test_an_offer_that_needs_answers_is_neither_priced_nor_declined(self):
+        offer = self.policy("bronze").renew()
+        self.assertEqual(offer.needs, ["lock_rating"])
+        self.assertIsNone(offer.declined)
+        self.assertNotIn("lock_rating", offer.inputs)
+
+    def test_accepting_without_the_answers_is_refused(self):
+        p = self.policy("bronze")
+        with self.assertRaises(ValueError) as cm:
+            p.accept_renewal()
+        self.assertEqual(str(cm.exception), "renewal needs lock_rating")
+        self.assertIs(p.product, self.v1)
+
+    def test_answers_fill_the_needs(self):
+        p = self.policy("bronze")
+        offer = p.renew({"lock_rating": "low"})
+        self.assertEqual((offer.needs, offer.premium), ([], Decimal(120)))
+        p.accept_renewal({"lock_rating": "low"})
+        self.assertEqual((p.product, p.inputs["lock_rating"]), (self.v2, "low"))
+
+    def test_an_answer_nobody_asked_for_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            self.policy("gold").renew({"bike_value": Decimal(1)})
+        self.assertEqual(str(cm.exception), "bike_value was not asked at renewal")
+
+    def test_a_policy_that_needs_nothing_renews_as_before(self):
+        p = self.policy("gold")
+        self.assertEqual(p.renew().needs, [])
+        p.accept_renewal()
+        self.assertEqual(p.inputs["lock_rating"], "high")
