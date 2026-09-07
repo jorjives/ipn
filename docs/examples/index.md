@@ -25,7 +25,7 @@ commented with the arithmetic. The rest take the same language across the indust
 | [Gadget, four countries](gadget.md) | One product, several territories, each with its own tax and currency |
 | [Home contents](home.md) | Specified items, an excess by cause of loss, the average clause |
 | [Buildings and contents](household.md) | Two optional sections sold as one policy with a bundle discount |
-| [Single-trip travel](travel.md) | People not things; a term ending on a date; sections in force on different days |
+| [Single-trip travel](travel.md) | Insuring people; a term ending on a date; sections in force on different days |
 | [Lifetime pet](pet.md) | An annual limit per condition eroded by claims, a waiting period, a co-payment with age |
 | [Private motor](motor.md) | Named drivers, a no claims discount that steps back, an excess by driver, instalments |
 | [Light commercial vehicle](van.md) | A three-dimensional rating table owned as a spreadsheet |
