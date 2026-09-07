@@ -118,6 +118,7 @@ class Scenario:
     name: str
     line: int
     given: dict = field(default_factory=dict)
+    given_lines: list = field(default_factory=list)  # `given` lines left for the run to resolve, against the version bound under
     selected: set[str] = field(default_factory=set)
     steps: list[Step] = field(default_factory=list)
 

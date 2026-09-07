@@ -743,21 +743,8 @@ def parse_scenario(line: Line, product: Product) -> None:
     sc = Scenario(unquote(toks[1]), line.number)
     for child in line.children:
         toks = tokens(child)
-        if toks[0] == "given" and len(toks) == 4 and toks[2] == "from" and toks[3].startswith('"') and toks[1] in product.inputs and product.inputs[toks[1]].kind == "collection":
-            coll = product.inputs[toks[1]]
-            sc.given.setdefault(coll.name, []).extend(items_from_file(child, coll, unquote(toks[3]), product.base))
-        elif toks[0] == "given" and len(toks) > 1 and product.collection_for(toks[1]) is not None:
-            coll = product.collection_for(toks[1])
-            pairs = [t for t in toks[2:] if t != ","]
-            sc.given.setdefault(coll.name, []).append(given_item(child, coll, list(zip(pairs[::2], pairs[1::2]))))
-        elif toks[0] == "given":
-            pairs = [t for t in toks[1:] if t != ","]
-            if len(pairs) % 2:
-                raise child.error("expected 'given name value, name value'")
-            for name, value in zip(pairs[::2], pairs[1::2]):
-                if name not in product.inputs or product.inputs[name].kind == "calculated":
-                    raise child.error(f"unknown input {name!r}" if name not in product.inputs else f"{name} is calculated, not given")
-                sc.given[name] = given_value(child, product.inputs[name], value)
+        if toks[0] == "given":
+            sc.given_lines.append(child)
         elif toks[0] == "select":
             for name in toks[1:]:
                 if name == ",":
@@ -769,7 +756,43 @@ def parse_scenario(line: Line, product: Product) -> None:
             sc.steps.append(Step(child.number, toks))
         else:
             raise child.error("expected given, select, when or expect")
+    # A scenario that binds before this version was published is on an earlier version, whose
+    # words the run knows and the parser does not: its given lines are resolved then.
+    if product.published is None or bound_on(sc) is None or bound_on(sc) >= product.published:
+        sc.given, sc.given_lines = resolve_given(product, sc.given_lines), []
     product.scenarios.append(sc)
+
+
+def bound_on(sc: Scenario) -> date | None:
+    """The date of the scenario's first `when bound`."""
+    for step in sc.steps:
+        if step.tokens[:2] == ["when", "bound"]:
+            dates = [t for t in step.tokens if DATE_TOKEN.fullmatch(t)]
+            return date.fromisoformat(dates[0]) if dates else None
+    return None
+
+
+def resolve_given(product: Product, lines: list[Line]) -> dict:
+    """The answers a scenario's given lines supply, typed against this product's inputs."""
+    given: dict = {}
+    for child in lines:
+        toks = tokens(child)
+        if len(toks) == 4 and toks[2] == "from" and toks[3].startswith('"') and toks[1] in product.inputs and product.inputs[toks[1]].kind == "collection":
+            coll = product.inputs[toks[1]]
+            given.setdefault(coll.name, []).extend(items_from_file(child, coll, unquote(toks[3]), product.base))
+        elif len(toks) > 1 and product.collection_for(toks[1]) is not None:
+            coll = product.collection_for(toks[1])
+            pairs = [t for t in toks[2:] if t != ","]
+            given.setdefault(coll.name, []).append(given_item(child, coll, list(zip(pairs[::2], pairs[1::2]))))
+        else:
+            pairs = [t for t in toks[1:] if t != ","]
+            if len(pairs) % 2:
+                raise child.error("expected 'given name value, name value'")
+            for name, value in zip(pairs[::2], pairs[1::2]):
+                if name not in product.inputs or product.inputs[name].kind == "calculated":
+                    raise child.error(f"unknown input {name!r}" if name not in product.inputs else f"{name} is calculated, not given")
+                given[name] = given_value(child, product.inputs[name], value)
+    return given
 
 
 def parse_enrichment(line: Line, product: Product) -> None:

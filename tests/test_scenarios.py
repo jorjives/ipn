@@ -498,3 +498,78 @@ scenario "off the table"
 '''))}
         self.assertEqual(len(res["off the table"]), 1)
         self.assertIn("no row in Age and lock for rider_age 16, security gold", res["off the table"][0])
+
+
+from ideclare.versions import History
+
+
+def two_versions(scenarios: str):
+    v1 = '''product "Bike"
+  published 2026-01-01
+  term 12 months
+inputs
+  bike_value: money
+  security: choice of bronze, silver, gold
+rating
+  base 100
+lifecycle
+  renewal
+    invite 21 days before expiry
+'''
+    v2 = v1.replace("2026-01-01", "2026-07-01").replace("base 100", "base 150").replace("  security: choice of bronze, silver, gold\n", "  security: choice of bronze, silver, gold\n  racing: yes/no, default no\n")
+    h = History([parse(v1), parse(v2)])
+    current = parse(v2 + scenarios)
+    return {r.scenario.name: r.failures for r in run_all(current, History([h.versions[0], current]))}
+
+
+class VersionScenarios(unittest.TestCase):
+    def test_an_early_customer_renews_onto_the_new_version(self):
+        res = two_versions('''
+scenario "renews"
+  given bike_value 2000, security gold
+  when bound on 2026-03-01
+  expect version 2026-01-01
+  expect premium 100.00
+  when renewed on 2027-03-01
+  expect version 2026-07-01
+  expect premium 150.00
+  expect racing no
+  expect security gold
+''')
+        self.assertEqual(res["renews"], [])
+
+    def test_wrong_version_and_answer_report_the_actual(self):
+        res = two_versions('''
+scenario "wrong"
+  given bike_value 2000, security gold
+  when bound on 2026-08-01
+  expect version 2026-01-01
+  expect security silver
+''')
+        self.assertEqual(res["wrong"], ["line 17: expected version 2026-01-01, got 2026-07-01", "line 18: expected security silver, got gold"])
+
+    def test_given_is_checked_against_the_version_bound_under(self):
+        res = two_versions('''
+scenario "old words"
+  given bike_value 2000, security gold, racing yes
+  when bound on 2026-03-01
+''')
+        self.assertEqual(res["old words"], ["line 15: unknown input 'racing' in the version published 2026-01-01"])
+
+    def test_binding_before_the_first_version_is_refused(self):
+        res = two_versions('''
+scenario "too early"
+  given bike_value 2000, security gold
+  when bound on 2025-03-01
+  expect refused "no version of Bike was on sale on 2025-03-01"
+''')
+        self.assertEqual(res["too early"], [])
+
+    def test_an_unknown_word_after_expect_is_still_a_failure(self):
+        res = two_versions('''
+scenario "typo"
+  given bike_value 2000, security gold
+  when bound on 2026-08-01
+  expect securty gold
+''')
+        self.assertEqual(res["typo"], ["line 17: do not understand 'expect securty gold' (unknown expectation)"])

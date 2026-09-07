@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from . import engine
 from .model import Product, Scenario, Step
-from .parser import Line, given_value, unquote, with_defaults
+from .parser import Line, ParseError, bound_on, given_value, resolve_given, unquote, with_defaults
 
 
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -24,27 +24,62 @@ class Result:
         return not self.failures
 
 
-def run_all(product: Product) -> list[Result]:
-    return [Run(product, s).run() for s in product.scenarios]
+def run_all(product: Product, history=None) -> list[Result]:
+    return [Run(product, s, history).run() for s in product.scenarios]
 
 
 def money(v: Decimal) -> str:
     return f"{v:.2f}"
 
 
+def show(v) -> str:
+    """An answer as a scenario would write it."""
+    if isinstance(v, bool):
+        return "yes" if v else "no"
+    if isinstance(v, date):
+        return v.isoformat()
+    return str(v)
+
+
 class Run:
-    def __init__(self, product: Product, scenario: Scenario):
-        self.product, self.scenario = product, scenario
-        self.inputs = with_defaults(product.inputs, scenario.given)
-        self.selected = set(scenario.selected)
+    def __init__(self, product: Product, scenario: Scenario, history=None):
+        self.scenario = scenario
         self.result = Result(scenario)
-        self.policy = engine.Policy(product, self.inputs, self.selected)
+        self.given_error: str | None = None
+        bound = self.bound_version(product, history)
+        given = scenario.given
+        if scenario.given_lines:  # written in the words of the version the scenario binds under
+            try:
+                given = resolve_given(bound, scenario.given_lines)
+            except ParseError as e:
+                self.given_error, given = f"{e} in the version published {bound.published}", {}
+        self.inputs = with_defaults(bound.inputs, given)
+        self.selected = set(scenario.selected)
+        self.policy = engine.Policy(bound, self.inputs, self.selected, history)
         self.last_date: date | None = None
         self.last_amount: Decimal | None = None
         self.last_claim: engine.ClaimResult | None = None
         self.last_refusal: str | None = None
 
+    def bound_version(self, product: Product, history) -> Product:
+        """The version the scenario binds under: the one live on its first `when bound` date, or this file."""
+        on = bound_on(self.scenario)
+        if history is None or on is None:
+            return product
+        try:
+            return history.live_on(on)
+        except ValueError:
+            return product  # binding will be refused, and the scenario may expect that
+
+    @property
+    def product(self) -> Product:
+        """The version the policy is on now."""
+        return self.policy.product
+
     def run(self) -> Result:
+        if self.given_error:
+            self.result.failures.append(self.given_error)
+            return self.result
         for inp in self.product.inputs.values():
             if inp.kind == "text":  # free text is informational only
                 self.inputs.setdefault(inp.name, "")
@@ -203,9 +238,16 @@ class Run:
     def expect(self, step: Step) -> None:
         toks = step.tokens[1:]
         handler = getattr(self, "expect_" + toks[0], None)
-        if handler is None:
+        if handler is not None:
+            handler(step, toks[1:])
+        elif toks[0] in self.product.inputs and len(toks) == 2:  # expect <input> <value>: an answer as the policy holds it
+            expected = given_value(Line(step.line, 0, ""), self.product.inputs[toks[0]], toks[1])
+            self.check(step, toks[0], show(expected), show(self.policy.inputs.get(toks[0])))
+        else:
             raise ValueError("unknown expectation")
-        handler(step, toks[1:])
+
+    def expect_version(self, step, rest):
+        self.check(step, "version", rest[0], show(self.policy.version))
 
     def expect_refused(self, step, rest):
         if self.last_refusal is None:
