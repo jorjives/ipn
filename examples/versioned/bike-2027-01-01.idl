@@ -1,0 +1,104 @@
+# Bike Cover, third version: the lock question changes shape. `security` becomes
+# `lock_rating`, with a new top tier, and a customer's answer moves across with the
+# `upgrading` block. A bronze lock may be no lock worth the name, so those customers are
+# asked rather than guessed at: their renewal needs an answer before it can be priced.
+# Run:  python3 -m ideclare check examples/versioned/bike-2027-01-01.idl
+
+product "Bike Cover"
+  published 2027-01-01
+  territory UK
+  term 12 months
+
+inputs
+  bike_value: money
+  rider_age: integer
+  lock_rating: choice of bronze, silver, gold, diamond
+  racing: yes/no, default no
+  usage: choice of leisure, commuting, default leisure
+
+upgrading
+  lock_rating
+    security is gold: gold
+    security is silver: silver
+    otherwise: ask
+
+eligibility
+  decline when rider_age < 16 because "Rider must be at least 16"
+
+cover Theft
+  limit bike_value
+  excess 50
+  excludes when lock_rating is bronze and bike_value > 1000 because "Silver rated lock or better required"
+
+cover "Accidental Damage"
+  limit bike_value
+  excess 100
+
+cover Racing optional
+  limit bike_value
+  excess 250
+  available when racing is yes
+
+rating
+  base 80
+  add "Value" 3% of bike_value
+  add "Racing" 40 when Racing selected
+  load "Commuting" 15% when usage is commuting
+  discount "Gold lock" 10% when lock_rating is gold
+  discount "Diamond lock" 20% when lock_rating is diamond
+  round to 0.01
+  tax IPT 12%
+
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata, fee 25
+  adjustment: reprice, charge pro rata difference
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+    index bike_value by 5%
+
+claims
+  claim Theft
+    requires crime_reference
+    pays claimed amount up to limit, less excess
+
+scenario "A new customer answers the new question"
+  given bike_value 2000, rider_age 30, lock_rating diamond, usage commuting
+  when bound on 2027-02-01
+  expect version 2027-01-01
+  expect net 128.80
+  expect premium 144.26
+
+scenario "A gold lock from the first version carries across two upgrades"
+  given bike_value 2000, rider_age 30, security gold
+  when bound on 2026-03-01
+  expect version 2026-01-01
+  when renewed on 2027-03-01
+  expect version 2027-01-01
+  expect lock_rating gold
+  expect racing no
+  expect usage leisure
+  expect bike_value 2100
+  expect premium 144.14
+
+scenario "A bronze lock must be asked about before the renewal can be priced"
+  given bike_value 900, rider_age 30, security bronze
+  when bound on 2026-03-01
+  expect renewal needs lock_rating
+  when renewed on 2027-03-01
+  expect refused "renewal needs lock_rating"
+  when renewed on 2027-03-01 with lock_rating silver
+  expect version 2027-01-01
+  expect lock_rating silver
+  expect cover Theft included
+
+scenario "A customer from the second version moves straight here"
+  given bike_value 2000, rider_age 30, security silver, racing yes
+  select Racing
+  when bound on 2026-09-01
+  expect version 2026-07-01
+  when renewed on 2027-09-01
+  expect version 2027-01-01
+  expect lock_rating silver
+  expect racing yes
