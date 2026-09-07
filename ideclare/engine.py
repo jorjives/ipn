@@ -241,8 +241,9 @@ class RenewalOffer:
     invite_date: date
     premium: Decimal
     uncapped: Decimal
-    inputs: dict  # the answers the offer was priced on, after indexation
+    inputs: dict  # the answers the offer was priced on, after indexation and any upgrade
     declined: str | None = None
+    version: Product | None = None  # the version the new term would be on
 
 
 @dataclass
@@ -284,8 +285,9 @@ class Policy:
     def claims_in_term(self) -> int:
         return sum(c.counted for c in self.claims)
 
-    def __init__(self, product: Product, inputs: dict, selected: set[str]):
+    def __init__(self, product: Product, inputs: dict, selected: set[str], history=None):
         self.product, self.inputs, self.selected = product, dict(inputs), set(selected)
+        self.versions = history  # a History of the product's versions; None leaves the policy on this product for ever
         self.quantum = product.quantum_for(self.inputs.get("territory", ""))
         self.inception: date | None = None
         self.first_inception: date | None = None  # the original start, kept across renewals for waiting periods
@@ -300,6 +302,14 @@ class Policy:
         self.underwriter_declined = False
 
     # -- derived ------------------------------------------------------------
+
+    @property
+    def version(self) -> date | None:
+        """The published date of the version the policy is on."""
+        return self.product.published
+
+    def live_on(self, on: date) -> Product:
+        return self.versions.live_on(on) if self.versions is not None else self.product
 
     @property
     def quote(self) -> Quote:
@@ -386,6 +396,7 @@ class Policy:
     def bind(self, on: date, paid: bool = True) -> None:
         if self.underwriter_declined:
             raise ValueError("declined by the underwriter")
+        self.product = self.live_on(on)
         e = check_eligibility(self.product, self.inputs, self.selected)
         if e.outcome == "declined":
             raise ValueError(f"declined: {'; '.join(e.reasons)}")
@@ -463,9 +474,12 @@ class Policy:
                     item[field_] = indexed(item[field_], *how)
             else:
                 inputs[name] = indexed(inputs[name], *how)
-        ctx = context(self.product, inputs, self.selected, claims_in_term=self.claims_in_term)
-        new = rate(self.product, inputs, self.selected, self.claims_loading(), self.underwriter_load).total
-        offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs)
+        target = self.live_on(self.expiry)
+        if target is not self.product:
+            inputs, _ = self.versions.upgrade(inputs, self.product, target)
+        ctx = context(target, inputs, self.selected, claims_in_term=self.claims_in_term)
+        new = rate(target, inputs, self.selected, self.claims_loading(), self.underwriter_load).total
+        offer = RenewalOffer(self.expiry - timedelta(days=lc.renewal_invite_days), new, new, inputs, version=target)
         if not lc.renewable:
             offer.declined = "The policy is not renewable"
             return offer
@@ -606,7 +620,7 @@ class Policy:
         if offer.declined:
             raise ValueError(f"renewal declined: {offer.declined}")
         self.previous_terms.append((self.inception, self.expiry))
-        self.inputs = offer.inputs
+        self.inputs, self.product = offer.inputs, offer.version
         self.inception = self.paid_on = self.expiry
         self.charged = offer.premium
         self.claims = []

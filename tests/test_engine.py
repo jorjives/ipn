@@ -1006,3 +1006,68 @@ class Reinstatement(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             self.pol.reinstate("PI", date(2027, 2, 1))
         self.assertEqual(str(e.exception), "PI has no reinstatement")
+
+
+from datetime import date
+from ideclare.engine import Policy
+from ideclare.versions import History
+
+
+def versioned(published: str, base: str, extra_inputs: str = "") -> str:
+    return f'''product "Bike"
+  published {published}
+  term 12 months
+
+inputs
+  bike_value: money
+  security: choice of bronze, silver, gold
+{extra_inputs}
+rating
+  base {base}
+
+lifecycle
+  adjustment: reprice, charge pro rata difference
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+'''
+
+
+class Versions(unittest.TestCase):
+    def setUp(self):
+        self.h = History([parse(versioned("2026-01-01", "100")), parse(versioned("2026-07-01", "150", "  racing: yes/no, default no\n"))])
+        self.v1, self.v2 = self.h.versions
+
+    def policy(self):
+        return Policy(self.v2, {"bike_value": Decimal(2000), "security": "gold"}, set(), history=self.h)
+
+    def test_binding_places_the_policy_on_the_version_live_that_day(self):
+        p = self.policy()
+        p.bind(date(2026, 3, 1))
+        self.assertIs(p.product, self.v1)
+        self.assertEqual(p.version, date(2026, 1, 1))
+        self.assertEqual(p.premium, Decimal(100))
+
+    def test_binding_before_any_version_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            self.policy().bind(date(2025, 1, 1))
+        self.assertEqual(str(cm.exception), "no version of Bike was on sale on 2025-01-01")
+
+    def test_renewal_moves_to_the_version_live_at_the_new_term_and_is_capped(self):
+        p = self.policy()
+        p.bind(date(2026, 3, 1))
+        offer = p.renew()
+        self.assertIs(offer.version, self.v2)
+        self.assertEqual(offer.uncapped, Decimal(150))
+        self.assertEqual(offer.premium, Decimal(120))
+        self.assertEqual(offer.inputs, {"bike_value": Decimal(2000), "security": "gold", "racing": False})
+        p.accept_renewal()
+        self.assertIs(p.product, self.v2)
+        self.assertEqual(p.inputs["racing"], False)
+        self.assertEqual(p.premium, Decimal(120))
+
+    def test_without_a_history_nothing_changes(self):
+        p = Policy(self.v1, {"bike_value": Decimal(2000), "security": "gold"}, set())
+        p.bind(date(2026, 9, 1))
+        self.assertIs(p.renew().version, self.v1)
+        self.assertEqual(p.version, date(2026, 1, 1))
