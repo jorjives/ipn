@@ -93,11 +93,26 @@
 
 // Rouge has no lexer for idl, so ```idl and ```check blocks are bare <pre><code>. Give them
 // the same box the theme gives div.highlighter-rouge.
-.main-content pre:has(> code.language-idl), .main-content pre:has(> code.language-check) {
+.main-content pre:has(> code.language-idl), .main-content pre:has(> code.language-check), .main-content pre.check-out {
   margin: 0 0 $sp-3;
   padding: $sp-3;
   overflow-x: auto;
   background-color: $code-background-color;
   border-radius: $border-radius;
   > code { padding: 0; margin: 0; border: 0; background: transparent; }
+}
+
+// --- playground -----------------------------------------------------------
+.oidl-play {
+  textarea {
+    width: 100%; min-height: 28rem; resize: vertical; tab-size: 2;
+    font-family: $mono-font-family; font-size: 0.8rem; line-height: 1.55;
+    padding: 0.75rem; border: 1px solid $oidl-rule; border-radius: 4px;
+    background: $oidl-paper; color: $oidl-ink;
+  }
+  .bar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin: 0.75rem 0; }
+  select { font-family: $body-font-family; font-size: 0.95rem; padding: 0.4rem 0.6rem; border: 1px solid $oidl-rule; border-radius: 4px; background: #fff; color: $oidl-ink; }
+  .status { color: lighten($oidl-ink, 25%); font-size: 0.95rem; }
+  .hint { font-size: 0.9rem; color: lighten($oidl-ink, 25%); margin: 0.25rem 0 1rem; }
+  pre.check-out { min-height: 5rem; white-space: pre-wrap; }
 }

@@ -43,6 +43,8 @@
     }).join("\n");
   }
 
+  window.oidlCheckOutput = checkOutput;  // the playground colours its output the same way
+
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".language-idl pre code, code.language-idl, code.idl").forEach(colour);
     document.querySelectorAll(".language-check pre code, code.language-check").forEach(checkOutput);

@@ -13,7 +13,7 @@ nav_order: 1
 <div class="actions">
 <a class="btn btn-primary" href="{{ site.baseurl }}/getting-started/">Get started</a>
 <a class="btn" href="{{ site.baseurl }}/reference/">Read the reference</a>
-<a class="btn" href="{{ site.baseurl }}/examples/">See the examples</a>
+<a class="btn" href="{{ site.baseurl }}/playground/">Try it in your browser</a>
 </div>
 
 <div class="oidl-proof">

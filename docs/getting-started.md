@@ -218,6 +218,8 @@ Premium:
 
 ## Where next
 
+- No install at all: the [playground](playground.md) runs `check` in your browser on any of the
+  examples, or on what you type.
 - Start a real product from a [template](templates/index.md): each is a working file with
   comments that say what to change.
 - Read the [reference](reference/index.md) block by block, or find the construct you need

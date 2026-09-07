@@ -3,7 +3,7 @@ import re
 import unittest
 from pathlib import Path
 
-from scripts.site_pages import ROOT, render
+from scripts.site_pages import EXAMPLES, ROOT, TEMPLATES, render
 
 DOCS = ROOT / "docs"
 
@@ -27,3 +27,16 @@ class Links(unittest.TestCase):
                     continue
                 with self.subTest(f"{page.relative_to(ROOT)} -> {target}"):
                     self.assertTrue((page.parent / target).resolve().exists(), f"{page.relative_to(ROOT)} links to missing {target}")
+
+
+class Playground(unittest.TestCase):
+    """The browser playground fetches the engine and the products by name, so the names must not drift."""
+
+    def test_engine_file_list_matches_the_package(self):
+        js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
+        self.assertEqual(set(re.findall(r'"(\w+\.py)"', js)), {p.name for p in (ROOT / "ideclare").glob("*.py")})
+
+    def test_example_menu_matches_the_generated_pages(self):
+        md = (DOCS / "playground.md").read_text(encoding="utf-8")
+        expected = [f"examples/{s}.idl" for s, *_ in EXAMPLES] + [f"templates/{s}.idl" for s, *_ in TEMPLATES]
+        self.assertEqual(re.findall(r'value="([^"]+\.idl)"', md), expected)
