@@ -172,9 +172,9 @@ rating_step     = 'base' [ string ] expression [ 'when' condition ]
                 | 'add' [ string ] expression [ 'when' condition ]
                 | ( 'discount' | 'load' ) [ string ] expression [ 'when' condition ]
                 | ( 'minimum' | 'maximum' ) [ string ] expression [ 'when' condition ]
-                | 'tax' ( word | string ) expression
-                | 'fee' string expression
-                | 'commission' string expression
+                | 'tax' ( word | string ) expression [ 'when' condition ]
+                | 'fee' string expression [ 'when' condition ]
+                | 'commission' string expression [ 'when' condition ]
                 | 'round' 'to' expression
 factor_row      = condition ':' operator expression
                 | 'otherwise' ':' operator expression     -- last, if present

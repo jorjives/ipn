@@ -504,7 +504,7 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
             amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
             step.rows = [FactorRow(None, op, amount)]
             if rest[:1] == ["when"]:
-                step.condition, rest = expression(child, rest[1:], product, extra=extra)
+                step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind == "factor":
@@ -512,7 +512,7 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
         elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
             step.amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
             if rest[:1] == ["when"]:
-                step.condition, rest = expression(child, rest[1:], product, extra=extra)
+                step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind in ("tax", "fee", "commission"):
@@ -521,7 +521,9 @@ def parse_rating_steps(lines: list[Line], product: Product, per_item: bool = Fal
             if not label:
                 raise child.error(f'{kind} needs a name, e.g. {kind} "Label" ...')
             step.label = label
-            step.amount, rest = expression(child, rest, product)
+            step.amount, rest = expression(child, rest, product, stop={"when"}, extra=extra)
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
             if rest:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         elif kind == "round" and rest[:1] == ["to"]:

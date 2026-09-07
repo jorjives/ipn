@@ -103,12 +103,22 @@ inputs
 | `discount N% [when ...]`, `load N% [when ...]` | multiplies by (1 - N%) or (1 + N%) |
 | `minimum <amount>` | raises it to at least this |
 | `maximum <amount>` | lowers it to at most this |
-| `tax Name N%` | adds a tax line of N% of the rounded net |
-| `fee "Label" <amount>` | adds a flat fee line |
-| `commission "Label" N%` | reports N% of the rounded net as owed to that intermediary; never added to the premium |
+| `tax Name N% [when ...]` | adds a tax line of N% of the rounded net |
+| `fee "Label" <amount> [when ...]` | adds a flat fee line |
+| `commission "Label" N% [when ...]` | reports N% of the rounded net as owed to that intermediary; never added to the premium |
 | `round to 0.01` | rounding unit for every figure, half up; without it, the smallest unit of the currency (0.01 for GBP or EUR, 1 for JPY, 0.001 for KWD) |
 
-A product with no tax simply has no `tax` line (life premiums, for example).
+A product with no tax simply has no `tax` line (life premiums, for example). A product
+may carry several: each is its own line, each on the rounded net, in the order written.
+A `when` on any step can read `net`, the running net so far rounded as the customer
+would see it, so a levy charged only above a threshold, or only when a cover is taken,
+reads as the law does:
+
+```idl
+  tax "Government levy" 3%
+  tax "Fire brigade levy" 2% when Fire selected
+  fee "Stamp duty" 1 when net >= 20
+```
 
 The result is the net premium, one line per tax and fee, the total, and the commission
 split of the net. The `quote` command prints the full trail of applied steps and

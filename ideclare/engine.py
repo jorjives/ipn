@@ -147,8 +147,8 @@ def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lin
         trail.append(Trail(prefix + label, applied, net))
 
     for step in steps:
-        if step.condition is not None and not evaluate(step.condition, ctx):
-            continue
+        if step.condition is not None and not evaluate(step.condition, {**ctx, "net": net.quantize(quantum, ROUNDING)}):
+            continue  # a line's condition sees the net so far, rounded as the customer would
         if step.kind == "base":
             net = value(step.amount)
             record("base", f"{net:.2f}")

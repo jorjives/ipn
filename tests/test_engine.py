@@ -1227,3 +1227,22 @@ class AmendmentsAcrossVersions(unittest.TestCase):
         self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 4, 1), date(2027, 4, 1), set()).reason, "lock_photo is required")
         self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 4, 1), date(2027, 4, 1), {"lock_photo"}).amount, Decimal(900))
         self.assertEqual(pol.cover_state("Theft", on=date(2027, 4, 1)).status, "included")
+
+
+class ConditionalTaxAndFee(unittest.TestCase):
+    """A tax or fee line may carry a `when`, and the condition can read the rounded net."""
+
+    def quote(self, base):
+        p = parse(FULL + f'rating\n  base {base}\n  tax "Levy" 3% when "Racing" selected\n  fee "Stamp duty" 1 when net >= 20\n')
+        return rate(p, risk(), set())
+
+    def test_fee_below_the_threshold_is_not_charged(self):
+        self.assertEqual(self.quote("19.99").lines, [])
+
+    def test_threshold_reads_the_rounded_net(self):
+        self.assertEqual(self.quote("19.996").lines, [("Stamp duty", Decimal("1.00"))])
+
+    def test_tax_only_when_the_cover_is_selected(self):
+        p = parse(FULL + 'rating\n  base 100\n  tax "Levy" 3% when Racing selected\n')
+        self.assertEqual(rate(p, risk(racing=True), {"Racing"}).lines, [("Levy", Decimal("3.00"))])
+        self.assertEqual(rate(p, risk(), set()).lines, [])
