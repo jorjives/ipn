@@ -96,15 +96,23 @@ class CoverState:
     limit: Decimal | None = None
 
 
-def cover_state(product: Product, cover: Cover, inputs: dict, selected: set[str], item: dict | None = None) -> CoverState:
-    ctx = context(product, inputs, selected, item)
-    if cover.optional and cover.name not in selected:
-        return CoverState(cover.name, "not selected")
+def status_of(cover: Cover, ctx: dict) -> tuple[str, str]:
+    """Whether the cover is on the risk in this context: (status, reason)."""
+    if cover.optional and cover.name not in ctx["selected"]:
+        return "not selected", ""
     if cover.available is not None and not evaluate(cover.available, ctx):
-        return CoverState(cover.name, "not available")
+        return "not available", ""
     for rule in cover.exclusions:
         if evaluate(rule.condition, ctx):
-            return CoverState(cover.name, "excluded", rule.reason)
+            return "excluded", rule.reason
+    return "included", ""
+
+
+def cover_state(product: Product, cover: Cover, inputs: dict, selected: set[str], item: dict | None = None) -> CoverState:
+    ctx = context(product, inputs, selected, item)
+    status, reason = status_of(cover, ctx)
+    if status != "included":
+        return CoverState(cover.name, status, reason)
     limit = evaluate(cover.limit, ctx) if cover.limit is not None else None
     return CoverState(cover.name, "included", limit=limit)
 
@@ -189,15 +197,38 @@ def allocated(product: Product, shares: dict[str, Decimal]) -> dict[str, Decimal
     return out
 
 
-def attributed(product: Product, shares: dict[str, Decimal], quantum: Decimal) -> dict[str, Decimal]:
-    """The covers' rounded shares of the rounded net; empty for a product that attributes nothing."""
+def attributed(product: Product, shares: dict[str, Decimal], quantum: Decimal, strict: bool = True) -> dict[str, Decimal]:
+    """The covers' rounded shares of the rounded net; empty for a product that attributes nothing. Strict, the pool
+    must be empty; a condition read part way through rating, or inside a cover premium or a calculated field, is not."""
     if not product.attributed:
         return {}
     shares = allocated(product, shares)
     pool = shares.get("", Decimal(0)).quantize(quantum, ROUNDING)
-    if pool:
+    if pool and strict:
         raise ExprError(f"{pool:f} of the premium is not attributed to a cover; add allocate")
     return split(total(shares).quantize(quantum, ROUNDING), {c.name: shares.get(c.name, Decimal(0)) for c in product.covers}, quantum)
+
+
+def cover_premiums(product: Product, ctx: dict, trail: list, prefix: str, item: str) -> list[tuple[str, Decimal]]:
+    """Each included cover's own price, for `add cover premiums`. Inside `for each <item>` it is the current item's
+    per-item premiums; outside, every other cover's, a per-item one summed over its items. A premium of one bare
+    `base` leaves no trail of its own; a block's steps do."""
+    inside = {s.label for step in product.rating for s in step.steps if s.kind == "premiums"}
+    out = []
+    for cover in product.covers:
+        if not cover.premium or (cover.premium_item != item if item else cover.premium_item in inside):
+            continue
+        contexts = [ctx] if item or not cover.premium_item else [{**ctx, **i} for i in ctx[product.collection_for(cover.premium_item).name]]
+        amount, included = Decimal(0), False
+        for c in contexts:
+            if status_of(cover, c)[0] != "included":
+                continue
+            included = True
+            steps = [] if len(cover.premium) == 1 and cover.premium[0].kind == "base" else trail
+            amount += total(run_steps(product, cover.premium, c, steps, [], f"{prefix}{cover.name} ")[0])
+        if included:
+            out.append((cover.name, amount))
+    return out
 
 
 def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, prefix: str = "") -> tuple[dict[str, Decimal], Decimal]:
@@ -223,7 +254,7 @@ def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, pref
         return {**{l[1]: line_shares(l) for l in lines if l[0] == "tax"}, **covers, "net": net, "premium": net + above}
 
     def line_words() -> dict:
-        return words_for(total(shares).quantize(quantum, ROUNDING), attributed(product, shares, quantum), lambda l: l[2])
+        return words_for(total(shares).quantize(quantum, ROUNDING), attributed(product, shares, quantum, strict=False), lambda l: l[2])
 
     for step in steps:
         if step.kind == "round":
@@ -267,6 +298,10 @@ def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, pref
             amount = value(step.amount)
             shares[key] = shares.get(key, Decimal(0)) + amount
             record(step.label or "add", f"+ {amount}")
+        elif step.kind == "premiums":
+            for name, amount in cover_premiums(product, ctx, trail, prefix, step.label):
+                shares[name] = shares.get(name, Decimal(0)) + amount
+                record(name, f"+ {amount:.2f}")
         elif step.kind in ("discount", "load"):
             pct = value(step.amount)
             mult = (1 - pct) if step.kind == "discount" else (1 + pct)

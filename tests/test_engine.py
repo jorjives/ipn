@@ -1386,3 +1386,108 @@ class LineAttribution(unittest.TestCase):
     def test_premium_per_cover_is_its_net_plus_its_lines(self):
         q = self.quote('  tax "Racing levy" 10% of Racing\n  tax "QST" 10% of premium\n')
         self.assertEqual({s.name: dict(s.lines)["QST"] for s in q.shares}, {"Theft": Decimal("4.00"), "Accidental Damage": Decimal("6.00"), "Racing": Decimal("4.95")})
+
+
+HOUSEHOLD = '''
+product "Household"
+  term 12 months
+
+inputs
+  rebuild_cost: money, default 0
+  contents_sum: money, default 0
+  property_type: choice of flat, house
+
+cover Buildings optional
+  class 8
+  premium 0.15% of rebuild_cost
+  limit rebuild_cost
+
+cover Contents optional
+  class 9
+  premium 0.5% of contents_sum
+  limit contents_sum
+  excludes when contents_sum > 100000 because "Too much"
+
+rating
+  add cover premiums
+  factor "Property type"
+    property_type is flat: x 0.90
+    otherwise: x 1.00
+  discount 10% when Buildings selected and Contents selected
+  minimum 60
+  tax IPT 12%
+'''
+
+
+def house(**over):
+    return {"rebuild_cost": Decimal(300000), "contents_sum": Decimal(40000), "property_type": "house", **over}
+
+
+class CoverPremiums(unittest.TestCase):
+    """A cover prices itself; `add cover premiums` credits each included cover's price to its share."""
+
+    def test_cover_premiums_join_where_written_and_are_each_covers_share(self):
+        q = rate(parse(HOUSEHOLD), house(), {"Buildings", "Contents"})
+        # 450 + 200 = 650, less 10% = 585
+        self.assertEqual(q.net, Decimal("585.00"))
+        self.assertEqual(shares_of(q), {"Buildings": Decimal("405.00"), "Contents": Decimal("180.00")})
+        self.assertEqual([(t.label, t.applied) for t in q.trail[:2]], [("Buildings", "+ 450.00"), ("Contents", "+ 200.00")])
+
+    def test_an_unselected_or_excluded_cover_contributes_nothing(self):
+        q = rate(parse(HOUSEHOLD), house(), {"Buildings"})
+        self.assertEqual((q.net, shares_of(q)), (Decimal("450.00"), {"Buildings": Decimal("450.00")}))
+        q = rate(parse(HOUSEHOLD), house(contents_sum=Decimal(200000)), {"Buildings", "Contents"})
+        self.assertEqual((q.net, shares_of(q)), (Decimal("405.00"), {"Buildings": Decimal("405.00")}))  # the bundle discount is on selection
+
+    def test_a_premium_block_prices_like_a_calculated_input(self):
+        src = HOUSEHOLD.replace("  premium 0.15% of rebuild_cost\n", "  premium\n    base 0.15% of rebuild_cost\n    factor \"Type\" x 1.2 when property_type is house\n    minimum 600\n")
+        q = rate(parse(src), house(), {"Buildings"})
+        self.assertEqual(q.net, Decimal("600.00"))  # 450 x 1.2 = 540, floored to 600
+        self.assertEqual([(t.label, t.applied) for t in q.trail[:3]], [("Buildings base", "450.00"), ("Buildings Type", "x 1.2"), ("Buildings minimum", "600")])
+
+    def test_a_premium_with_when_is_nothing_when_the_condition_fails(self):
+        src = HOUSEHOLD.replace("  premium 0.5% of contents_sum\n", "  premium 0.5% of contents_sum when property_type is flat\n")
+        q = rate(parse(src), house(), {"Buildings", "Contents"})
+        self.assertEqual(shares_of(q), {"Buildings": Decimal("405.00")})
+
+    def test_a_when_inside_a_calculated_field_reads_before_the_pool_is_allocated(self):
+        src = HOUSEHOLD.replace("  property_type: choice of flat, house\n", "  property_type: choice of flat, house\n  size: calculated\n    base 1\n    add 1 when rebuild_cost > 100000\n")
+        self.assertEqual(rate(parse(src), house(), {"Buildings"}).net, Decimal("450.00"))
+
+    def test_a_cover_with_a_premium_and_an_allocate_row_takes_both(self):
+        src = HOUSEHOLD.replace("  add cover premiums\n", "  base 100\n  add cover premiums\n  allocate\n    Buildings 100%\n")
+        q = rate(parse(src), house(), {"Buildings", "Contents"})
+        # (100 + 450 + 200) less 10% = 675: Buildings 495, Contents 180
+        self.assertEqual(shares_of(q), {"Buildings": Decimal("495.00"), "Contents": Decimal("180.00")})
+
+
+EBIKES = FLEET.replace("    security: choice of bronze, silver, gold\n", "    security: choice of bronze, silver, gold\n    ebike: yes/no, default no\n").replace(
+    "cover Theft\n", "cover Fire\n  class 8\n  premium 0.5% of value when ebike is yes\n  limit value\n\ncover Theft\n  class 9\n").replace(
+    "    base 3% of value\n", "    base 3% of value for Theft\n")
+
+
+def ebikes(*bikes):
+    return {"rider_age": Decimal(30), "bikes": [dict(value=Decimal(v), age=Decimal(a), security="gold", ebike=e) for v, a, e in bikes]}
+
+
+class PerItemCoverPremiums(unittest.TestCase):
+    """A premium that reads an item's fields is priced once per item."""
+
+    def test_outside_the_loop_the_sum_over_items_joins(self):
+        src = EBIKES.replace("  factor \"Fleet\"\n", "  add cover premiums\n  factor \"Fleet\"\n")
+        q = rate(parse(src), ebikes((2000, 0, True), (1000, 0, False), (3000, 0, True)), set())
+        # Theft 3% of 6000 = 180; Fire 0.5% of the e-bikes' 5000 = 25; fleet x 0.95
+        self.assertEqual(shares_of(q), {"Fire": Decimal("23.75"), "Theft": Decimal("171.00")})
+        self.assertEqual([(t.label, t.applied) for t in q.trail if t.label == "Fire"], [("Fire", "+ 25.00")])
+
+    def test_inside_the_loop_each_items_premium_joins_with_the_item(self):
+        src = EBIKES.replace("      otherwise: x 0.90\n", "      otherwise: x 0.90\n    add cover premiums\n")
+        q = rate(parse(src), ebikes((2000, 0, True), (1000, 3, False)), set())
+        # bike 1: 60 + 10 = 70; bike 2: 30 x 0.9 = 27; fleet x 0.95 -> Theft (60 + 27) x 0.95 = 82.65, Fire 9.50
+        self.assertEqual(shares_of(q), {"Fire": Decimal("9.50"), "Theft": Decimal("82.65")})
+        self.assertEqual([(t.label, t.applied) for t in q.trail if "Fire" in t.label], [("bike 1 Fire", "+ 10.00"), ("bike 2 Fire", "+ 0.00")])
+
+    def test_an_item_excluded_from_the_cover_contributes_nothing(self):
+        src = EBIKES.replace("  premium 0.5% of value when ebike is yes\n", "  premium 0.5% of value when ebike is yes\n  excludes when value > 2500 because \"Too hot\"\n").replace("  factor \"Fleet\"\n", "  add cover premiums\n  factor \"Fleet\"\n")
+        q = rate(parse(src), ebikes((2000, 0, True), (3000, 0, True)), set())
+        self.assertEqual(shares_of(q)["Fire"], Decimal("9.50"))
