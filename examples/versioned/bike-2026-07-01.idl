@@ -2,9 +2,10 @@
 # the first version keep it until renewal, when they move here. The renewal cap holds
 # against the premium they were charged, whichever version charged it.
 #
-# It also carries a mid-term amendment: from 1 March 2027 a bike left unlocked is not covered
-# for theft. A dated line is not a new version; it applies to every policy in force on that
-# date, so it is written once, here, and never copied into later versions.
+# It also carries a mid-term amendment: from 1 March 2027 a theft claim needs a photo of the
+# lock as well as a crime reference. A dated line is not a new version; it reaches every policy
+# in force on that date, on this version or the first, so it is written once, here, and never
+# copied into later versions. It must read in the words of every version it reaches.
 # Run:  python3 -m ideclare check examples/versioned/bike-2026-07-01.idl
 
 product "Bike Cover"
@@ -54,11 +55,9 @@ lifecycle
 
 claims
   claim Theft
-    asks
-      unlocked: yes/no
     requires crime_reference
+    from 2027-03-01 requires crime_reference, lock_photo
     pays claimed amount up to limit, less excess
-    from 2027-03-01 decline when unlocked because "Bikes left unlocked are not covered from March 2027"
 
 scenario "A new customer pays the new base rate"
   given bike_value 2000, rider_age 30, security gold
@@ -92,16 +91,26 @@ scenario "Nobody could buy the product before it existed"
   when bound on 2025-12-01
   expect refused "no version of Bike Cover was on sale on 2025-12-01"
 
-scenario "Before the amendment an unlocked bike was still covered"
+scenario "Before the amendment a crime reference was enough"
   given bike_value 2000, rider_age 30, security gold
   when bound on 2026-08-01
-  when claim Theft for 1000 on 2027-02-01 with crime_reference, unlocked yes
+  when claim Theft for 1000 on 2027-02-01 with crime_reference
   expect payout 950.00
 
-scenario "From the amendment date an unlocked bike is not covered for theft"
+scenario "From the amendment date a theft claim also needs a photo of the lock"
   given bike_value 2000, rider_age 30, security gold
   when bound on 2026-08-01
-  when claim Theft for 1000 on 2027-03-01 with crime_reference, unlocked yes
-  expect claim declined "Bikes left unlocked are not covered from March 2027"
-  when claim Theft for 1000 on 2027-03-01 with crime_reference, unlocked no
+  when claim Theft for 1000 on 2027-03-01 with crime_reference
+  expect claim declined "lock_photo is required"
+  when claim Theft for 1000 on 2027-03-01 with crime_reference, lock_photo
   expect payout 950.00
+
+scenario "The amendment reaches a customer still on the first version"
+  given bike_value 2000, rider_age 30, security gold
+  when bound on 2026-06-01
+  expect version 2026-01-01
+  when claim Theft for 1000 on 2027-02-01 with crime_reference
+  expect payout 950.00
+  when claim Theft for 1000 on 2027-04-01 with crime_reference
+  expect claim declined "lock_photo is required"
+  expect version 2026-01-01

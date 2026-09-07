@@ -762,7 +762,8 @@ cover Theft
 claims
   claim Theft
     pays claimed amount up to limit, less excess
-    from 2027-03-01 decline when unlocked because "Bikes left unlocked are not covered from March 2027"
+    requires crime_reference
+    from 2027-03-01 requires crime_reference, lock_photo
 ```
 
 - A dated line is in effect for an event on or after its `from` date and before its
@@ -779,6 +780,14 @@ claims
   premium charged for the term already stands and eligibility is settled at purchase.
 - The words a dated line may use are the words its block may use: a cover line reads the
   answers, a claim line also reads the facts the claim asks for.
+- **An amendment reaches every version in force.** A dated line written in one version also
+  amends the same cover or claim in every earlier version (a policy bought on the January
+  version is settled with a `from` line written in July), because the customers on the old
+  version are the ones it must reach. Write it once, in the latest version. It must
+  therefore read in the words of every version it reaches: a dated line naming an input or
+  fact an earlier version never asked for is refused at load with "'word' is not known to
+  the version published DATE, which this amendment reaches". A version's own undated lines
+  are its own; only dated lines travel.
 
 ## Not yet supported
 
