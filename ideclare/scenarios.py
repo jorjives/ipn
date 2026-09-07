@@ -85,9 +85,9 @@ class Run:
                 self.inputs.setdefault(inp.name, "")
             elif inp.kind == "collection":  # bounds are checked by eligibility
                 self.inputs.setdefault(inp.name, [])
-        missing = [n for n, inp in self.product.inputs.items() if n not in self.inputs and not inp.provided and inp.kind != "calculated"]  # a missing provided field is an unavailable lookup
-        if missing:
-            self.fail(self.scenario.line, f"given is missing {', '.join(missing)}")
+        problems = engine.check_inputs(self.product, self.inputs)  # a missing provided field is an unavailable lookup, not a problem
+        if problems:
+            self.fail(self.scenario.line, ("given is " if problems[0].startswith("missing") else "") + problems[0])
             return self.result
         for i, step in enumerate(self.scenario.steps):
             following = self.scenario.steps[i + 1].tokens[:2] if i + 1 < len(self.scenario.steps) else []

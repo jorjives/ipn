@@ -1,8 +1,10 @@
+import os
+import tempfile
 import unittest
 
 from ideclare.parser import parse
 from ideclare.scenarios import run_all
-from tests.test_parser import FULL
+from tests.test_parser import FULL, occupations
 
 
 def outcomes(extra):
@@ -781,3 +783,28 @@ scenario "plain"
   expect refund for Theft 1.00
 '''))}
         self.assertEqual(res["plain"], ["line 54: no share for 'Theft'"])
+
+
+class KeyedChoices(unittest.TestCase):
+    PEOPLE = 'inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n'
+
+    def test_a_pair_the_table_does_not_list_fails_the_scenario(self):
+        text = occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: choice of occupation from "Occupations" for industry\n') + (
+            'rating\n  base 100\n\n'
+            'scenario "Wrong pair"\n  given industry construction, occupation Nurse\n  expect premium 100\n'
+            'scenario "Right pair"\n  given industry construction, occupation "Site manager"\n  expect premium 100\n')
+        results = run_all(parse(text))
+        self.assertEqual(results[0].failures, ['line 16: occupation "Nurse" is not an occupation for industry "construction"'])
+        self.assertEqual(results[1].failures, [])
+
+    def test_items_are_checked_from_a_given_line_and_from_a_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "people.csv"), "w") as f:
+                f.write('industry,occupation\nconstruction,Labourer\nconstruction,Nurse\n')
+            text = occupations(self.PEOPLE) + (
+                'rating\n  base 100\n\n'
+                'scenario "From a file"\n  given people from "people.csv"\n  expect premium 100\n'
+                'scenario "Given"\n  given person industry "Health & Social Care", occupation Nurse\n  given person industry construction, occupation Nurse\n  expect premium 100\n')
+            results = run_all(parse(text, base=d))
+        self.assertEqual(results[0].failures, ['line 17: people item 2: occupation "Nurse" is not an occupation for industry "construction"'])
+        self.assertEqual(results[1].failures, ['line 20: people item 2: occupation "Nurse" is not an occupation for industry "construction"'])
