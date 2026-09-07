@@ -75,6 +75,13 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class Less(unittest.TestCase):
+    def test_less_is_minus(self):
+        self.assertEqual(ev("net less fire", net=Decimal(100), fire=Decimal(30)), Decimal(70))
+        self.assertEqual(ev("12 % of net less fire", net=Decimal(100), fire=Decimal(30)), Decimal("8.4"))  # of takes the whole sum
+        self.assertEqual(ev("12 % of net less fire", net=Decimal(100), fire=Decimal(30)), ev("12 % of ( net - fire )", net=Decimal(100), fire=Decimal(30)))
+
+
 class Collections(unittest.TestCase):
     bikes = [{"value": Decimal(2000), "age": 0}, {"value": Decimal(500), "age": 3}]
 

@@ -72,8 +72,9 @@ class _Parser:
 
     def sum(self):
         node = self.term()
-        while self.peek() in ("+", "-"):
-            node = (self.take(), node, self.term())
+        while self.peek() in ("+", "-", "less"):
+            op = self.take()
+            node = ("-" if op == "less" else op, node, self.term())  # `net less Fire` reads as the policy wording does
         return node
 
     def term(self):
@@ -102,7 +103,7 @@ class _Parser:
             node = ("pct", node)
             if self.peek() == "of":
                 self.take()
-                node = ("*", node, self.unary())
+                node = ("*", node, self.sum())  # `12% of net less Fire` is 12% of the difference, as it reads
         if self.peek() == "selected":
             self.take()
             node = ("selected", node)
