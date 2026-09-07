@@ -25,6 +25,7 @@ EXAMPLES = [
     ("family", "Cycle, several bikes", "Repeatable items on one policy"),
     ("multibike", "Cycle, ranked bikes", "Items rated in a chosen order; postcode and catalogue enrichment"),
     ("gadget", "Gadget, four countries", "One product, several territories, each with its own tax and currency"),
+    ("irish-cycle", "Cycle in Ireland", "Several taxes on one premium and a fixed duty above a threshold"),
     ("home", "Home contents", "Specified items, an excess by cause of loss, the average clause"),
     ("household", "Buildings and contents", "Two optional sections sold as one policy with a bundle discount"),
     ("travel", "Single-trip travel", "Insuring people; a term ending on a date; sections in force on different days"),

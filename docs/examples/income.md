@@ -1,7 +1,7 @@
 ---
 title: Short Term Income Protection
 parent: Examples
-nav_order: 13
+nav_order: 14
 ---
 
 # Short Term Income Protection

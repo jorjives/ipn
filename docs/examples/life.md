@@ -1,7 +1,7 @@
 ---
 title: Level Term Life
 parent: Examples
-nav_order: 11
+nav_order: 12
 ---
 
 # Level Term Life

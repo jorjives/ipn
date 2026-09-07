@@ -1,7 +1,7 @@
 ---
 title: Household
 parent: Examples
-nav_order: 6
+nav_order: 7
 ---
 
 # Household

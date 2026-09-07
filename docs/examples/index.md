@@ -23,6 +23,7 @@ commented with the arithmetic. The rest take the same language across the indust
 | [Cycle, several bikes](family.md) | Repeatable items on one policy |
 | [Cycle, ranked bikes](multibike.md) | Items rated in a chosen order; postcode and catalogue enrichment |
 | [Gadget, four countries](gadget.md) | One product, several territories, each with its own tax and currency |
+| [Cycle in Ireland](irish-cycle.md) | Several taxes on one premium and a fixed duty above a threshold |
 | [Home contents](home.md) | Specified items, an excess by cause of loss, the average clause |
 | [Buildings and contents](household.md) | Two optional sections sold as one policy with a bundle discount |
 | [Single-trip travel](travel.md) | Insuring people; a term ending on a date; sections in force on different days |

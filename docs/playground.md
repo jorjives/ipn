@@ -18,6 +18,7 @@ engine straight from the repository, so nothing you type leaves your machine.
 <option value="examples/family.idl">Cycle, several bikes</option>
 <option value="examples/multibike.idl">Cycle, ranked bikes</option>
 <option value="examples/gadget.idl">Gadget, four countries</option>
+<option value="examples/irish-cycle.idl">Cycle in Ireland</option>
 <option value="examples/home.idl">Home contents</option>
 <option value="examples/household.idl">Buildings and contents</option>
 <option value="examples/travel.idl">Single-trip travel</option>
