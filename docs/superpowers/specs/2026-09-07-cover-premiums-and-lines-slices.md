@@ -17,6 +17,8 @@ reference pages and the generated grammar table are updated in the same slice as
 
 ## Slice 1: Premium lines evaluated in order, with any base
 
+**Status:** ✅ Complete — 2026-09-07 — `4a2801c`
+
 **Scope:** `tax`, `fee` and `commission` become steps evaluated where they stand; `net`,
 `premium`, word-named taxes and cover names (whole net for now, as no shares exist yet) in
 scope for a line's expression; `N%` alone stays "of net"; claims and underwriter loads
@@ -40,6 +42,8 @@ inserted before the first line; `tax` inside `for each` with same-label lines su
 scenario in a template shows a surcharge on a tax on the quote.
 
 ## Slice 2: Premium attributed to covers with classes
+
+**Status:** ✅ Complete — 2026-09-07 — `4a2801c`
 
 **Scope:** `class` on a cover; `for <Cover>` on `base`, `add`, `factor`, `discount`, `load`;
 `allocate` key; shares carried through every step and rounded with the residue to the largest;
