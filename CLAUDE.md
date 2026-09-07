@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-iDeclare is a declarative language (`.idl` files) for defining insurance products end to end, plus a Python 3.12 sidecar engine that parses, evaluates and proves them. Standard library only; no dependencies.
+Open IDL (codename iDeclare; the Python package is still `ideclare`) is a declarative language (`.idl` files) for defining insurance products end to end, plus a Python 3.12 sidecar engine that parses, evaluates and proves them. Standard library only; no dependencies. Public site: https://jorjives.github.io/open-idl/ (repo `jorjives/open-idl`).
 
 The audience is insurance professionals, not developers. The DSL reads like English on purpose.
 
@@ -18,8 +18,14 @@ python3 -m unittest
 python3 -m unittest tests.test_engine
 python3 -m unittest tests.test_engine.TestRate.test_base_only
 
-# Check all example products pass their scenarios
-for f in examples/*.idl examples/versioned/*.idl; do python3 -m ideclare check "$f" | tail -1; done
+# Check all example products and templates pass their scenarios
+for f in examples/*.idl examples/versioned/*.idl templates/*.idl templates/versioned/*.idl; do python3 -m ideclare check "$f" | tail -1; done
+
+# Regenerate the site's example and template pages (tests.test_site fails if they are stale)
+python3 scripts/site_pages.py
+
+# Build the site locally with GitHub's own Pages image (Docker + gh); output in /tmp/oidl-out
+scripts/site_build.sh
 
 # Check one product
 python3 -m ideclare check examples/cycle.idl
@@ -63,6 +69,10 @@ Expressions are tuples: `("num", Decimal("3.5"))`, `("<", ("name", "rider_age"),
 
 ## Extending the language
 
-Pattern: write an example `.idl` product that needs the new feature → run its scenarios to find the gap → add parser support → add engine support → tests. One feature per commit. The language reference is `docs/reference.md`; keep it in sync.
+Pattern: write an example `.idl` product that needs the new feature → run its scenarios to find the gap → add parser support → add engine support → tests. One feature per commit. The language reference is `docs/reference/` (one page per block, plus `grammar.md`); keep it in sync.
 
-`docs/reference.md` § "Not yet supported" lists known gaps.
+`docs/reference/not-yet-supported.md` lists known gaps.
+
+## The website
+
+`docs/` is a Jekyll site published by GitHub Pages from `main` (Just the Docs remote theme, no build tooling in the repo). Hand-written pages: `index.md`, `getting-started.md`, `reference/*.md`, `cli.md`, `design.md`, `glossary.md`, `contributing.md`. Generated pages: `docs/examples/*.md` and `docs/templates/*.md`, written by `scripts/site_pages.py` from the `.idl` files; never edit them by hand. Fenced ```` ```idl ```` blocks are highlighted client-side by `docs/assets/js/idl.js`. Design decisions are in `docs/superpowers/specs/2026-09-07-website-design.md`.
