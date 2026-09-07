@@ -231,3 +231,58 @@ class ForFileNeighbours(ForFile):
             v1 = self.write(d, "bike-2026-01-01.idl", V1)
             self.write(d, "bike-2026-07-01.idl", V2.replace("base 100", "base banana"))
             self.assertEqual(len(History.for_file(v1).versions), 1)
+
+
+def bike(published: str, cover_extra: str = "", claim_extra: str = "") -> str:
+    return f'''product "Bike"
+  published {published}
+  term 12 months
+inputs
+  bike_value: money
+  racing: yes/no
+cover Theft
+  limit bike_value
+  excess 50
+{cover_extra}rating
+  base 100
+claims
+  claim Theft
+    pays claimed amount up to limit, less excess
+{claim_extra}'''
+
+
+class AmendmentsReachEarlierVersions(unittest.TestCase):
+    def test_a_later_dated_line_is_in_an_earlier_versions_wording(self):
+        h = History([parse(bike("2026-01-01")), parse(bike("2026-07-01", "  from 2027-03-01 excess 100\n  from 2027-03-01 excludes when racing is yes because \"Racing\"\n"))])
+        v1 = h.versions[0]
+        self.assertEqual(h.cover(v1, "Theft", date(2027, 1, 1)).excess.amount, ("num", Decimal(50)))
+        self.assertEqual(h.cover(v1, "Theft", date(2027, 4, 1)).excess.amount, ("num", Decimal(100)))
+        self.assertEqual([r.reason for r in h.cover(v1, "Theft", date(2027, 4, 1)).exclusions], ["Racing"])
+        self.assertEqual(h.cover(v1, "Theft", None).excess.amount, ("num", Decimal(50)))
+        self.assertIs(h.cover(v1, "Theft", date(2027, 4, 1)), h.cover(v1, "Theft", date(2027, 5, 1)))
+
+    def test_the_later_version_overrides_the_earlier_ones_dated_line(self):
+        h = History([parse(bike("2026-01-01", "  from 2027-03-01 excess 75\n")), parse(bike("2026-07-01", "  from 2027-03-01 excess 100\n"))])
+        self.assertEqual(h.cover(h.versions[0], "Theft", date(2027, 4, 1)).excess.amount, ("num", Decimal(100)))
+        self.assertEqual(h.cover(h.versions[1], "Theft", date(2027, 4, 1)).excess.amount, ("num", Decimal(100)))
+
+    def test_claim_rules_reach_back_too(self):
+        h = History([parse(bike("2026-01-01")), parse(bike("2026-07-01", claim_extra="    from 2027-03-01 requires lock_photo\n"))])
+        self.assertEqual(h.claim(h.versions[0], "Theft", date(2027, 4, 1)).requires, ["lock_photo"])
+        self.assertEqual(h.claim(h.versions[0], "Theft", date(2027, 1, 1)).requires, [])
+
+    def test_a_dated_line_in_words_an_earlier_version_lacks_is_an_error(self):
+        v2 = bike("2026-07-01", claim_extra="    asks\n      unlocked: yes/no\n    from 2027-03-01 decline when unlocked because \"Unlocked\"\n")
+        with self.assertRaises(ParseError) as cm:
+            History([parse(bike("2026-01-01")), parse(v2)])
+        self.assertEqual(str(cm.exception), "line 17: 'unlocked' is not known to the version published 2026-01-01, which this amendment reaches")
+
+    def test_a_cover_the_earlier_version_lacks_is_not_reached(self):
+        v2 = bike("2026-07-01") + "cover Racing\n  limit 100\n  from 2027-03-01 limit 200\n"
+        h = History([parse(bike("2026-01-01")), parse(v2)])
+        self.assertIsNone(h.cover(h.versions[0], "Racing", date(2027, 4, 1)))
+
+    def test_a_history_of_one_is_the_products_own_wording(self):
+        p = parse(bike("2026-01-01", "  from 2027-03-01 excess 100\n"))
+        h = History([p])
+        self.assertIs(h.cover(p, "Theft", date(2027, 4, 1)), p.cover("Theft", date(2027, 4, 1)))

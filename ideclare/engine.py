@@ -320,9 +320,16 @@ class Policy:
     def underwriter_load(self) -> Decimal:
         return self.underwriting.load if self.underwriting else Decimal(0)
 
+    def section(self, cover: str, on: date | None = None) -> Cover | None:
+        """The cover as worded for this policy on that date: its version's lines plus later versions' dated amendments."""
+        return self.versions.cover(self.product, cover, on) if self.versions is not None else self.product.cover(cover, on)
+
+    def rules(self, cover: str, on: date | None = None):
+        return self.versions.claim(self.product, cover, on) if self.versions is not None else self.product.claim(cover, on)
+
     def cover_state(self, cover: str, item: dict | None = None, on: date | None = None) -> CoverState:
         """The product's view of the cover for this risk as worded on that date, less anything the underwriter withdrew."""
-        state = cover_state(self.product, self.product.cover(cover, on), self.inputs, self.selected, item)
+        state = cover_state(self.product, self.section(cover, on), self.inputs, self.selected, item)
         if self.underwriting and cover in self.underwriting.excluded and state.status == "included":
             return CoverState(cover, "excluded", "underwriter terms")
         return state
@@ -530,7 +537,7 @@ class Policy:
 
     def remaining(self, cover: str, item: dict | None = None, facts: dict | None = None, on: date | None = None) -> Decimal | None:
         """What is left of an aggregate limit this term; None when the cover has no such limit."""
-        section = self.product.cover(cover, on)
+        section = self.section(cover, on)
         state = self.cover_state(cover, item, on)
         if not section.aggregate or state.limit is None:
             return None
@@ -540,7 +547,7 @@ class Policy:
 
     def reinstate(self, cover: str, on: date) -> Decimal:
         """Restores an eroded aggregate to its full amount; returns the additional premium for the rest of the term."""
-        section = self.product.cover(cover, on)
+        section = self.section(cover, on)
         if section.reinstatement is None:
             raise ValueError(f"{cover} has no reinstatement")
         if cover in self.reinstated:
@@ -551,7 +558,7 @@ class Policy:
 
     def excess_remaining(self, cover: str, on: date | None = None) -> Decimal | None:
         """What the insured still has to bear of an aggregate excess this term; None when the excess is per claim."""
-        section = self.product.cover(cover, on)
+        section = self.section(cover, on)
         if not section.excess.aggregate:
             return None
         ctx = context(self.product, self.inputs, self.selected)
@@ -567,13 +574,13 @@ class Policy:
 
     def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None, facts: dict | None = None) -> "ClaimResult":
         facts = facts or {}
-        rules = self.product.claim(cover, on)  # the wording in force at the loss
+        rules = self.rules(cover, on)  # the wording in force at the loss
         if rules is None:
             return ClaimResult("declined", reason=f"claims on {cover} are not declared")
         status = self.status(on)
         if status != "live":
             return ClaimResult("declined", reason=f"policy was {status} on {on.isoformat()}")
-        section = self.product.cover(cover, on)
+        section = self.section(cover, on)
         if section.item and item is None:
             return ClaimResult("declined", reason=f"{cover} is per {section.item}; say which {section.item} the claim is on")
         state = self.cover_state(cover, item, on)

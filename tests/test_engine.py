@@ -1214,3 +1214,16 @@ class DatedWording(unittest.TestCase):
         pol = self.policy(racing=True)
         self.assertEqual(pol.cover_state("Theft").status, "included")
         self.assertEqual(pol.cover_state("Theft", on=date(2027, 1, 1)).status, "excluded")
+
+
+class AmendmentsAcrossVersions(unittest.TestCase):
+    def test_a_policy_on_the_old_version_is_settled_with_the_later_amendment(self):
+        from tests.test_versions import bike
+        h = History([parse(bike("2026-01-01")), parse(bike("2026-07-01", "  from 2027-03-01 excess 100\n", "    from 2027-03-01 requires lock_photo\n"))])
+        pol = Policy(h.versions[1], {"bike_value": Decimal(2000), "racing": False}, set(), history=h)
+        pol.bind(date(2026, 6, 1))
+        self.assertIs(pol.product, h.versions[0])
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 2, 1), date(2027, 2, 1), set()).amount, Decimal(950))
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 4, 1), date(2027, 4, 1), set()).reason, "lock_photo is required")
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 4, 1), date(2027, 4, 1), {"lock_photo"}).amount, Decimal(900))
+        self.assertEqual(pol.cover_state("Theft", on=date(2027, 4, 1)).status, "included")

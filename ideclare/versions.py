@@ -13,17 +13,37 @@ from datetime import date
 from decimal import Decimal
 
 from .expr import evaluate, names
-from .model import Input, Product, Upgrade
+from .model import ClaimRule, Cover, Input, Product, Upgrade
 from .parser import ParseError, known_words, parse, unquote
 
 
 class History:
     def __init__(self, products: list[Product]):
         self.versions = sorted(products, key=lambda p: p.published or date.min)
+        self._wordings: dict = {}  # (version index, kind, name) -> a Cover or ClaimRule carrying every version's dated lines
         for earlier, later in zip(self.versions, self.versions[1:]):
             if earlier.published == later.published:
                 raise ParseError(f"two versions of {later.name} are published {later.published}")
             check_upgrade(earlier, later)
+        for i, version in enumerate(self.versions):
+            check_amendments(version, self.versions[i + 1:])
+
+    def cover(self, version: Product, name: str, on: date | None) -> Cover | None:
+        """The cover as worded for a policy on this version on that date: the version's own lines plus
+        every dated line later versions added, later ones overriding. None if the version has no such cover."""
+        return self.wording(version, "cover", name, on)
+
+    def claim(self, version: Product, name: str, on: date | None) -> ClaimRule | None:
+        return self.wording(version, "claim", name, on)
+
+    def wording(self, version: Product, kind: str, name: str, on: date | None):
+        own = version.cover(name) if kind == "cover" else version.claim(name)
+        if own is None:
+            return None
+        key = (self.versions.index(version), kind, name)
+        if key not in self._wordings:
+            self._wordings[key] = merged(own, [v for v in self.versions[key[0] + 1:]], kind, name)
+        return self._wordings[key].as_of(on)
 
     @classmethod
     def for_file(cls, path: str) -> "History":
@@ -61,6 +81,42 @@ class History:
         for earlier, later in zip(self.versions[start:end], self.versions[start + 1:end + 1]):
             answers, needs = upgrade_step(answers, earlier, later)
         return answers, needs
+
+
+def merged(own, later_versions: list[Product], kind: str, name: str):
+    """A wording that carries the version's own lines and the dated lines of every later version. The
+    version's own build reads them, so the words must be ones it knows."""
+    if not later_versions:
+        return own
+    lines = list(own.lines)
+    for later in later_versions:
+        block = later.cover(name) if kind == "cover" else later.claim(name)
+        lines += [d for d in block.lines if d.dated] if block is not None else []
+    if lines == own.lines:
+        return own
+    fresh = Cover(own.name, own.optional) if kind == "cover" else ClaimRule(own.cover, asks=own.asks)
+    fresh.__dict__.update({k: v for k, v in own.__dict__.items() if k not in ("lines", "build", "_windows")})  # the undated wording is the version's own
+    fresh.lines, fresh.build = lines, own.build
+    return fresh
+
+
+def check_amendments(version: Product, later_versions: list[Product]) -> None:
+    """Every dated line a later version adds must read in this version's words, because it reaches it."""
+    for later in later_versions:
+        for kind, blocks in (("cover", {c.name: c for c in later.covers}), ("claim", later.claims)):
+            for name, block in blocks.items():
+                own = version.cover(name) if kind == "cover" else version.claim(name)
+                if own is None or not any(d.dated for d in block.lines):
+                    continue
+                for d in block.lines:
+                    if not d.dated:
+                        continue
+                    try:
+                        own.build([l for l in own.lines if not l.dated] + [d])
+                    except ParseError as e:
+                        word = str(e).split("unknown word ")[-1].split(" ")[0] if "unknown word" in str(e) else None
+                        detail = f"{word} is not known to" if word else f"{str(e).split(': ', 1)[-1]}; it does not read in"
+                        raise ParseError(f"line {d.line.number}: {detail} the version published {version.published}, which this amendment reaches")
 
 
 def load(path: str) -> Product:
