@@ -74,6 +74,8 @@ Damage and Racing each with their net and IPT, and class subtotals 3 and 9.
 
 ## Slice 3: Covers that price themselves
 
+**Status:** ✅ Complete — 2026-09-07 — `4bb9050`
+
 **Scope:** `premium <expression> [when ...]` and a `premium` block on a cover; `add cover
 premiums` (once, outside or inside `for each`); per-item cover premiums from item fields;
 unselected or excluded covers have no premium; parse errors for lines or loops inside a
