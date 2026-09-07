@@ -1,3 +1,22 @@
+---
+title: Cycle Cover
+parent: Examples
+nav_order: 1
+---
+
+# Cycle Cover
+
+Cycle Cover: a worked example exercising every part of the Open IDL language.
+
+{: .proof }
+> 35 scenarios, all passing. Run them yourself:
+> ```sh
+> python3 -m ideclare check examples/cycle.idl
+> ```
+
+The file: [`examples/cycle.idl`](https://github.com/jorjives/open-idl/blob/main/examples/cycle.idl).
+
+```idl
 # Cycle Cover: a worked example exercising every part of the Open IDL language.
 # Run it with:  python3 -m ideclare check examples/cycle.idl
 
@@ -339,3 +358,4 @@ scenario "Depreciation: an older bike is settled at 85% before the excess"
   when claim Theft for 1500 on 2026-03-01 with police_report, crime_reference
   # 1500 x 0.85 = 1275, less 10% of 1500
   expect payout 1125.00
+```

@@ -1,0 +1,171 @@
+---
+title: Mortality Rated Term Life
+parent: Examples
+nav_order: 12
+---
+
+# Mortality Rated Term Life
+
+Term Life rated from a mortality curve. The actuary supplies the annual death rate per 1,000 lives at five-year ages; the product reads the rate off that curve for any age, interpolating geometrically because mortality grows by a ratio, not by a fixed amount, between knots. A BMI loading is a power law, a large-sum discount decays exponentially, and the expense loading is interpolated linearly because expenses are additive.
+
+{: .proof }
+> 11 scenarios, all passing. Run them yourself:
+> ```sh
+> python3 -m ideclare check examples/mortality.idl
+> ```
+
+The file: [`examples/mortality.idl`](https://github.com/jorjives/open-idl/blob/main/examples/mortality.idl).
+
+```idl
+# Term Life rated from a mortality curve. The actuary supplies the annual death rate
+# per 1,000 lives at five-year ages; the product reads the rate off that curve for
+# any age, interpolating geometrically because mortality grows by a ratio, not by a
+# fixed amount, between knots. A BMI loading is a power law, a large-sum discount
+# decays exponentially, and the expense loading is interpolated linearly because
+# expenses are additive.
+# Run it with:  python3 -m ideclare check examples/mortality.idl
+
+product "Mortality Rated Term Life"
+  territory UK
+  term term_years years
+
+inputs
+  age: integer
+  sum_assured: money
+  term_years: integer
+  smoker: yes/no
+  height_cm: number
+  weight_kg: number
+  bmi: calculated
+    base weight_kg / ( height_cm / 100 * height_cm / 100 )
+
+# Annual deaths per 1,000 lives at each knot age. Between knots the rate is
+# interpolated geometrically: at 42 a non-smoker is 1.30 x (2.05 / 1.30) ^ 0.4 = 1.5598,
+# where a straight line would give 1.60.
+table "Mortality" keyed on age, smoker
+  age, smoker, rate
+  25, no, 0.55
+  30, no, 0.65
+  35, no, 0.85
+  40, no, 1.30
+  45, no, 2.05
+  50, no, 3.30
+  55, no, 5.40
+  60, no, 8.90
+  65, no, 14.50
+  25, yes, 1.05
+  30, yes, 1.25
+  35, yes, 1.65
+  40, yes, 2.50
+  45, yes, 3.90
+  50, yes, 6.30
+  55, yes, 10.30
+  60, yes, 16.90
+  65, yes, 27.50
+
+# The annual cost of administering a policy, interpolated linearly on sum assured.
+table "Expenses" keyed on sum_assured
+  sum_assured, expense
+  50000, 40
+  100000, 60
+  250000, 100
+  500000, 150
+
+eligibility
+  decline when age < 25 because "Applicants must be 25 or over"
+  decline when age > 65 because "Applicants must be 65 or under"
+  decline when age + term_years > 80 because "Cover must end before age 80"
+  decline when sum_assured < 50000 or sum_assured > 500000 because "Sum assured must be between 50,000 and 500,000"
+  decline when bmi >= 40 because "BMI is outside the range we can insure"
+
+cover Death
+  limit sum_assured
+
+rating
+  # Rate per 1,000 off the curve, times the sum assured in thousands.
+  base sum_assured / 1000 * round ( rate from "Mortality" interpolated geometrically on age , 0.0001 )
+  # A power law: the loading is the square of the BMI's excess over 25 as a ratio, so 30 is x 1.44 and 35 is x 1.96.
+  factor "BMI" x round ( ( bmi / 25 ) ^ 2 , 0.0001 ) when bmi > 25
+  # Exponential decay: a larger sum earns a discount that flattens out.
+  factor "Sum assured" x round ( exp ( - 0.1 * sum_assured / 500000 ) , 0.0001 )
+  add "Expenses" expense from "Expenses" interpolated on sum_assured
+  minimum 100
+
+lifecycle
+  cooling off 30 days, full refund
+  cancellation by customer: no refund
+  adjustment: not allowed
+  lapse when unpaid after 60 days
+  renewal: none
+
+claims
+  claim Death
+    requires death_certificate
+    pays sum_assured
+
+# --- Reading the curve ---------------------------------------------------------
+# 100,000 at 40 non-smoker: 100 x 1.30 = 130.00, x 0.9802 = 127.426, + 60 = 187.43.
+
+scenario "On a knot the rate is the table's own"
+  given age 40, sum_assured 100000, term_years 20, smoker no, height_cm 180, weight_kg 71.28
+  expect eligible
+  expect factor "Sum assured" x 0.9802
+  expect net 187.43
+  expect premium 187.43
+
+scenario "Between knots the rate is interpolated geometrically"
+  # 100 x 1.5598 = 155.98, x 0.9802 = 152.8916, + 60 = 212.89
+  given age 42, sum_assured 100000, term_years 20, smoker no, height_cm 180, weight_kg 71.28
+  expect premium 212.89
+
+scenario "The other key picks the smoker curve"
+  # 2.50 x (3.90 / 2.50) ^ 0.4 = 2.9867; 298.67 x 0.9802 = 292.7563 + 60 = 352.76
+  given age 42, sum_assured 100000, term_years 20, smoker yes, height_cm 180, weight_kg 71.28
+  expect premium 352.76
+
+scenario "The top of the curve, one year short of the last knot"
+  # 16.90 x (27.50 / 16.90) ^ 0.8 = 24.9484; 2494.84 x 0.9802 = 2445.4422 + 60 = 2505.44
+  given age 64, sum_assured 100000, term_years 10, smoker yes, height_cm 180, weight_kg 71.28
+  expect premium 2505.44
+
+scenario "Beyond the curve the risk is declined, never extrapolated"
+  given age 66, sum_assured 100000, term_years 10, smoker no, height_cm 180, weight_kg 71.28
+  expect declined "Applicants must be 65 or under"
+
+scenario "Below the curve likewise"
+  given age 24, sum_assured 100000, term_years 10, smoker no, height_cm 180, weight_kg 71.28
+  expect declined "Applicants must be 25 or over"
+
+# --- Formulas ------------------------------------------------------------------
+
+scenario "The BMI loading is a power law"
+  # 120 / 2 squared = 30; (30 / 25) ^ 2 = 1.44; 130 x 1.44 = 187.20, x 0.9802 = 183.49344 + 60 = 243.49
+  given age 40, sum_assured 100000, term_years 20, smoker no, height_cm 200, weight_kg 120
+  expect factor "BMI" x 1.4400
+  expect premium 243.49
+
+scenario "The large sum discount decays exponentially"
+  # exp(-0.1) = 0.9048; 500 x 1.30 = 650, x 0.9048 = 588.12 + 150 = 738.12
+  given age 40, sum_assured 500000, term_years 20, smoker no, height_cm 180, weight_kg 71.28
+  expect factor "Sum assured" x 0.9048
+  expect premium 738.12
+
+scenario "Expenses are interpolated linearly on the sum assured"
+  # 175,000 is halfway from 100,000 (60) to 250,000 (100): 80. 227.50 x 0.9656 = 219.674 + 80 = 299.67
+  given age 40, sum_assured 175000, term_years 20, smoker no, height_cm 180, weight_kg 71.28
+  expect premium 299.67
+
+scenario "A small policy is held at the minimum premium"
+  # 50 x 0.55 = 27.50, x 0.9900 = 27.225 + 40 = 67.23, raised to 100
+  given age 25, sum_assured 50000, term_years 20, smoker no, height_cm 180, weight_kg 71.28
+  expect net 100.00
+  expect premium 100.00
+
+# --- The benefit -------------------------------------------------------------------
+
+scenario "Death pays the sum assured"
+  given age 42, sum_assured 100000, term_years 20, smoker no, height_cm 180, weight_kg 71.28
+  when bound on 2026-01-01
+  when claim Death for 100000 on 2030-06-01 with death_certificate
+  expect payout 100000.00
+```

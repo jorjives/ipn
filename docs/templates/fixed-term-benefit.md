@@ -1,0 +1,104 @@
+---
+title: Fixed-term benefit
+parent: Templates
+nav_order: 3
+---
+
+# Fixed-term benefit
+
+Fixed-term benefit: a sum paid on an event rather than a loss made good, over a term of years the customer chooses, with no renewal and no mid-term change. Level term life is the usual case; the same shape fits critical illness or a funeral plan. Copy this file and replace the questions, the rating and the event.
+
+{: .proof }
+> 6 scenarios, all passing, so the template is a working product before you change a line.
+
+Copy [`templates/fixed-term-benefit.idl`](https://github.com/jorjives/open-idl/blob/main/templates/fixed-term-benefit.idl), rename the product, and replace each
+block as the comments direct. Keep `check` passing as you go.
+
+```idl
+# Fixed-term benefit: a sum paid on an event rather than a loss made good, over a term of
+# years the customer chooses, with no renewal and no mid-term change. Level term life is the
+# usual case; the same shape fits critical illness or a funeral plan. Copy this file and
+# replace the questions, the rating and the event.
+# Run it with:  python3 -m ideclare check templates/fixed-term-benefit.idl
+
+product "Fixed Term Benefit"
+  territory UK
+  term term_years years       # the term is an answer the customer gives
+
+inputs
+  age: integer
+  smoker: yes/no
+  sum_assured: money
+  term_years: integer
+
+eligibility
+  decline when age < 18 because "Applicants must be 18 or over"
+  decline when age + term_years > 75 because "Cover must end by age 75"
+  refer when sum_assured > 500000 because "Sums assured over 500,000 need underwriting"
+
+cover Death
+  limit sum_assured
+
+rating                        # an annual premium; life cover carries no tax, so there is no tax line
+  base sum_assured / 1000 * 1.20
+  factor "Age"
+    age < 30: x 0.80
+    age < 45: x 1.00
+    age < 60: x 1.60
+    otherwise: x 2.50
+  load 50% when smoker is yes
+  minimum 60
+  round to 0.01
+
+lifecycle
+  cooling off 30 days, full refund
+  cancellation by customer: refund pro rata
+  adjustment: not allowed     # the premium is guaranteed for the term
+  renewal: none               # the policy simply ends
+
+claims
+  claim Death
+    asks                      # facts only known when the claim is made
+      cause: choice of natural, accident, suicide
+    requires death_certificate
+    pays sum_assured          # a fixed benefit
+    decline when cause is suicide and within 12 months of inception because "Suicide within the first year is excluded"
+
+# --- Scenarios ---------------------------------------------------------------
+
+scenario "A non-smoker of 35 is priced for twenty years"
+  given age 35, smoker no, sum_assured 100000, term_years 20
+  expect eligible
+  # 100,000 / 1,000 x 1.20 = 120, x 1.00 age
+  expect premium 120.00
+  when bound on 2026-01-01
+  expect expiry 2046-01-01
+
+scenario "A smoker pays the loading"
+  given age 35, smoker yes, sum_assured 100000, term_years 20
+  expect premium 180.00
+
+scenario "Cover must end by 75"
+  given age 60, smoker no, sum_assured 100000, term_years 20
+  expect declined "Cover must end by age 75"
+
+scenario "Death pays the sum assured"
+  given age 35, smoker no, sum_assured 100000, term_years 20
+  when bound on 2026-01-01
+  when claim Death on 2030-03-01 with death_certificate, cause natural
+  expect claim paid
+  expect payout 100000.00
+
+scenario "Suicide in the first year is declined"
+  given age 35, smoker no, sum_assured 100000, term_years 20
+  when bound on 2026-01-01
+  when claim Death on 2026-06-01 with death_certificate, cause suicide
+  expect claim declined "Suicide within the first year is excluded"
+
+scenario "There is no renewal and no mid-term change"
+  given age 35, smoker no, sum_assured 100000, term_years 20
+  when bound on 2026-01-01
+  expect renewal declined "The policy is not renewable"
+  when adjusted on 2027-01-01 with sum_assured 200000
+  expect refused
+```
