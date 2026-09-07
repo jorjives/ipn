@@ -110,7 +110,7 @@ def parse_product_header(line: Line, product: Product) -> None:
 
 
 def parse_inputs(line: Line, product: Product) -> None:
-    product.inputs.update(parse_input_lines(line.children))
+    product.inputs.update(parse_input_lines(line.children, product))
     for coll in product.collections:
         clash = set(coll.fields) & (set(product.inputs) - {coll.name})
         if clash:
@@ -132,7 +132,7 @@ def calculated_steps(line: Line, product: Product) -> list[RatingStep]:
     return parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS, where="in a calculated field")
 
 
-def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Input]:
+def parse_input_lines(lines: list[Line], product: Product, nested: bool = False) -> dict[str, Input]:
     inputs = {}
     for child in lines:
         toks = tokens(child)
@@ -142,12 +142,19 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
         if len(toks) >= 6 and toks[-3:-1] == [",", "default"]:
             default, toks = toks[-1], toks[:-3]
         name, kind = toks[0], toks[2]
-        if kind == "choice":
+        if kind == "choice" and toks[3:4] == ["of"] and toks[5:6] == ["from"] and toks[6:7] and toks[6].startswith('"'):
+            table, keys = unquote(toks[6]), toks[7:]
+            if keys and (keys[0] != "for" or len(keys) < 2):
+                raise child.error("expected 'for <input>, ...'")
+            if table in product.tables:
+                raise child.error(f"{name} draws on table {table!r}, which must be declared after it")
+            inputs[name] = Input(name, "choice", source=(table, toks[4], [t for t in keys[1:] if t != ","]))
+        elif kind == "choice":
             if len(toks) < 5 or toks[3] != "of":
                 raise child.error("expected 'choice of a, b, c'")
             inputs[name] = Input(name, "choice", [unquote(t) for t in toks[4:] if t != ","])
         elif kind == "collection" and not nested:
-            inputs[name] = parse_collection(child, name, toks[3:])
+            inputs[name] = parse_collection(child, name, toks[3:], product)
         elif kind in INPUT_KINDS and len(toks) == 3:
             inputs[name] = Input(name, kind)
         elif kind == "calculated" and len(toks) == 3:
@@ -155,7 +162,7 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
         else:
             raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
         if default is not None:
-            inputs[name].default = given_value(child, inputs[name], default)
+            inputs[name].default = unquote(default) if inputs[name].source else given_value(child, inputs[name], default)  # a sourced default is checked when its table is read
         inputs[name].line = child.number
     return inputs
 
@@ -165,11 +172,11 @@ def with_defaults(inputs: dict[str, Input], given: dict) -> dict:
     return {**{n: i.default for n, i in inputs.items() if i.default is not None}, **given}
 
 
-def parse_collection(line: Line, name: str, toks: list[str]) -> Input:
+def parse_collection(line: Line, name: str, toks: list[str], product: Product) -> Input:
     """collection of bike[, 1 to 5 | , at least 1 | , at most 5] with the item's fields indented below."""
     if toks[:1] != ["of"] or len(toks) < 2:
         raise line.error("expected 'collection of <item name>'")
-    coll = Input(name, "collection", singular=toks[1], fields=parse_input_lines(line.children, nested=True))
+    coll = Input(name, "collection", singular=toks[1], fields=parse_input_lines(line.children, product, nested=True))
     bounds = toks[2:]
     if bounds[:1] == [","]:
         bounds = bounds[1:]
@@ -792,7 +799,7 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
     rule_ = ClaimRule(name)
     for child in line.children:  # facts first, so the other lines can use them
         if tokens(child) == ["asks"]:
-            rule_.asks = parse_input_lines(child.children, nested=True)
+            rule_.asks = parse_input_lines(child.children, product, nested=True)
             for f in rule_.asks.values():
                 if f.kind in ("calculated", "collection") or f.name in known_words(product):
                     raise child.error(f"{f.name!r} cannot be asked in a claim; it is already known or not a plain type")
@@ -1008,7 +1015,7 @@ def parse_enrichment(line: Line, product: Product) -> None:
     for child in line.children:
         ctoks = tokens(child)
         if ctoks == ["provides"]:
-            e.provides = parse_input_lines(child.children, nested=True)
+            e.provides = parse_input_lines(child.children, product, nested=True)
             for f in e.provides.values():
                 if f.kind == "calculated":
                     raise child.error("an enrichment provides plain fields, not calculated ones")
@@ -1138,12 +1145,22 @@ def parse_table(line: Line, product: Product) -> None:
     if rest[:2] != ["keyed", "on"]:
         raise line.error("expected 'keyed on <input>, ...'")
     keys = [t for t in fold_phrases(rest[2:]) if t != ","]
+    sources = [(inp, fields) for inp, fields in product.choice_inputs() if inp.source[0] == name]
+    for inp, fields in sources:
+        for k in inp.source[2]:
+            if k not in fields:
+                raise line.error(f"unknown input {k!r}; a choice's keys must be inputs")
+        for k in [inp.source[1]] + inp.source[2]:
+            if k not in keys:
+                raise line.error(f"{k!r} is not a key of {name}; keys are {', '.join(keys)}")
+    listed = {inp.source[1] for inp, _ in sources}  # key columns a choice lists: read as text, their choices filled below
     kinds = {}
     for k in keys:
         inp = find_input(product, k)
         if inp is None:
             raise line.error(f"unknown input {k!r}; table keys must be inputs")
-        kinds[k] = inp.choices if inp.kind == "choice" else inp.kind
+        if k not in listed:
+            kinds[k] = inp.choices if inp.kind == "choice" else inp.kind
     if path is not None and line.children:
         raise line.error("a table comes from a file or from the rows below it, not both")
     if path is not None:
@@ -1155,9 +1172,13 @@ def parse_table(line: Line, product: Product) -> None:
     else:
         rows = [c.text for c in line.children]
     try:
-        product.tables[name] = load_table(name, keys, rows, line.number, kinds)
+        product.tables[name] = load_table(name, keys, rows, line.number, kinds, text_columns=listed, allow_no_values=bool(sources))
     except TableError as e:
         raise line.error(str(e))
+    for inp, _ in sources:
+        inp.choices = product.tables[name].values_for(inp.source[1], [], {})
+        if inp.default is not None and inp.default not in inp.choices:
+            raise line.error(f"{inp.name} cannot default to {inp.default!r}")
 
 
 BLOCKS = {
@@ -1224,6 +1245,9 @@ def parse(text: str, base: str = ".") -> Product:
         raise ParseError("empty file: expected product \"Name\"")
     for work in product.deferred:
         work()
+    for inp, _ in product.choice_inputs():
+        if inp.source[0] not in product.tables:
+            raise ParseError(f"line {inp.line}: {inp.name} draws on table {inp.source[0]!r}, which is not declared")
     product.parsing = False
     check_cover_premiums(product)
     unknown = names(product.term[0]) - set(product.inputs)

@@ -22,6 +22,7 @@ class Input:
     name: str
     kind: str  # money | integer | number | text | yes/no | choice | collection
     choices: list[str] = field(default_factory=list)
+    source: tuple[str, str, list[str]] | None = None  # (table, column, keys) when the choices come from a table
     # collection only
     singular: str = ""
     fields: dict[str, "Input"] = field(default_factory=dict)
@@ -87,6 +88,15 @@ class Product:
 
     def collection_for(self, singular: str) -> "Input | None":
         return next((c for c in self.collections if c.singular == singular), None)
+
+    def choice_inputs(self):
+        """Every input whose choices come from a table, with the fields its keys may name."""
+        for inp in self.inputs.values():
+            if inp.source:
+                yield inp, self.inputs
+            for f in inp.fields.values():
+                if f.source:
+                    yield f, {**self.inputs, **inp.fields}
 
 
 @dataclass

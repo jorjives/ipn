@@ -1289,3 +1289,72 @@ class QuotedChoices(unittest.TestCase):
     def test_default_may_be_a_quoted_value(self):
         p = parse('product "X"\n  territory UK\n\ninputs\n  industry: choice of construction, "Health & Social Care", default "Health & Social Care"\n')
         self.assertEqual(p.inputs["industry"].default, "Health & Social Care")
+
+
+OCC_CSV = ['industry,occupation,occupation_class,rate',
+           'construction,Site manager,2,1.25',
+           'construction,Labourer,4,2',
+           '"Health & Social Care",Nurse,3,1.6']
+
+
+def occupations(body: str) -> str:
+    """A product whose inputs are `body`, with an Occupations table after them."""
+    return 'product "X"\n  territory UK\n\n' + body + '\ntable "Occupations" keyed on industry, occupation\n' + "".join(f"  {l}\n" for l in OCC_CSV)
+
+
+class ChoiceFromTable(unittest.TestCase):
+    def test_values_come_from_the_column(self):
+        p = parse(occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: choice of occupation from "Occupations" for industry\n'))
+        self.assertEqual(p.inputs["industry"].choices, ["construction", "Health & Social Care"])
+        self.assertEqual(p.inputs["industry"].source, ("Occupations", "industry", []))
+        self.assertEqual(p.inputs["occupation"].source, ("Occupations", "occupation", ["industry"]))
+        self.assertEqual(p.inputs["occupation"].choices, ["Site manager", "Labourer", "Nurse"])
+
+    def test_item_fields_may_draw_on_a_table(self):
+        p = parse(occupations('inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n'))
+        self.assertEqual(p.inputs["people"].fields["occupation"].choices, ["Site manager", "Labourer", "Nurse"])
+
+    def test_bare_and_quoted_values_are_expression_words(self):
+        p = parse(occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: text\n') + 'eligibility\n  decline when industry is construction or industry is "Health & Social Care" because "x"\n')
+        self.assertEqual(len(p.eligibility), 1)
+
+    def test_default_is_checked_against_the_list(self):
+        p = parse(occupations('inputs\n  industry: choice of industry from "Occupations", default construction\n  occupation: text\n'))
+        self.assertEqual(p.inputs["industry"].default, "construction")
+        with self.assertRaisesRegex(ParseError, "line 8: industry cannot default to 'farming'"):
+            parse(occupations('inputs\n  industry: choice of industry from "Occupations", default farming\n  occupation: text\n'))
+
+    def test_table_never_declared(self):
+        with self.assertRaisesRegex(ParseError, "line 5: industry draws on table 'Occupations', which is not declared"):
+            parse('product "X"\n  territory UK\n\ninputs\n  industry: choice of industry from "Occupations"\n')
+
+    def test_table_declared_before_the_input(self):
+        text = ('product "X"\n  territory UK\n\ninputs\n  x: money\n\ntable "T" keyed on x\n  x, r\n  1, 2\n\ncover Loss\n  limit 100\n\n'
+                'claims\n  claim Loss\n    asks\n      why: choice of x from "T"\n    pays claimed amount\n')
+        with self.assertRaisesRegex(ParseError, "line 17: why draws on table 'T', which must be declared after it"):
+            parse(text)
+
+    def test_column_must_be_a_key(self):
+        with self.assertRaisesRegex(ParseError, "line 8: 'rate' is not a key of Occupations; keys are industry, occupation"):
+            parse(occupations('inputs\n  industry: choice of rate from "Occupations"\n  occupation: text\n'))
+
+    def test_key_must_be_an_input(self):
+        with self.assertRaisesRegex(ParseError, "unknown input 'sector'; a choice's keys must be inputs"):
+            parse(occupations('inputs\n  industry: text\n  occupation: choice of occupation from "Occupations" for sector\n'))
+
+    def test_bad_form(self):
+        with self.assertRaisesRegex(ParseError, "expected 'for <input>, ...'"):
+            parse(occupations('inputs\n  industry: text\n  occupation: choice of occupation from "Occupations" by industry\n'))
+
+    def test_list_only_table_needs_no_value_column(self):
+        p = parse('product "X"\n  territory UK\n\ninputs\n  industry: choice of industry from "Industries"\n\ntable "Industries" keyed on industry\n  industry\n  construction\n  farming\n')
+        self.assertEqual(p.inputs["industry"].choices, ["construction", "farming"])
+
+    def test_wildcard_in_a_choice_column(self):
+        with self.assertRaisesRegex(ParseError, r"Industries row 3: '\*' is not a value; industry lists choices"):
+            parse('product "X"\n  territory UK\n\ninputs\n  industry: choice of industry from "Industries"\n\ntable "Industries" keyed on industry\n  industry\n  construction\n  *\n')
+
+    def test_a_table_keyed_on_a_sourced_choice_still_checks_its_other_keys(self):
+        with self.assertRaisesRegex(ParseError, "'platinum' is not one of bronze, silver"):
+            parse(occupations('inputs\n  security: choice of bronze, silver\n  industry: choice of industry from "Occupations"\n  occupation: text\n')
+                  + 'table "Other" keyed on industry, security\n  industry, security, rate\n  construction, platinum, 1\n')
