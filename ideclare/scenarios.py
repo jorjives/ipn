@@ -241,8 +241,9 @@ class Run:
         if handler is not None:
             handler(step, toks[1:])
         elif toks[0] in self.product.inputs and len(toks) == 2:  # expect <input> <value>: an answer as the policy holds it
-            expected = given_value(Line(step.line, 0, ""), self.product.inputs[toks[0]], toks[1])
-            self.check(step, toks[0], show(expected), show(self.policy.inputs.get(toks[0])))
+            expected, actual = given_value(Line(step.line, 0, ""), self.product.inputs[toks[0]], toks[1]), self.policy.inputs.get(toks[0])
+            if expected != actual:  # numbers compare as numbers: 2100 is 2100.00
+                self.fail(step.line, f"expected {toks[0]} {show(expected)}, got {show(actual)}")
         else:
             raise ValueError("unknown expectation")
 
