@@ -123,7 +123,7 @@ def load(path: str) -> Product:
     try:
         return parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
     except ParseError as e:
-        raise ParseError(f"{os.path.basename(path)}: {e}")
+        raise ParseError(f"{path}: {e}")
 
 
 def header(path: str) -> tuple[str | None, date | None]:

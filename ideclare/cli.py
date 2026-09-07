@@ -23,7 +23,7 @@ def check(path: str) -> int:
         history = History.for_file(path)
         product = history.versions[-1]  # the file itself: its history is the versions published before it
     except ParseError as e:
-        print(f"{path}: {e}")
+        print(e)  # the history names the file, which may be a sibling version
         return 1
     results = run_all(product, history)
     for r in results:

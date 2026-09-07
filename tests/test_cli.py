@@ -137,3 +137,14 @@ scenario "renews onto this version"
             code, out = run("check", v2)
         self.assertEqual(code, 1)
         self.assertIn("mileage is new in the version published 2026-07-01", out)
+
+
+class CheckErrors(unittest.TestCase):
+    def test_a_parse_error_names_the_file_once_as_given(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "bad.idl")
+            with open(path, "w") as f:
+                f.write('product "X"\n  territory UK\n\ninputs\n  age: integer\n\nrating\n  base 10 when agee < 25\n')
+            code, out = run("check", path)
+        self.assertEqual(code, 1)
+        self.assertEqual(out, f"{path}: line 8: unknown word 'agee'\n")
