@@ -34,8 +34,8 @@ except that a block which names something must come after the block that declare
 | [`enrichment`](enrichment.md) | the shape of external lookups (postcode risk, a vehicle catalogue) the product depends on |
 | [`table`](table.md) | rating tables in long CSV form, inline or from a file, with bands, wildcards and interpolation |
 | [`eligibility`](eligibility.md) | who is declined and who is referred to an underwriter |
-| [`cover`](cover.md) | each section of cover: limit, excess, exclusions, optionality, aggregates, dates in force |
-| [`rating`](rating.md) | the premium calculation, step by step, in the order written |
+| [`cover`](cover.md) | each section of cover: limit, excess, exclusions, optionality, aggregates, dates in force, its class and its own premium |
+| [`rating`](rating.md) | the premium calculation, step by step, in the order written; tax, fee and commission lines on any base; the net split by cover |
 | [`lifecycle`](lifecycle.md) | cooling off, cancellation, mid-term adjustment, lapse, instalments and renewal |
 | [`claims`](claims.md) | what a claim needs, how it is settled, and what a paid claim changes |
 | [`scenario`](scenarios.md) | a proof: answers, events in order, and what must be true after each |

@@ -224,11 +224,12 @@ language was added because one of them needed it.
 | [Light commercial vehicle]({{ site.baseurl }}/examples/van/) | A three-dimensional rating table owned as a spreadsheet |
 | [Gadget in four countries]({{ site.baseurl }}/examples/gadget/) | One product, several territories, each with its own tax and currency |
 | [Cycle leasing scheme]({{ site.baseurl }}/examples/leasing/) | A group policy whose members join and leave all year |
+| [E-bike fleet]({{ site.baseurl }}/examples/ebike-fleet/) | Fire cover priced on the e-bikes only, a levy on that alone, and every figure split by cover class for the regulator |
 
 </div>
 
-And [five more]({{ site.baseurl }}/examples/), including a product across three published
-versions.
+And [six more]({{ site.baseurl }}/examples/), including a product across three published
+versions and the Irish levies on a cycle policy.
 
 ## Three commands
 
