@@ -42,8 +42,8 @@ engine straight from the repository, so nothing you type leaves your machine.
 <button id="pg-run" class="btn btn-primary" disabled>Check</button>
 <span id="pg-status" class="status" aria-live="polite">Loading the engine...</span>
 </div>
-<textarea id="pg-src" spellcheck="false" aria-label="Product source"></textarea>
-<p class="hint">Indent with two spaces. Anything after # is a comment. Products with a rating table in a CSV file get the file fetched alongside.</p>
+<div id="pg-src" class="editor" aria-label="Product source"></div>
+<p class="hint">As you type, a list offers what the grammar allows next and the names the product declares; Ctrl-Space opens it, Enter or Tab takes a suggestion, Tab indents. Anything after # is a comment. Products with a rating table in a CSV file get the file fetched alongside.</p>
 <pre id="pg-out" class="check-out" aria-label="Check output" aria-live="polite"></pre>
 </div>
 
@@ -52,4 +52,20 @@ scenarios that pin it fail. The [command line](cli.md) page shows the same `chec
 locally, where it belongs in a pipeline.
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
-<script src="{{ site.baseurl }}/assets/js/playground.js"></script>
+<script type="importmap">
+{"imports": {
+  "codemirror": "https://esm.sh/*codemirror@6.0.2",
+  "@codemirror/state": "https://esm.sh/*@codemirror/state@6.7.4",
+  "@codemirror/view": "https://esm.sh/*@codemirror/view@6.43.11",
+  "@codemirror/language": "https://esm.sh/*@codemirror/language@6.12.4",
+  "@codemirror/autocomplete": "https://esm.sh/*@codemirror/autocomplete@6.20.3",
+  "@codemirror/commands": "https://esm.sh/*@codemirror/commands@6.11.0",
+  "@lezer/common": "https://esm.sh/*@lezer/common@1.5.2",
+  "@lezer/highlight": "https://esm.sh/*@lezer/highlight@1.2.3",
+  "@lezer/lr": "https://esm.sh/*@lezer/lr@1.4.10",
+  "style-mod": "https://esm.sh/*style-mod@4.1.3",
+  "w3c-keyname": "https://esm.sh/*w3c-keyname@2.2.8",
+  "crelt": "https://esm.sh/*crelt@1.0.7"
+}}
+</script>
+<script type="module" src="{{ site.baseurl }}/assets/js/playground.js"></script>

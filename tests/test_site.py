@@ -36,6 +36,17 @@ class Playground(unittest.TestCase):
         js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
         self.assertEqual(set(re.findall(r'"(\w+\.py)"', js)), {p.name for p in (ROOT / "ideclare").glob("*.py")})
 
+    def test_every_same_site_asset_the_playground_uses_exists(self):
+        js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
+        md = (DOCS / "playground.md").read_text(encoding="utf-8")
+        used = ([DOCS / "assets/js" / m for m in re.findall(r'"\./([\w.-]+)"', js)]
+                + [DOCS / "assets" / m for m in re.findall(r'"\.\./([\w.-]+)"', js)]
+                + [DOCS / "assets" / m for m in re.findall(r'/assets/([\w./-]+)"', md)])
+        self.assertEqual(len(used), 3, "the module, the grammar table and the page's script")
+        for path in used:
+            with self.subTest(path.name):
+                self.assertTrue(path.exists(), f"{path.name} is used by the playground but missing")
+
     def test_example_menu_matches_the_generated_pages(self):
         md = (DOCS / "playground.md").read_text(encoding="utf-8")
         expected = [f"examples/{s}.idl" for s, *_ in EXAMPLES] + [f"templates/{s}.idl" for s, *_ in TEMPLATES]
