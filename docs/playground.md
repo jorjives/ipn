@@ -43,7 +43,7 @@ engine straight from the repository, so nothing you type leaves your machine.
 <span id="pg-status" class="status" aria-live="polite">Loading the engine...</span>
 </div>
 <div id="pg-src" class="editor" aria-label="Product source"></div>
-<p class="hint">As you type, a list offers what the grammar allows next and the names the product declares; Ctrl-Space opens it, Enter or Tab takes a suggestion, Tab indents. Anything after # is a comment. Products with a rating table in a CSV file get the file fetched alongside.</p>
+<p class="hint">As you type, a list offers what the grammar allows next and the names the product declares; Ctrl-Space opens it, Enter or Tab takes a suggestion, Tab indents, and Enter indents where the grammar nests lines. Anything after # is a comment. Products with a rating table in a CSV file get the file fetched alongside.</p>
 <pre id="pg-out" class="check-out" aria-label="Check output" aria-live="polite"></pre>
 </div>
 

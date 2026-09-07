@@ -196,6 +196,8 @@ Given the document and the cursor:
   and indent: `name: type` lines under `inputs`, `provides` and `asks`; `choice of a, b`;
   `collection of item`; `cover X`; `table "X"`. It runs once per completion request; the
   document is small.
+- The same walk drives indentation: on Enter, if the grammar expects `INDENT` after the line
+  just ended, the new line starts one level deeper; otherwise it keeps the current indent.
 - The result is a CodeMirror completion list with `type` set per kind (keyword, variable,
   class, text) so the dropdown shows icons, sorted keywords first then names, both
   alphabetical. The dropdown opens as the user types and on Ctrl-Space; Enter or Tab accepts.

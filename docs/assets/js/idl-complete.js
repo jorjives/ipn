@@ -175,6 +175,23 @@ export function completions(table, text, pos) {
   return options.length ? { from, options } : null;
 }
 
+// The column a new line after `pos` should start at, or null to keep the current indent:
+// one level deeper when the grammar expects nested lines there (`cover Theft` ⏎).
+export function indentation(table, text, pos) {
+  const before = text.slice(0, pos), lineStart = before.lastIndexOf("\n") + 1;
+  const line = before.slice(lineStart), indent = line.length - line.trimStart().length;
+  const starts = [0];
+  for (let nl = before.indexOf("\n"); nl >= 0; nl = before.indexOf("\n", nl + 1)) starts.push(nl + 1);
+  const blockStart = starts.reverse().find(i => /^[A-Za-z_]/.test(before.slice(i))) ?? -1;
+  const slice = blockStart < 0 ? before : before.slice(blockStart);
+  const start = blockStart < 0 ? table.start : /^product\b/.test(slice) ? "product_block$line" : "block$line";
+  let tokens;
+  try { tokens = tokenise(slice, true); } catch (e) { return null; }
+  const walker = new Walker(table, start);
+  for (const tok of [...tokens, { kind: "NEWLINE", text: "" }]) if (!walker.feed(tok)) return null;
+  return walker.expected().some(e => e.kind === "tok" && e.value === "INDENT") ? indent + 2 : null;
+}
+
 // A CodeMirror completion source over the table.
 export function completionSource(table) {
   return context => {

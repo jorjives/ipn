@@ -4,10 +4,10 @@
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { StreamLanguage, syntaxHighlighting, HighlightStyle, indentUnit } from "@codemirror/language";
+import { StreamLanguage, syntaxHighlighting, HighlightStyle, indentUnit, indentService } from "@codemirror/language";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { tags } from "@lezer/highlight";
-import { completionSource } from "./idl-complete.js";
+import { completionSource, indentation } from "./idl-complete.js";
 
 const REPO = "https://raw.githubusercontent.com/jorjives/open-idl/main/";
 const ENGINE = ["__init__.py", "__main__.py", "cli.py", "engine.py", "expr.py", "model.py",
@@ -47,7 +47,8 @@ const table = fetch(new URL("../idl-grammar.json", import.meta.url)).then(r => {
   if (!r.ok) throw new Error("idl-grammar.json: " + r.status);
   return r.json();
 });
-const completion = table.then(t => autocompletion({ override: [completionSource(t)], icons: true }),
+const completion = table.then(t => [autocompletion({ override: [completionSource(t)], icons: true }),
+                                    indentService.of((cx, pos) => indentation(t, cx.state.doc.toString(), pos))],
                               e => { console.error("No completion: " + e.message); return []; });
 
 const view = new EditorView({
