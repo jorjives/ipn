@@ -54,6 +54,7 @@ class Product:
     upgrading: list["Upgrade"] = field(default_factory=list)  # how the previous version's answers become this version's
     tables: dict[str, "Table"] = field(default_factory=dict)
     allocation: list[tuple[str, Decimal]] = field(default_factory=list)  # (cover, proportion): how the unattributed premium is shared
+    rating_line: int = field(default=0, repr=False)  # where the rating block starts, for errors about the block as a whole
     base: str = field(default=".", repr=False)  # directory that table files are read from
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
     parsing: bool = field(default=True, repr=False)  # False once the file is read: a wording built later runs its own deferred work
@@ -61,7 +62,7 @@ class Product:
     @property
     def attributed(self) -> bool:
         """Whether the premium is split by cover: a cover has a class, a step is for a cover, or the pool is allocated."""
-        return bool(self.allocation) or any(c.class_ for c in self.covers) or any(s.cover for step in self.rating for s in [step] + step.steps)
+        return bool(self.allocation) or any(c.class_ or c.premium for c in self.covers) or any(s.cover for step in self.rating for s in [step] + step.steps)
 
     def currency_for(self, territory: str) -> str:
         return self.currency or CURRENCY.get(territory, "")
@@ -163,6 +164,8 @@ class Cover(Wording):
     waiting_days: int = 0  # losses this soon after the policy first started are not covered
     item: str = ""  # singular item name when the cover's terms use an item's fields, so claims must name the item
     class_: str = ""  # the regulatory class the cover reports under; a word the engine does not interpret
+    premium: list["RatingStep"] = field(default_factory=list)  # the cover's own price, joined to the net by `add cover premiums`
+    premium_item: str = ""  # singular item name when the premium reads an item's fields: priced once per item
 
 
 @dataclass

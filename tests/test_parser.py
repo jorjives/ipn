@@ -1218,3 +1218,58 @@ class Attribution(unittest.TestCase):
 
     def test_a_plain_product_is_not_attributed(self):
         self.assertFalse(parse(RATING).attributed)
+
+
+class CoverPremiums(unittest.TestCase):
+    """A cover may price itself; `add cover premiums` says where those prices join the net."""
+
+    def test_an_expression_premium_is_one_base_step_with_its_when(self):
+        p = parse(FULL.replace("cover Racing optional\n", "cover Racing optional\n  premium 2% of bike_value when rider_age < 30\n") + "rating\n  add cover premiums\n")
+        step, = p.covers[2].premium
+        self.assertEqual((step.kind, step.amount), ("base", ("*", ("pct", ("num", Decimal(2))), ("name", "bike_value"))))
+        self.assertEqual(step.condition, ("<", ("name", "rider_age"), ("num", Decimal(30))))
+        self.assertEqual(p.covers[2].premium_item, "")
+        self.assertEqual([s.kind for s in p.rating], ["premiums"])
+        self.assertTrue(p.attributed)
+
+    def test_a_premium_block_is_rating_steps(self):
+        p = parse(FULL.replace("cover Theft\n", "cover Theft\n  premium\n    base 3% of bike_value\n    factor \"Age\" x 1.2 when rider_age < 25\n    minimum 20\n") + "rating\n  add cover premiums\n")
+        self.assertEqual([s.kind for s in p.covers[0].premium], ["base", "factor", "minimum"])
+
+    def test_lines_and_loops_are_refused_in_a_premium_block(self):
+        for line, word in (("tax IPT 12%", "tax"), ("for each bike", "for"), ("round to 1", "round")):
+            with self.assertRaises(ParseError) as cm:
+                parse(FULL.replace("cover Theft\n", f"cover Theft\n  premium\n    base 3% of bike_value\n    {line}\n"))
+            self.assertEqual(str(cm.exception), f"line 21: {word!r} cannot be used in a cover premium; only add, base, discount, factor, load, maximum, minimum")
+
+    def test_a_premium_reading_item_fields_is_per_item(self):
+        p = parse(FLEET.replace("cover Theft\n", "cover Theft\n  premium 0.5% of value when age < 3\n").replace("    base 3% of value\n", "    base 3% of value\n    add cover premiums\n"))
+        self.assertEqual(p.covers[0].premium_item, "bike")
+        inner = p.rating[0].steps[1]
+        self.assertEqual((inner.kind, inner.label), ("premiums", "bike"))
+
+    def test_a_premium_may_read_one_collection_only(self):
+        src = FLEET.replace("    security: choice of bronze, silver, gold\n", "    security: choice of bronze, silver, gold\n  cars: collection of car, 0 to 2\n    worth: money\n")
+        with self.assertRaises(ParseError) as cm:
+            parse(src.replace("cover Theft\n", "cover Theft\n  premium 1% of value + 1% of worth\n"))
+        self.assertEqual(str(cm.exception), "line 19: a cover premium may read the fields of one collection, not bikes and cars")
+
+    def test_rating_words_are_not_inputs(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL.replace("cover Theft\n", "cover Theft\n  premium 10% of net\n"))
+        self.assertEqual(str(cm.exception), "line 19: unknown word 'net'")
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL.replace("cover Racing optional\n", "cover Racing optional\n  premium 10% of Theft\n"))
+        self.assertEqual(str(cm.exception), "line 28: 'Theft' is a cover, not an input; a cover premium reads inputs only")
+
+    def test_cover_premiums_must_join_the_net_exactly_once(self):
+        priced = FULL.replace("cover Theft\n", "cover Theft\n  premium 3% of bike_value\n")
+        with self.assertRaises(ParseError) as cm:
+            parse(priced + "rating\n  base 100\n")
+        self.assertEqual(str(cm.exception), "line 37: cover premiums never join the net; add 'add cover premiums'")
+        with self.assertRaises(ParseError) as cm:
+            parse(priced + "rating\n  add cover premiums\n  add cover premiums\n")
+        self.assertEqual(str(cm.exception), "line 39: cover premiums join twice")
+        with self.assertRaises(ParseError) as cm:
+            parse(FULL + "rating\n  add cover premiums\n")
+        self.assertEqual(str(cm.exception), "line 37: no cover has a premium")

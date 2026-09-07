@@ -129,7 +129,7 @@ def parse_inputs(line: Line, product: Product) -> None:
 def calculated_steps(line: Line, product: Product) -> list[RatingStep]:
     if not line.children:
         raise line.error(f"{tokens(line)[0]} needs its steps indented below it, e.g. base value")
-    return parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS)
+    return parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS, where="in a calculated field")
 
 
 def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Input]:
@@ -376,6 +376,9 @@ def fill_cover(cover: Cover, children: list[Line], product: Product, deferred: l
             rest = []
         elif key == "class" and len(toks) >= 2:
             cover.class_, rest = "".join(toks[1:]), []  # a code such as 8, 9a or Kasko; the engine does not read it
+        elif key == "premium":
+            cover.premium, cover.premium_item = parse_cover_premium(child, product)
+            rest = []
         elif key == "available" and toks[1:2] == ["when"]:
             cover.available, rest = expression(child, toks[2:], product)
         elif toks[:3] == ["in", "force", "from"]:
@@ -396,6 +399,37 @@ def fill_cover(cover: Cover, children: list[Line], product: Product, deferred: l
     used = set().union(*(names(n) for n in (cover.limit, cover.available, cover.from_, cover.until, cover.excess.amount, cover.excess.minimum) if n is not None),
                        *(names(r.condition) for r in cover.exclusions))
     cover.item = next((c.singular for c in product.collections if used & set(c.fields)), "") or (cover.per if product.collection_for(cover.per) else "")
+
+
+def parse_cover_premium(line: Line, product: Product) -> tuple[list[RatingStep], str]:
+    """`premium <expression> [when ...]` is one base step; `premium` over indented steps is priced as a calculated
+    input is. Reading an item's fields makes it per item. Returns the steps and the item singular, if any."""
+    toks = tokens(line)
+    if len(toks) == 1 and line.children:
+        steps = parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS, where="in a cover premium")
+    elif len(toks) > 1:
+        amount, rest = expression(line, toks[1:], product, stop={"when"})
+        condition = None
+        if rest[:1] == ["when"]:
+            condition, rest = expression(line, rest[1:], product)
+        if rest:
+            raise line.error(f"unexpected {' '.join(rest)!r}")
+        steps = [RatingStep("base", amount=amount, condition=condition, line=line.number)]
+    else:
+        raise line.error("premium needs an amount, or its steps indented below it, e.g. base 0.5% of value")
+    amounts = [n for s in steps for n in [s.amount, *(r.amount for r in s.rows)] if n is not None]
+    covers = names_in(amounts) & {c.name for c in product.covers}
+    if covers:
+        raise line.error(f"{sorted(covers)[0]!r} is a cover, not an input; a cover premium reads inputs only")
+    used = names_in(amounts + [s.condition for s in steps if s.condition is not None] + [r.condition for s in steps for r in s.rows if r.condition is not None])
+    colls = [c for c in product.collections if used & set(c.fields)]
+    if len(colls) > 1:
+        raise line.error(f"a cover premium may read the fields of one collection, not {colls[0].name} and {colls[1].name}")
+    return steps, colls[0].singular if colls else ""
+
+
+def names_in(nodes: list[tuple]) -> set[str]:
+    return set().union(*(names(n) for n in nodes)) if nodes else set()
 
 
 def check_per(line: Line, cover: Cover, product: Product) -> None:
@@ -455,6 +489,7 @@ def parse_factor(line: Line, label: str, product: Product, extra: set[str] = fro
 
 
 def parse_rating(line: Line, product: Product) -> None:
+    product.rating_line = line.number
     product.rating.extend(parse_rating_steps(line.children, product))
 
 
@@ -532,9 +567,10 @@ def parse_order(line: Line, toks: list[str], product: Product) -> list[tuple[tup
 
 
 def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | None = None, extra: set[str] = frozenset(),
-                       taxes: set[str] | None = None) -> list[RatingStep]:
-    """Steps in order. `allowed` limits the kinds (inside 'for each' or a calculated field); `taxes` collects the
-    word-named taxes declared so far, which later lines may use as a base."""
+                       taxes: set[str] | None = None, where: str = "inside 'for each'", item: str = "") -> list[RatingStep]:
+    """Steps in order. `allowed` limits the kinds (`where` says where we are: inside 'for each', a calculated field, a cover
+    premium); `taxes` collects the word-named taxes declared so far, which later lines may use as a base; `item` is the
+    singular of the collection a 'for each' loops over."""
     steps = []
     taxes = set() if taxes is None else taxes
     for child in lines:
@@ -545,8 +581,12 @@ def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | 
             label, rest = unquote(rest[0]), rest[1:]
         step = RatingStep(kind, label, line=child.number)
         if allowed is not None and kind not in allowed:
-            raise child.error(f"{kind!r} cannot be used inside 'for each'; only {', '.join(sorted(allowed))}")
-        if toks[:2] == ["for", "each"] and len(toks) >= 3 and allowed is None:
+            raise child.error(f"{kind!r} cannot be used {where}; only {', '.join(sorted(allowed))}")
+        if toks == ["add", "cover", "premiums"]:  # where the covers' own prices join the net
+            if allowed is not None and not item:
+                raise child.error(f"'add cover premiums' cannot be used {where}")
+            step = RatingStep("premiums", item, line=child.number)
+        elif toks[:2] == ["for", "each"] and len(toks) >= 3 and allowed is None:
             if product.collection_for(toks[2]) is None:
                 raise child.error(f"unknown item {toks[2]!r}; declare a collection of {toks[2]}")
             order = []
@@ -554,8 +594,8 @@ def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | 
                 order = parse_order(child, toks[6:], product)
             elif toks[3:]:
                 raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
-            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, allowed=PER_ITEM_STEPS | {"tax"}, extra=ITEM_WORDS, taxes=taxes),
-                              order=order, line=child.number)
+            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, allowed=PER_ITEM_STEPS | {"tax"}, extra=ITEM_WORDS,
+                                                                          taxes=taxes, item=toks[2]), order=order, line=child.number)
         elif kind == "allocate" and allowed is None and not rest:
             product.allocation = parse_allocation(child, product)
             continue
@@ -1143,6 +1183,19 @@ def forbid_dates(lines: list[Line]) -> None:
         forbid_dates(child.children)
 
 
+def check_cover_premiums(product: Product) -> None:
+    """Cover premiums must join the net exactly once, and `add cover premiums` needs a cover that has one."""
+    joins = [s for step in product.rating for s in [step] + step.steps if s.kind == "premiums"]
+    priced = any(c.premium for c in product.covers)
+    if priced and not joins:
+        message = "cover premiums never join the net; add 'add cover premiums'"
+        raise ParseError(f"line {product.rating_line}: {message}" if product.rating_line else message)
+    if priced and len(joins) > 1:
+        raise ParseError(f"line {joins[1].line}: cover premiums join twice")
+    if joins and not priced:
+        raise ParseError(f"line {joins[0].line}: no cover has a premium")
+
+
 def parse(text: str, base: str = ".") -> Product:
     """Parses a product. Table files named in it are read relative to base."""
     product = None
@@ -1167,6 +1220,7 @@ def parse(text: str, base: str = ".") -> Product:
     for work in product.deferred:
         work()
     product.parsing = False
+    check_cover_premiums(product)
     unknown = names(product.term[0]) - set(product.inputs)
     if unknown:
         raise ParseError(f"term refers to {sorted(unknown)[0]!r}, which is not an input")
