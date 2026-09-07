@@ -1,0 +1,42 @@
+# A versioned product, first version. The `published` line says when it went on sale; the
+# later version sits beside it in this directory, and a policy bound under this version
+# stays on it until renewal. Copy both files, keep the product name the same in each, and
+# put each version's own proof in its own file.
+# Run it with:  python3 -m ideclare check templates/versioned/versioned-product-2026-01-01.idl
+
+product "Versioned Product"
+  published 2026-01-01
+  territory UK
+  term 12 months
+
+inputs
+  sum_insured: money
+  cover_level: choice of basic, standard, full
+
+cover Damage
+  limit sum_insured
+  excess 100
+
+rating
+  base 2% of sum_insured
+  load 10% when cover_level is standard
+  load 20% when cover_level is full
+  tax IPT 12%
+  round to 0.01
+
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata
+  adjustment: reprice, charge pro rata difference
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+
+claims
+  claim Damage
+    pays claimed amount up to limit, less excess
+
+scenario "Full cover carries the loading"
+  given sum_insured 10000, cover_level full
+  expect net 240.00
+  expect premium 268.80

@@ -1,0 +1,10 @@
+driver_age,area,rate
+17-24,urban,1.80
+17-24,suburban,1.60
+17-24,rural,1.40
+25-64,urban,1.10
+25-64,suburban,1.00
+25-64,rural,0.90
+65+,urban,1.30
+65+,suburban,1.20
+65+,rural,1.10

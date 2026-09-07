@@ -1,0 +1,126 @@
+# Annual product: a single-term personal-lines product with every block in place. Copy this
+# file, rename the product, and work down the blocks; each comment says what the block is for
+# and what to change. Keep `check` passing as you go: the scenarios at the end are yours to
+# rewrite around your own questions and numbers.
+# Run it with:  python3 -m ideclare check templates/annual-product.idl
+
+product "Annual Product"
+  territory UK              # where it is sold; the currency follows (GBP)
+  term 12 months            # one policy period
+
+inputs                      # the questions asked at quote, as name: type
+  sum_insured: money
+  customer_age: integer
+  claims_free_years: integer, default 0
+  alarm: yes/no
+
+eligibility                 # every rule is checked; a decline outranks a refer
+  decline when customer_age < 18 because "Customers must be 18 or over"
+  refer when sum_insured > 50000 because "Sums insured over 50,000 need an underwriter"
+
+cover Damage                # one block per section of cover
+  limit sum_insured
+  excess 100
+
+cover Theft
+  limit sum_insured
+  excess 10% of claim, minimum 100, maximum 500
+  excludes when alarm is no and sum_insured > 20000 because "An alarm is required above 20,000"
+
+cover "Personal Accident" optional   # an optional cover is included only when the customer selects it
+  limit 10000
+
+rating                      # steps run top to bottom: the order written is the order applied
+  base 2% of sum_insured
+  factor "Customer age"
+    customer_age < 25: x 1.30
+    customer_age < 60: x 1.00
+    otherwise: x 1.10
+  discount 5% when alarm is yes
+  factor "Claims free"
+    claims_free_years >= 3: x 0.80
+    claims_free_years >= 1: x 0.90
+    otherwise: x 1.00
+  add "Personal accident" 30 when "Personal Accident" selected
+  minimum 50
+  tax IPT 12%               # on the rounded net
+  fee "Administration" 15   # never refunded, except in cooling off
+  round to 0.01
+
+lifecycle                   # how the policy behaves from purchase to renewal
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata, fee 20
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference, fee 10
+  lapse when unpaid after 30 days
+  renewal
+    invite 21 days before expiry
+    increase capped at 25%
+    index sum_insured by 3%         # inflation
+    index customer_age by 1         # a year older
+    decline when claims in term >= 3 because "Three or more claims in the year"
+
+claims                      # what each claim needs and how it is settled
+  claim Damage
+    pays claimed amount up to limit, less excess
+  claim Theft
+    requires police_report
+    pays claimed amount up to limit, less excess
+    decline when reported after 30 days because "Theft must be reported within 30 days"
+  claim "Personal Accident"
+    pays 10000              # a fixed benefit, not the amount claimed
+  after 2 claims in term: renewal load x 1.20
+
+# --- Scenarios: the proof. Rewrite these around your own product. ------------
+
+scenario "A standard customer is eligible and priced"
+  given sum_insured 10000, customer_age 35, alarm yes
+  expect eligible
+  # 2% of 10,000 = 200, x 1.00 age, less 5% alarm = 190; IPT 22.80; fee 15
+  expect net 190.00
+  expect tax IPT 22.80
+  expect premium 227.80
+
+scenario "Under 18 is declined"
+  given sum_insured 10000, customer_age 17, alarm yes
+  expect declined "Customers must be 18 or over"
+
+scenario "A large sum insured is referred"
+  given sum_insured 60000, customer_age 35, alarm yes
+  expect referred "Sums insured over 50,000 need an underwriter"
+
+scenario "Theft is excluded without an alarm above 20,000"
+  given sum_insured 25000, customer_age 35, alarm no
+  expect cover Theft excluded "An alarm is required above 20,000"
+  expect cover Damage included
+
+scenario "Selecting personal accident adds a flat amount before tax"
+  given sum_insured 10000, customer_age 35, alarm yes
+  select "Personal Accident"
+  expect net 220.00
+  expect premium 261.40
+
+scenario "The customer cancels mid term"
+  given sum_insured 10000, customer_age 35, alarm yes
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-07-02
+  # 183 of 365 days unused: 212.80 earning premium x 183/365 = 106.69, less the 20 fee
+  expect refund 86.69
+  expect status cancelled
+
+scenario "A theft claim pays up to the limit less the percentage excess"
+  given sum_insured 10000, customer_age 35, alarm yes
+  when bound on 2026-01-01
+  when claim Theft for 3000 on 2026-03-01 with police_report
+  expect claim paid
+  expect payout 2700.00
+  expect claims in term 1
+
+scenario "Renewal is priced on the indexed answers"
+  given sum_insured 10000, customer_age 35, alarm yes
+  when bound on 2026-01-01
+  # sum insured 10,300 and age 36 at renewal: 206 less 5% = 195.70; IPT 23.48; fee 15
+  expect renewal premium 234.18
+  when renewed on 2027-01-01
+  expect sum_insured 10300
+  expect premium 234.18
