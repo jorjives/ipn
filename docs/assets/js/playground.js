@@ -62,6 +62,7 @@ const view = new EditorView({
     ],
   }),
 });
+window.oidlEditor = view;  // a handle for browser checks
 const source = () => view.state.doc.toString();
 const replace = text => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
 

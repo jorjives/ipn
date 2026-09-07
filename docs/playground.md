@@ -54,7 +54,6 @@ locally, where it belongs in a pipeline.
 <script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
 <script type="importmap">
 {"imports": {
-  "codemirror": "https://esm.sh/*codemirror@6.0.2",
   "@codemirror/state": "https://esm.sh/*@codemirror/state@6.7.4",
   "@codemirror/view": "https://esm.sh/*@codemirror/view@6.43.11",
   "@codemirror/language": "https://esm.sh/*@codemirror/language@6.12.4",
@@ -65,7 +64,8 @@ locally, where it belongs in a pipeline.
   "@lezer/lr": "https://esm.sh/*@lezer/lr@1.4.10",
   "style-mod": "https://esm.sh/*style-mod@4.1.3",
   "w3c-keyname": "https://esm.sh/*w3c-keyname@2.2.8",
-  "crelt": "https://esm.sh/*crelt@1.0.7"
+  "crelt": "https://esm.sh/*crelt@1.0.7",
+  "@marijn/find-cluster-break": "https://esm.sh/*@marijn/find-cluster-break@1.0.4"
 }}
 </script>
 <script type="module" src="{{ site.baseurl }}/assets/js/playground.js"></script>
