@@ -60,13 +60,16 @@ Expectations:
 | `expect status STATUS [on DATE]` | policy status, at the last event's date by default |
 | `expect expiry DATE` | end of the current term |
 | `expect refund AMOUNT` | refund from the last cancellation |
+| `expect refund for Fire AMOUNT`, `... for class 8 AMOUNT` | one cover's, or one class's, part of the refund, in proportion to its net plus taxes (see [rating](rating.md#shares-by-cover)) |
 | `expect instalment charge AMOUNT`, `expect instalment N AMOUNT` | the credit charge and the Nth instalment on the premium as it stands |
 | `expect refused ["reason"]` | the event just before was rightly refused (binding a declined or unaccepted referred risk, an adjustment when `adjustment: not allowed`, cancellation by a party with no terms) |
 | `expect additional premium AMOUNT`, `expect return premium AMOUNT` | result of the last adjustment or reinstatement |
+| `expect additional premium for Fire AMOUNT`, `expect return premium for Fire AMOUNT` | one cover's part of it, in proportion to its net plus taxes on the repriced policy; `for class 8` likewise |
 | `expect claim paid`, `expect claim declined ["reason"]`, `expect payout AMOUNT` | the last claim |
 | `expect claims in term N` | paid claims this policy year |
 | `expect benefit paid AMOUNT by DATE` | everything paid out on or before that date, whichever term the claims arose in |
 | `expect renewal premium AMOUNT`, `expect renewal invite DATE`, `expect renewal offered`, `expect renewal declined ["reason"]` | the renewal offer as things stand |
+| `expect renewal premium for Fire AMOUNT`, `... for class 8 AMOUNT` | one cover's, or one class's, part of the renewal premium, by the renewal quote's shares |
 | `expect renewal needs input[, input]` | the answers the new version's `upgrading` asks for before the renewal can be priced; `premium`, `offered` and `declined` fail while any are needed |
 | `expect version DATE` | the `published` date of the version the policy is on |
 | `expect <input> <value>` | an answer as the policy now holds it, after indexing at renewal, an upgrade or an adjustment: `expect bike_value 2100` |

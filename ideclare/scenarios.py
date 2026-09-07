@@ -409,13 +409,32 @@ class Run:
     def expect_expiry(self, step, rest):
         self.check(step, "expiry", rest[0], self.policy.expiry.isoformat())
 
-    def expect_refund(self, step, rest):
+    def part(self, step, what: str, rest, quote, amount: Decimal) -> None:
+        """`for Cover X` or `for class C X` on a lifecycle amount: that cover's, or class's, part of it."""
+        parts = quote.split(amount)
+        if rest[0] == "class":
+            covers = [c.name for c in self.product.covers if c.class_ == rest[1] and c.name in parts]
+            if not covers:
+                return self.fail(step.line, f"no share for class {rest[1]!r}")
+            return self.check(step, f"{what} for class {rest[1]}", money(Decimal(rest[2])), money(sum(parts[c] for c in covers)))
+        name = unquote(rest[0])
+        if name not in parts:
+            return self.fail(step.line, f"no share for {name!r}")
+        self.check(step, f"{what} for {name}", money(Decimal(rest[1])), money(parts[name]))
+
+    def expect_refund(self, step, rest):  # refund X | refund for Cover X
+        if rest[:1] == ["for"]:
+            return self.part(step, "refund", rest[1:], self.quote(), self.last_amount)
         self.check(step, "refund", money(Decimal(rest[0])), money(self.last_amount))
 
-    def expect_additional(self, step, rest):  # additional premium X
+    def expect_additional(self, step, rest):  # additional premium X | additional premium for Cover X
+        if rest[1:2] == ["for"]:
+            return self.part(step, "additional premium", rest[2:], self.quote(), self.last_amount)
         self.check(step, "additional premium", money(Decimal(rest[1])), money(self.last_amount))
 
-    def expect_return(self, step, rest):  # return premium X
+    def expect_return(self, step, rest):  # return premium X | return premium for Cover X
+        if rest[1:2] == ["for"]:
+            return self.part(step, "return premium", rest[2:], self.quote(), -self.last_amount)
         self.check(step, "return premium", money(Decimal(rest[1])), money(-self.last_amount))
 
     def expect_renewal(self, step, rest):
@@ -432,6 +451,8 @@ class Run:
                 self.fail(step.line, f"expected renewal declined {unquote(rest[1])!r}, got {offer.declined!r}")
         elif offer.declined:
             self.fail(step.line, f"expected renewal {' '.join(rest)}, got declined: {offer.declined}")
+        elif what == "premium" and rest[1:2] == ["for"]:
+            self.part(step, "renewal premium", rest[2:], offer.quote, offer.premium)
         elif what == "premium":
             self.check(step, "renewal premium", money(Decimal(rest[1])), money(offer.premium))
         elif what == "invite":

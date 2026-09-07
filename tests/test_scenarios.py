@@ -705,3 +705,68 @@ scenario "no share"
   expect net for class 8 1.00
 ''')
         self.assertEqual(res["no share"], ["line 55: no share for 'Fire'", "line 56: expected net for Theft 41.00, got 40.00", "line 57: no share for class '8'"])
+
+
+class LifecycleShares(unittest.TestCase):
+    """A refund, an adjustment's difference and a renewal premium split by each cover's earning share."""
+
+    def run_fleet(self, extra):
+        from tests.test_engine import EBIKES
+        src = EBIKES.replace('  factor "Fleet"\n', '  add cover premiums\n  factor "Fleet"\n')
+        return {r.scenario.name: r.failures for r in run_all(parse(src + extra))}
+
+    # bike 1: theft 60, fire 10; bike 2: theft 30 x 0.9 = 27; fleet x 0.95: theft 82.65, fire 9.50; IPT 11.06 (9.92 / 1.14)
+    GIVEN = '''
+  given rider_age 30
+  given bike value 2000, age 0, security gold, ebike yes
+  given bike value 1000, age 3, security gold, ebike no
+  when bound on 2026-01-01
+'''
+
+    def test_a_refund_splits_by_net_plus_tax(self):
+        res = self.run_fleet('scenario "refund"' + self.GIVEN + '''
+  when cancelled by customer on 2026-07-01
+  # 103.21 x 184/365 = 52.03; fire earns 9.50 + 1.14 of the 103.21
+  expect refund 52.03
+  expect refund for Fire 5.36
+  expect refund for Theft 46.67
+  expect refund for class 8 5.36
+''')
+        self.assertEqual(res["refund"], [])
+
+    def test_an_adjustment_splits_by_the_new_quote(self):
+        res = self.run_fleet('scenario "up"' + self.GIVEN + '''
+  when adjusted on 2026-07-01 adding bike value 3000, age 0, security gold, ebike yes
+  # new quote 214.93 (fire 23.75 + 2.85); (214.93 - 103.21) x 184/365 = 56.32
+  expect additional premium 56.32
+  expect additional premium for Fire 6.97
+  expect additional premium for Theft 49.35
+''' + 'scenario "down"' + self.GIVEN + '''
+  when adjusted on 2026-07-01 removing bike 2
+  # new quote 78.40 (fire 10 + 1.20); (78.40 - 103.21) x 184/365 = -12.51
+  expect return premium 12.51
+  expect return premium for Fire 1.79
+  expect return premium for Theft 10.72
+''')
+        self.assertEqual((res["up"], res["down"]), ([], []))
+
+    def test_a_renewal_premium_splits_by_the_renewal_quote(self):
+        res = self.run_fleet('scenario "renewal"' + self.GIVEN + '''
+  # values indexed to 2200 and 1100: theft 90.92 + 10.91 IPT, fire 10.45 + 1.25
+  expect renewal premium 113.53
+  expect renewal premium for Fire 11.70
+  expect renewal premium for Theft 101.83
+''')
+        self.assertEqual(res["renewal"], [])
+
+    def test_a_cover_without_a_share_fails_plainly(self):
+        from tests.test_engine import FLEET
+        res = {r.scenario.name: r.failures for r in run_all(parse(FLEET + '''
+scenario "plain"
+  given rider_age 30
+  given bike value 2000, age 0, security gold
+  when bound on 2026-01-01
+  when cancelled by customer on 2026-07-01
+  expect refund for Theft 1.00
+'''))}
+        self.assertEqual(res["plain"], ["line 54: no share for 'Theft'"])
