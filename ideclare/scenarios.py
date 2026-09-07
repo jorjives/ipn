@@ -185,12 +185,15 @@ class Run:
             raise ValueError("expected 'with ...', 'adding <item> ...' or 'removing <item> N'")
         rest = toks[toks.index(how) + 1:]
         changes = {}
+        target = self.policy.adjustment_target(on)  # the changes are in the words of the version the adjustment is priced on
         if how == "with":
             pairs = [t for t in rest if t != ","]
             for name, value in zip(pairs[::2], pairs[1::2]):
-                changes[name] = given_value(line, self.product.inputs[name], value)
+                if name not in target.inputs:
+                    raise ValueError(f"unknown input {name!r} in the version published {target.published}")
+                changes[name] = given_value(line, target.inputs[name], value)
         else:
-            coll = self.product.collection_for(rest[0])
+            coll = target.collection_for(rest[0])
             if coll is None:
                 raise ValueError(f"{rest[0]!r} is not an item")
             items = self.policy.inputs[coll.name]

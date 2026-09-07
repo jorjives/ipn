@@ -502,7 +502,13 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
 - **Adjustment** (mid-term change): the policy is repriced with the new answers and the
   difference in earning premium is charged pro rata for the remaining days, plus the fee.
   A negative result is a return premium. Write `adjustment: not allowed` to forbid it.
-  After an adjustment the customer's annual premium is the new one.
+  After an adjustment the customer's annual premium is the new one. By default the
+  repricing is on the version the policy is on: a mid-term change is an endorsement to the
+  contract the customer holds. `adjustment: reprice on the current version, charge pro
+  rata difference` instead moves the policy to the version live that day first (see
+  [Versions](#versions)); the changes are then written in that version's words and answer
+  anything its `upgrading` asked for, and an unanswered `ask` refuses the adjustment with
+  "adjustment needs x".
 - **Lapse**: a policy bound but unpaid lapses after this many days until it is paid.
 - **Instalments**: `instalments N monthly`, optionally `, charge P%`. The credit charge is
   that percentage of the premium, rounded; premium plus charge is split into N equal
@@ -640,7 +646,7 @@ Events:
 | `when declined by underwriter on DATE` | the underwriter declines it; binding is then refused |
 | `when reinstated Cover on DATE` | buys back an eroded aggregate limit; the charge is available to `expect additional premium` |
 | `when cancelled by customer\|insurer on DATE` | cancellation; the refund is available to `expect refund` |
-| `when adjusted on DATE with input value, input value` | mid-term change |
+| `when adjusted on DATE with input value, input value` | mid-term change; in the words of the version it is priced on |
 | `when adjusted on DATE adding bike value 500, age 1, security gold` | add an item |
 | `when adjusted on DATE removing bike 2` | remove the second item |
 | `when claim Cover [on bike N] [for AMOUNT] on DATE [reported DATE] [with item, fact value, ...]` | a loss on DATE, to item N if the cover is per item, notified on the reported date, with the listed evidence words and asked facts (`with death_certificate, cause suicide`); a fixed benefit claims no amount, so `for` may be left out |

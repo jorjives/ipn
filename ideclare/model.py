@@ -155,6 +155,7 @@ class Lifecycle:
     cooling_off: tuple = ("num", Decimal(0))  # days, an expression evaluated against the risk
     cancellation: dict[str, Cancellation] = field(default_factory=dict)  # by customer | insurer
     adjustment_allowed: bool = True
+    adjustment_upgrades: bool = False  # `reprice on the current version`: move to the version live that day before repricing
     adjustment_fee: Decimal = Decimal(0)
     lapse_days: int | None = None
     renewable: bool = True

@@ -433,11 +433,20 @@ class Policy:
         return self.round(max(Decimal(0), refund - terms.fee))
 
     def adjust(self, on: date, changes: dict) -> Decimal:
-        """Applies changes; returns the amount to charge (negative = return premium)."""
+        """Applies changes; returns the amount to charge (negative = return premium).
+        A lifecycle that reprices on the current version moves the policy to the version live that day
+        first, the changes answering whatever its upgrade asked for."""
         lc = self.terms
         if not lc.adjustment_allowed:
             raise ValueError("adjustment is not allowed")
         before = self.refundable
+        target = self.adjustment_target(on)
+        if target is not self.product:
+            inputs, needs = self.versions.upgrade(self.inputs, self.product, target)
+            needs = [n for n in needs if n not in changes]
+            if needs:
+                raise ValueError(f"adjustment needs {', '.join(needs)}")
+            self.inputs, self.product = inputs, target
         for e in self.product.enrichments:
             if not e.held:
                 continue
@@ -459,6 +468,10 @@ class Policy:
 
     def renewal_target(self) -> Product:
         return self.live_on(self.expiry)
+
+    def adjustment_target(self, on: date) -> Product:
+        """The version an adjustment on this date is priced on."""
+        return self.live_on(on) if self.terms.adjustment_upgrades else self.product
 
     def renew(self, answers: dict | None = None) -> RenewalOffer:
         """The offer as things stand; answers fill in what the new version's upgrade asked for."""

@@ -52,7 +52,7 @@ rating
 lifecycle
   cooling off 14 days, full refund
   cancellation by customer: refund pro rata, fee 25
-  adjustment: reprice, charge pro rata difference
+  adjustment: reprice on the current version, charge pro rata difference
   renewal
     invite 21 days before expiry
     increase capped at 20%
@@ -102,3 +102,30 @@ scenario "A customer from the second version moves straight here"
   expect version 2027-01-01
   expect lock_rating silver
   expect racing yes
+
+scenario "A first-version customer's mid-term change stays on the first version"
+  given bike_value 2000, rider_age 30, security gold
+  when bound on 2026-03-01
+  when adjusted on 2027-02-01 with bike_value 3000
+  expect version 2026-01-01
+  expect premium 151.20
+  expect additional premium 2.32
+
+scenario "A second-version customer's mid-term change moves them here"
+  given bike_value 2000, rider_age 30, security gold
+  when bound on 2026-09-01
+  expect version 2026-07-01
+  when adjusted on 2027-02-01 with bike_value 3000
+  expect version 2027-01-01
+  expect lock_rating gold
+  expect premium 171.36
+
+scenario "A bronze lock cannot move mid term without answering"
+  given bike_value 900, rider_age 30, security bronze
+  when bound on 2026-09-01
+  when adjusted on 2027-02-01 with bike_value 950
+  expect refused "adjustment needs lock_rating"
+  expect version 2026-07-01
+  when adjusted on 2027-02-01 with bike_value 950, lock_rating silver
+  expect version 2027-01-01
+  expect bike_value 950

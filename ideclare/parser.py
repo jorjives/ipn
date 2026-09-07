@@ -491,10 +491,13 @@ def parse_lifecycle(line: Line, product: Product) -> None:
             if toks[2:] == ["not", "allowed"]:
                 lc.adjustment_allowed = False
             elif toks[2:8] == ["reprice", ",", "charge", "pro", "rata", "difference"]:
-                lc.adjustment_allowed = True
+                lc.adjustment_allowed, lc.adjustment_upgrades = True, False
                 lc.adjustment_fee = parse_fee(child, toks[8:])
+            elif toks[2:12] == ["reprice", "on", "the", "current", "version", ",", "charge", "pro", "rata", "difference"]:
+                lc.adjustment_allowed, lc.adjustment_upgrades = True, True
+                lc.adjustment_fee = parse_fee(child, toks[12:])
             else:
-                raise child.error("expected 'adjustment: reprice, charge pro rata difference[, fee N]' or 'adjustment: not allowed'")
+                raise child.error("expected 'adjustment: reprice[ on the current version], charge pro rata difference[, fee N]' or 'adjustment: not allowed'")
         elif toks[:4] == ["lapse", "when", "unpaid", "after"] and toks[5:] == ["days"]:
             lc.lapse_days = int(toks[4])
         elif toks == ["renewal"]:

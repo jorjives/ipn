@@ -42,7 +42,7 @@ rating
 lifecycle
   cooling off 14 days, full refund
   cancellation by customer: refund pro rata, fee 25
-  adjustment: reprice, charge pro rata difference
+  adjustment: reprice on the current version, charge pro rata difference
   renewal
     invite 21 days before expiry
     increase capped at 20%
