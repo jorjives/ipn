@@ -223,3 +223,11 @@ class UpgradingBlock(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             History([parse(old), parse(new)])
         self.assertIn("bikes is new in the version published 2027-01-01", str(cm.exception))
+
+
+class ForFileNeighbours(ForFile):
+    def test_a_broken_later_version_does_not_break_an_earlier_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            v1 = self.write(d, "bike-2026-01-01.idl", V1)
+            self.write(d, "bike-2026-07-01.idl", V2.replace("base 100", "base banana"))
+            self.assertEqual(len(History.for_file(v1).versions), 1)

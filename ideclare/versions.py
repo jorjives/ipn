@@ -35,11 +35,11 @@ class History:
             return cls([me])
         versions = [me]
         for other in sorted(glob.glob(os.path.join(os.path.dirname(path) or ".", "*.idl"))):
-            if os.path.abspath(other) == os.path.abspath(path) or not same_product(other, me.name):
+            if os.path.abspath(other) == os.path.abspath(path):
                 continue
-            product = load(other)
-            if product.published is not None and product.published <= me.published:
-                versions.append(product)
+            name, published = header(other)
+            if name == me.name and published is not None and published <= me.published:
+                versions.append(load(other))
         return cls(versions)
 
     @property
@@ -70,14 +70,28 @@ def load(path: str) -> Product:
         raise ParseError(f"{os.path.basename(path)}: {e}")
 
 
-def same_product(path: str, name: str) -> bool:
-    """Whether the file's product line names this product; read cheaply, without parsing the rest."""
+def header(path: str) -> tuple[str | None, date | None]:
+    """The product name and published date from the file's first block, read without parsing the rest,
+    so a neighbour that is not a version of this product, or is a later one, need not even parse."""
+    name, published = None, None
     with open(path, encoding="utf-8") as f:
         for raw in f:
-            line = raw.strip()
-            if line and not line.startswith("#"):
-                return line.startswith("product ") and unquote(line.split(None, 1)[1].split("#")[0].strip()) == name
-    return False
+            line = raw.split("#")[0].rstrip()
+            if not line.strip():
+                continue
+            words = line.split()
+            if name is None:
+                if words[0] != "product" or len(words) < 2:
+                    return None, None
+                name = unquote(line.split(None, 1)[1].strip())
+            elif not line.startswith(" "):
+                break  # the header block has ended
+            elif words[:1] == ["published"] and len(words) == 2:
+                try:
+                    published = date.fromisoformat(words[1])
+                except ValueError:
+                    return name, None
+    return name, published
 
 
 def carries(old: Input | None, new: Input) -> bool:

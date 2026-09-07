@@ -747,6 +747,39 @@ upgrading
   leaves that answer unknown, and any later expression that reads it is unknown too; what
   the renewal needs is whatever is still unknown at the end.
 
+### Dated lines: mid-term amendments
+
+A change that must reach policies already in force is not a new version; it is an
+amendment with an effective date. Any line inside a `cover` block or a `claim` block may
+begin with `from DATE`, `until DATE`, or both:
+
+```
+cover Theft
+  limit bike_value
+  from 2027-03-01 limit 2 * bike_value
+  until 2027-03-01 excludes when racing is yes because "Racing was excluded until March 2027"
+
+claims
+  claim Theft
+    pays claimed amount up to limit, less excess
+    from 2027-03-01 decline when unlocked because "Bikes left unlocked are not covered from March 2027"
+```
+
+- A dated line is in effect for an event on or after its `from` date and before its
+  `until` date. A claim is settled on the wording in force at the loss; `expect cover` reads
+  the wording at the last event's date, and with no event yet, or from the `quote` command,
+  only undated lines apply.
+- A setting with one value (`limit`, `excess`, `pays`, `available when`, `waiting period`,
+  `requires`, `depreciation`, `counts`) is **replaced** by the dated line in effect; the
+  undated line covers the other dates. A setting that is a list (`excludes`, `decline`,
+  `co-payment`) **accumulates**: every line in effect applies. Two dated lines for one
+  setting whose windows overlap are an error: "limit is given twice for DATE".
+- Dated lines are checked like any other, in every window they create. `asks` cannot be
+  dated, and `rating`, `eligibility` and `lifecycle` lines cannot be dated at all: the
+  premium charged for the term already stands and eligibility is settled at purchase.
+- The words a dated line may use are the words its block may use: a cover line reads the
+  answers, a claim line also reads the facts the claim asks for.
+
 ## Not yet supported
 
 A policy carrying amounts in two currencies at once (a limit in USD on a premium in GBP),

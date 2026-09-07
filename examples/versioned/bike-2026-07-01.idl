@@ -1,6 +1,10 @@
 # Bike Cover, second version: the base rate rises and racing cover is offered. Customers on
 # the first version keep it until renewal, when they move here. The renewal cap holds
 # against the premium they were charged, whichever version charged it.
+#
+# It also carries a mid-term amendment: from 1 March 2027 a bike left unlocked is not covered
+# for theft. A dated line is not a new version; it applies to every policy in force on that
+# date, so it is written once, here, and never copied into later versions.
 # Run:  python3 -m ideclare check examples/versioned/bike-2026-07-01.idl
 
 product "Bike Cover"
@@ -50,8 +54,11 @@ lifecycle
 
 claims
   claim Theft
+    asks
+      unlocked: yes/no
     requires crime_reference
     pays claimed amount up to limit, less excess
+    from 2027-03-01 decline when unlocked because "Bikes left unlocked are not covered from March 2027"
 
 scenario "A new customer pays the new base rate"
   given bike_value 2000, rider_age 30, security gold
@@ -84,3 +91,17 @@ scenario "Nobody could buy the product before it existed"
   given bike_value 2000, rider_age 30, security gold
   when bound on 2025-12-01
   expect refused "no version of Bike Cover was on sale on 2025-12-01"
+
+scenario "Before the amendment an unlocked bike was still covered"
+  given bike_value 2000, rider_age 30, security gold
+  when bound on 2026-08-01
+  when claim Theft for 1000 on 2027-02-01 with crime_reference, unlocked yes
+  expect payout 950.00
+
+scenario "From the amendment date an unlocked bike is not covered for theft"
+  given bike_value 2000, rider_age 30, security gold
+  when bound on 2026-08-01
+  when claim Theft for 1000 on 2027-03-01 with crime_reference, unlocked yes
+  expect claim declined "Bikes left unlocked are not covered from March 2027"
+  when claim Theft for 1000 on 2027-03-01 with crime_reference, unlocked no
+  expect payout 950.00
