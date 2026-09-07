@@ -184,7 +184,7 @@ claims
 <div class="step" markdown="1">
 <div markdown="1">
 ### scenario
-The proof. Answers, then events in the order they happen, then what must be true after each. `check` runs every scenario and names the line that disagrees.
+Answers, then events in the order they happen, then what must be true after each. `check` runs every scenario and names the line that disagrees.
 </div>
 ```idl
 scenario "Two claims load the renewal, within the cap"
@@ -203,10 +203,10 @@ When the product changes, the new version sits beside the old with a `published`
 customer stays on the version they bought until renewal, and the file says how their old
 answers become new ones. See [Versions]({{ site.baseurl }}/reference/versions/).
 
-## Proven across the industry
+## Examples across the industry
 
-Every example is a complete product whose scenarios pass. The language grew by writing
-these; each construct exists because one of them needed it.
+Every example is a complete product whose scenarios pass, and each construct in the
+language was added because one of them needed it.
 
 <div class="oidl-lines" markdown="1">
 
@@ -215,7 +215,7 @@ these; each construct exists because one of them needed it.
 | [Cycle]({{ site.baseurl }}/examples/cycle/) | Every part of the language in one product, with the arithmetic in the comments |
 | [Private motor]({{ site.baseurl }}/examples/motor/) | Named drivers, a no claims discount that steps back after a fault claim unless protected, an excess that depends on who was driving, instalments |
 | [Home contents]({{ site.baseurl }}/examples/home/) | Specified items, an excess by cause of loss, the average clause |
-| [Single-trip travel]({{ site.baseurl }}/examples/travel/) | People not things; a term ending on the return date; sections in force on different days |
+| [Single-trip travel]({{ site.baseurl }}/examples/travel/) | Insuring people; a term ending on the return date; sections in force on different days |
 | [Lifetime pet]({{ site.baseurl }}/examples/pet/) | An annual limit per condition eroded by claims, a waiting period, a co-payment that arrives with age |
 | [Level term life]({{ site.baseurl }}/examples/life/) | A fixed benefit over a term of years, BMI calculated, no renewal |
 | [Term life from a curve]({{ site.baseurl }}/examples/mortality/) | A mortality curve interpolated geometrically, power laws and exponentials |
@@ -238,8 +238,7 @@ python3 -m ideclare quote product.idl bike_value=2000 rider_age=22 lock=gold
 python3 -m ideclare batch product.idl risks.csv > priced.csv
 ```
 
-The reference engine is Python with no dependencies. Every figure is a decimal, never a
-float, so a premium is the same on every machine and a scenario's `expect premium 84.67`
-is exact. The [design]({{ site.baseurl }}/design/) page records the principles and the
-decisions that surprise; the [grammar]({{ site.baseurl }}/reference/grammar/) gives the
+The reference engine is Python with no dependencies. Every figure is a decimal, so a
+scenario's `expect premium 84.67` is exact. The [design]({{ site.baseurl }}/design/) page
+records the principles and the decisions that surprise; the [grammar]({{ site.baseurl }}/reference/grammar/) gives the
 language formally for anyone building another engine.
