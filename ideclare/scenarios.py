@@ -290,19 +290,19 @@ class Run:
         item = None
         if rest[1:2] == ["on"]:
             item, rest = self.item(rest)[1], rest[:1] + rest[4:]
-        state = self.policy.cover_state(name, item)
+        state = self.policy.cover_state(name, item, self.last_date)  # as worded at the last event
         if rest[1] == "limit":
             self.check(step, f"{name} limit", Decimal(rest[2]), state.limit)
             return
         if rest[1:3] == ["excess", "remaining"]:
-            self.check(step, f"{name} excess remaining", money(Decimal(rest[3])), money(self.policy.excess_remaining(name)))
+            self.check(step, f"{name} excess remaining", money(Decimal(rest[3])), money(self.policy.excess_remaining(name, self.last_date)))
             return
         if rest[1] == "remaining":  # remaining X [for <fact> value]
             facts = {}
             if rest[3:4] == ["for"]:
                 asks = self.product.claims[name].asks
                 facts[rest[4]] = given_value(Line(step.line, 0, ""), asks[rest[4]], rest[5])
-            self.check(step, f"{name} remaining", money(Decimal(rest[2])), money(self.policy.remaining(name, item, facts)))
+            self.check(step, f"{name} remaining", money(Decimal(rest[2])), money(self.policy.remaining(name, item, facts, self.last_date)))
             return
         status = " ".join(unquote(t) for t in rest[1:2])
         actual = state.status + (f" ({state.reason})" if state.reason else "")

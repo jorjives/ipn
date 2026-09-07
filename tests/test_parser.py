@@ -1043,3 +1043,86 @@ class Upgrading(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             parse(self.SRC + 'upgrading\n  bikes: for each bike\n    colour: red\n')
         self.assertIn("unknown bike field 'colour'", str(cm.exception))
+
+
+class AdjustmentOnCurrentVersion(unittest.TestCase):
+    def test_reprice_on_the_current_version(self):
+        p = parse('product "X"\nlifecycle\n  adjustment: reprice on the current version, charge pro rata difference, fee 10\n')
+        self.assertTrue(p.lifecycle.adjustment_upgrades)
+        self.assertEqual(p.lifecycle.adjustment_fee, Decimal(10))
+
+    def test_plain_reprice_stays_on_the_policy_version(self):
+        p = parse('product "X"\nlifecycle\n  adjustment: reprice, charge pro rata difference\n')
+        self.assertFalse(p.lifecycle.adjustment_upgrades)
+
+
+class DatedLines(unittest.TestCase):
+    SRC = HEADER + '''cover Theft
+  limit bike_value
+  from 2027-03-01 limit 2 * bike_value
+  excess 50
+  excludes when security is bronze because "Bronze"
+  from 2027-03-01 until 2027-09-01 excludes when racing is yes because "Racing"
+  until 2027-03-01 excludes when rider_age < 18 because "Young"
+
+claims
+  claim Theft
+    pays claimed amount up to limit, less excess
+    from 2027-03-01 pays claimed amount up to limit
+    decline when claimed > 5000 because "Big"
+    from 2027-06-01 decline when claimed > 4000 because "Smaller"
+'''
+
+    def test_undated_wording_is_the_cover_as_parsed(self):
+        theft = parse(self.SRC).cover("Theft")
+        self.assertEqual(theft.limit, ("name", "bike_value"))
+        self.assertEqual([r.reason for r in theft.exclusions], ["Bronze"])
+
+    def test_the_wording_on_a_date_replaces_one_valued_settings_and_adds_list_lines(self):
+        p = parse(self.SRC)
+        early, mid, late = (p.cover("Theft", date.fromisoformat(d)) for d in ("2027-01-01", "2027-04-01", "2027-10-01"))
+        self.assertEqual([r.reason for r in early.exclusions], ["Bronze", "Young"])
+        self.assertEqual(early.limit, ("name", "bike_value"))
+        self.assertEqual(mid.limit, ("*", ("num", Decimal(2)), ("name", "bike_value")))
+        self.assertEqual([r.reason for r in mid.exclusions], ["Bronze", "Racing"])
+        self.assertEqual([r.reason for r in late.exclusions], ["Bronze"])
+        self.assertEqual(mid.excess.amount, ("num", Decimal(50)))
+
+    def test_the_same_wording_is_the_same_object_within_a_window(self):
+        p = parse(self.SRC)
+        self.assertIs(p.cover("Theft", date(2027, 4, 1)), p.cover("Theft", date(2027, 5, 1)))
+        self.assertIs(p.cover("Theft"), p.cover("Theft", None))
+
+    def test_claim_rules_are_dated_too(self):
+        p = parse(self.SRC)
+        self.assertEqual(p.claim("Theft").pays, ["limit", "excess"])
+        self.assertEqual(p.claim("Theft", date(2027, 3, 1)).pays, ["limit"])
+        self.assertEqual([r.reason for r in p.claim("Theft", date(2027, 7, 1)).decline], ["Big", "Smaller"])
+        self.assertEqual([r.reason for r in p.claim("Theft", date(2027, 1, 1)).decline], ["Big"])
+
+    def test_dated_lines_are_checked_like_any_other(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(HEADER + 'cover Theft\n  limit bike_value\n  from 2027-03-01 limit banana\n')
+        self.assertIn("line 15", str(cm.exception))
+        self.assertIn("banana", str(cm.exception))
+
+    def test_overlapping_dated_lines_for_one_setting_is_an_error(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(HEADER + 'cover Theft\n  limit bike_value\n  from 2027-03-01 limit 1\n  from 2027-06-01 limit 2\n')
+        self.assertIn("limit is given twice for 2027-06-01", str(cm.exception))
+
+    def test_only_cover_and_claims_lines_can_be_dated(self):
+        for block in ('rating\n  base 100\n  from 2027-03-01 base 200\n', 'eligibility\n  from 2027-03-01 decline when rider_age < 16 because "x"\n',
+                      'lifecycle\n  renewal\n    from 2027-03-01 increase capped at 20%\n'):
+            with self.assertRaises(ParseError) as cm:
+                parse(HEADER + block)
+            self.assertIn("only cover and claims lines can be dated", str(cm.exception))
+
+    def test_asks_cannot_be_dated(self):
+        with self.assertRaises(ParseError) as cm:
+            parse(HEADER + 'cover Theft\n  limit bike_value\nclaims\n  claim Theft\n    from 2027-03-01 asks\n      cause: text\n')
+        self.assertIn("asks cannot be dated", str(cm.exception))
+
+    def test_a_date_needs_a_line_after_it(self):
+        with self.assertRaises(ParseError):
+            parse(HEADER + 'cover Theft\n  from 2027-03-01\n')

@@ -640,3 +640,19 @@ scenario "typed"
   when renewed on 2027-03-01 with lock_rating gold
 ''')
         self.assertEqual(res["typed"], ["line 18: do not understand 'when renewed on 2027-03-01 with lock_rating gold' (line 18: lock_rating is choice, cannot be 'gold')"])
+
+
+class DatedWordingScenarios(unittest.TestCase):
+    def test_expect_cover_is_read_at_the_last_event_date(self):
+        from tests.test_engine import DATED
+        res = {r.scenario.name: r.failures for r in run_all(parse(DATED + '''
+scenario "dated"
+  given bike_value 2000, racing yes
+  expect cover Theft included
+  when bound on 2026-09-01
+  expect cover Theft excluded "Racing was excluded until March 2027"
+  when claim Theft for 1000 on 2027-03-01
+  expect cover Theft included
+  expect payout 900.00
+'''))}
+        self.assertEqual(res["dated"], [])

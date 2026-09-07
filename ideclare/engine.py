@@ -320,9 +320,9 @@ class Policy:
     def underwriter_load(self) -> Decimal:
         return self.underwriting.load if self.underwriting else Decimal(0)
 
-    def cover_state(self, cover: str, item: dict | None = None) -> CoverState:
-        """The product's view of the cover for this risk, less anything the underwriter withdrew."""
-        state = cover_state(self.product, self.product.cover(cover), self.inputs, self.selected, item)
+    def cover_state(self, cover: str, item: dict | None = None, on: date | None = None) -> CoverState:
+        """The product's view of the cover for this risk as worded on that date, less anything the underwriter withdrew."""
+        state = cover_state(self.product, self.product.cover(cover, on), self.inputs, self.selected, item)
         if self.underwriting and cover in self.underwriting.excluded and state.status == "included":
             return CoverState(cover, "excluded", "underwriter terms")
         return state
@@ -528,10 +528,10 @@ class Policy:
         items = self.inputs[self.product.collection_for(section.per).name]
         return next(n for n, x in enumerate(items, start=1) if x is item)
 
-    def remaining(self, cover: str, item: dict | None = None, facts: dict | None = None) -> Decimal | None:
+    def remaining(self, cover: str, item: dict | None = None, facts: dict | None = None, on: date | None = None) -> Decimal | None:
         """What is left of an aggregate limit this term; None when the cover has no such limit."""
-        section = self.product.cover(cover)
-        state = self.cover_state(cover, item)
+        section = self.product.cover(cover, on)
+        state = self.cover_state(cover, item, on)
         if not section.aggregate or state.limit is None:
             return None
         bucket = self.bucket(section, item, facts or {})
@@ -540,18 +540,18 @@ class Policy:
 
     def reinstate(self, cover: str, on: date) -> Decimal:
         """Restores an eroded aggregate to its full amount; returns the additional premium for the rest of the term."""
-        section = self.product.cover(cover)
+        section = self.product.cover(cover, on)
         if section.reinstatement is None:
             raise ValueError(f"{cover} has no reinstatement")
         if cover in self.reinstated:
             raise ValueError(f"{cover} has already been reinstated this term")
-        state = self.cover_state(cover)
-        self.reinstated[cover] = state.limit - self.remaining(cover)
+        state = self.cover_state(cover, on=on)
+        self.reinstated[cover] = state.limit - self.remaining(cover, on=on)
         return self.round(self.refundable * section.reinstatement * self.days_remaining(on) / self.term_days())
 
-    def excess_remaining(self, cover: str) -> Decimal | None:
+    def excess_remaining(self, cover: str, on: date | None = None) -> Decimal | None:
         """What the insured still has to bear of an aggregate excess this term; None when the excess is per claim."""
-        section = self.product.cover(cover)
+        section = self.product.cover(cover, on)
         if not section.excess.aggregate:
             return None
         ctx = context(self.product, self.inputs, self.selected)
@@ -567,16 +567,16 @@ class Policy:
 
     def claim(self, cover: str, claimed: Decimal, on: date, reported: date, evidence: set[str], item: dict | None = None, facts: dict | None = None) -> "ClaimResult":
         facts = facts or {}
-        rules = self.product.claims.get(cover)
+        rules = self.product.claim(cover, on)  # the wording in force at the loss
         if rules is None:
             return ClaimResult("declined", reason=f"claims on {cover} are not declared")
         status = self.status(on)
         if status != "live":
             return ClaimResult("declined", reason=f"policy was {status} on {on.isoformat()}")
-        section = self.product.cover(cover)
+        section = self.product.cover(cover, on)
         if section.item and item is None:
             return ClaimResult("declined", reason=f"{cover} is per {section.item}; say which {section.item} the claim is on")
-        state = self.cover_state(cover, item)
+        state = self.cover_state(cover, item, on)
         if state.status != "included":
             return ClaimResult("declined", reason=f"{cover} is {state.status}" + (f": {state.reason}" if state.reason else ""))
         first = self.first_inception
@@ -599,7 +599,7 @@ class Policy:
         row = next((r for r in rules.depreciation if r.condition is None or evaluate(r.condition, ctx)), None)
         if row is not None:
             payout = apply_row(payout, row, ctx)
-        limit = self.remaining(cover, item, facts) if section.aggregate else state.limit
+        limit = self.remaining(cover, item, facts, on) if section.aggregate else state.limit
         if section.aggregate and limit == 0:
             where = f" for {section.per} {self.bucket(section, item, facts)}" if section.per else ""
             return ClaimResult("declined", reason=f"{cover} limit for the term is used up{where}")
@@ -611,7 +611,7 @@ class Policy:
                 if clause[2] is None or evaluate(clause[2], ctx):
                     payout = min(payout, Decimal(evaluate(clause[1], ctx)))
             elif clause == "excess":
-                borne = min(payout, self.excess_remaining(cover)) if section.excess.aggregate else self.excess_for(section, ctx)
+                borne = min(payout, self.excess_remaining(cover, on)) if section.excess.aggregate else self.excess_for(section, ctx)
                 payout -= borne
             elif clause == "co-payment":
                 for cp in rules.co_payments:

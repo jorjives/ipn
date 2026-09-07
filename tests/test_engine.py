@@ -1115,3 +1115,102 @@ class RenewalNeeds(unittest.TestCase):
         self.assertEqual(p.renew().needs, [])
         p.accept_renewal()
         self.assertEqual(p.inputs["lock_rating"], "high")
+
+
+class AdjustmentAcrossVersions(unittest.TestCase):
+    def history(self, upgrades: bool):
+        v1 = versioned("2026-01-01", "100")
+        v2 = versioned("2026-07-01", "150", "  lock_rating: choice of low, high\n").replace("  security: choice of bronze, silver, gold\n", "") + "upgrading\n  lock_rating: high when security is gold, otherwise ask\n"
+        if upgrades:
+            v1, v2 = (v.replace("adjustment: reprice,", "adjustment: reprice on the current version,") for v in (v1, v2))
+        return History([parse(v1), parse(v2)])
+
+    def policy(self, h, security="gold"):
+        p = Policy(h.versions[1], {"bike_value": Decimal(2000), "security": security}, set(), history=h)
+        p.bind(date(2026, 3, 1))
+        return p
+
+    def test_by_default_an_adjustment_stays_on_the_policy_version(self):
+        h = self.history(upgrades=False)
+        p = self.policy(h)
+        p.adjust(date(2026, 9, 1), {"bike_value": Decimal(3000)})
+        self.assertIs(p.product, h.versions[0])
+        self.assertEqual(p.premium, Decimal(100))
+
+    def test_on_the_current_version_the_policy_is_upgraded_first(self):
+        h = self.history(upgrades=True)
+        p = self.policy(h)
+        charge = p.adjust(date(2026, 9, 1), {"bike_value": Decimal(3000)})
+        self.assertIs(p.product, h.versions[1])
+        self.assertEqual(p.inputs, {"bike_value": Decimal(3000), "lock_rating": "high"})
+        self.assertEqual(p.premium, Decimal(150))
+        self.assertEqual(charge, (Decimal(50) * Decimal(181) / Decimal(365)).quantize(Decimal("0.01")))
+
+    def test_an_unanswered_ask_refuses_the_adjustment(self):
+        h = self.history(upgrades=True)
+        p = self.policy(h, "bronze")
+        with self.assertRaises(ValueError) as cm:
+            p.adjust(date(2026, 9, 1), {"bike_value": Decimal(3000)})
+        self.assertEqual(str(cm.exception), "adjustment needs lock_rating")
+        self.assertIs(p.product, h.versions[0])
+        self.assertEqual(p.inputs["bike_value"], Decimal(2000))
+
+    def test_the_changes_answer_the_ask(self):
+        h = self.history(upgrades=True)
+        p = self.policy(h, "bronze")
+        p.adjust(date(2026, 9, 1), {"lock_rating": "low"})
+        self.assertEqual((p.product, p.inputs["lock_rating"]), (h.versions[1], "low"))
+
+    def test_before_a_newer_version_exists_nothing_is_upgraded(self):
+        h = self.history(upgrades=True)
+        p = self.policy(h)
+        p.adjust(date(2026, 5, 1), {"bike_value": Decimal(3000)})
+        self.assertIs(p.product, h.versions[0])
+
+
+DATED = '''product "Bike"
+  term 12 months
+inputs
+  bike_value: money
+  racing: yes/no
+cover Theft
+  limit bike_value
+  excess 50
+  from 2027-03-01 excess 100
+  until 2027-03-01 excludes when racing is yes because "Racing was excluded until March 2027"
+rating
+  base 100
+lifecycle
+  renewal
+    invite 21 days before expiry
+claims
+  claim Theft
+    pays claimed amount up to limit, less excess
+    from 2027-06-01 pays claimed amount up to limit
+'''
+
+
+class DatedWording(unittest.TestCase):
+    def setUp(self):
+        self.p = parse(DATED)
+
+    def policy(self, racing=False):
+        pol = Policy(self.p, {"bike_value": Decimal(2000), "racing": racing}, set())
+        pol.bind(date(2026, 9, 1))
+        return pol
+
+    def test_a_claim_is_settled_on_the_wording_in_force_at_the_loss(self):
+        pol = self.policy()
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 1, 1), date(2027, 1, 1), set()).amount, Decimal(950))
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 4, 1), date(2027, 4, 1), set()).amount, Decimal(900))
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 7, 1), date(2027, 7, 1), set()).amount, Decimal(1000))
+
+    def test_an_until_exclusion_stops_on_its_date(self):
+        pol = self.policy(racing=True)
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 2, 1), date(2027, 2, 1), set()).reason, "Theft is excluded: Racing was excluded until March 2027")
+        self.assertEqual(pol.claim("Theft", Decimal(1000), date(2027, 3, 1), date(2027, 3, 1), set()).status, "paid")
+
+    def test_cover_state_takes_a_date_and_is_undated_without_one(self):
+        pol = self.policy(racing=True)
+        self.assertEqual(pol.cover_state("Theft").status, "included")
+        self.assertEqual(pol.cover_state("Theft", on=date(2027, 1, 1)).status, "excluded")

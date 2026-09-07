@@ -55,6 +55,7 @@ class Product:
     tables: dict[str, "Table"] = field(default_factory=dict)
     base: str = field(default=".", repr=False)  # directory that table files are read from
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
+    parsing: bool = field(default=True, repr=False)  # False once the file is read: a wording built later runs its own deferred work
 
     def currency_for(self, territory: str) -> str:
         return self.currency or CURRENCY.get(territory, "")
@@ -63,8 +64,15 @@ class Product:
         """The smallest unit of the currency the risk is quoted in: 0.01 for GBP, 1 for JPY."""
         return Decimal(1).scaleb(-MINOR_DIGITS.get(self.currency_for(territory), 2))
 
-    def cover(self, name: str) -> "Cover | None":
-        return next((c for c in self.covers if c.name == name), None)
+    def cover(self, name: str, on: date | None = None) -> "Cover | None":
+        """The cover, as worded on that date; without a date, the undated wording."""
+        c = next((c for c in self.covers if c.name == name), None)
+        return c.as_of(on) if c is not None else None
+
+    def claim(self, name: str, on: date | None = None) -> "ClaimRule | None":
+        """The claim rule for a cover, as worded on that date."""
+        r = self.claims.get(name)
+        return r.as_of(on) if r is not None else None
 
     @property
     def collections(self) -> list["Input"]:
@@ -72,6 +80,46 @@ class Product:
 
     def collection_for(self, singular: str) -> "Input | None":
         return next((c for c in self.collections if c.singular == singular), None)
+
+
+@dataclass
+class Dated:
+    """One line of a cover or claim block with the dates it is in effect: `from DATE`, `until DATE`, or neither."""
+    line: object  # the parser's Line, with the dates stripped off
+    key: str | None  # the setting a one-valued line sets (limit, excess, pays ...); None for a line that adds to a list
+    from_: date | None = None
+    until: date | None = None
+
+    @property
+    def dated(self) -> bool:
+        return self.from_ is not None or self.until is not None
+
+    def in_effect(self, on: date) -> bool:
+        return (self.from_ is None or on >= self.from_) and (self.until is None or on < self.until)
+
+
+def in_effect(lines: list[Dated], on: date) -> list[Dated]:
+    """The lines in force on a date: every dated line whose window holds it, and the undated lines
+    whose setting none of those replaces. A later line replaces an earlier one for the same setting."""
+    dated = [d for d in lines if d.dated and d.in_effect(on)]
+    replaced = {d.key for d in dated if d.key is not None}
+    return [d for d in lines if not d.dated and d.key not in replaced] + dated
+
+
+class Wording:
+    """Mixin for a block whose lines may be dated: rebuilds itself as of a date, once per window."""
+    lines: list  # of Dated
+    build: object  # (list[Dated]) -> a fresh instance, set by the parser
+
+    def as_of(self, on: date | None):
+        if on is None or not any(d.dated for d in self.lines):
+            return self
+        boundaries = sorted({d for l in self.lines for d in (l.from_, l.until) if d is not None})
+        window = sum(on >= b for b in boundaries)
+        cache = self.__dict__.setdefault("_windows", {})
+        if window not in cache:
+            cache[window] = self.build(in_effect(self.lines, on))
+        return cache[window]
 
 
 @dataclass
@@ -92,9 +140,11 @@ class Excess:
 
 
 @dataclass
-class Cover:
+class Cover(Wording):
     name: str
     optional: bool = False
+    lines: list = field(default_factory=list, repr=False, compare=False)  # every line of the block, with its dates
+    build: object = field(default=None, repr=False, compare=False)
     limit: tuple | None = None
     aggregate: bool = False  # the limit is for the whole term, eroded by each paid claim
     per: str = ""  # aggregate == True: one limit per value of this asked fact, or per this item (e.g. condition, traveller)
@@ -169,8 +219,10 @@ class Lifecycle:
 
 
 @dataclass
-class ClaimRule:
+class ClaimRule(Wording):
     cover: str
+    lines: list = field(default_factory=list, repr=False, compare=False)
+    build: object = field(default=None, repr=False, compare=False)
     requires: list[str] = field(default_factory=list)
     asks: dict[str, Input] = field(default_factory=dict)  # facts asked when the claim is made
     pays: list[str] = field(default_factory=lambda: ["limit"])  # clauses in the order written: limit | excess | co-payment

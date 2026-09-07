@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from .expr import ExprError, lookups, names, parse_expr
 from .tables import TableError, load_table
-from .model import Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step, Upgrade
+from .model import Dated, Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step, Upgrade, in_effect
 
 
 class ParseError(Exception):
@@ -287,13 +287,69 @@ def parse_eligibility(line: Line, product: Product) -> None:
         product.eligibility.append(rule(child, toks[0], toks[1:], product))
 
 
+COVER_KEYS = {"deductible": "excess", "in": "in force"}  # first word -> the setting it sets, where they differ
+COVER_LISTS = {"excludes"}
+CLAIM_KEYS = {"settlement": "depreciation", "does": "counts"}
+CLAIM_LISTS = {"decline", "co-payment"}
+
+
+def dated(child: Line, keys: dict[str, str], lists: set[str]) -> Dated:
+    """A block line with any `from DATE` / `until DATE` prefix taken off and remembered."""
+    toks, from_, until = tokens(child), None, None
+    while toks[:1] in (["from"], ["until"]) and toks[1:2] and DATE_TOKEN.fullmatch(toks[1]):
+        if toks[0] == "from":
+            from_ = date.fromisoformat(toks[1])
+        else:
+            until = date.fromisoformat(toks[1])
+        toks = toks[2:]
+    if not toks:
+        raise child.error("expected a line after the date")
+    key = toks[0] if toks[0] not in lists else None
+    key = keys.get(key, key) if key is not None else None
+    if key == "in force":
+        key = " ".join(toks[:3])  # in force from | in force until
+    stripped = Line(child.number, child.indent, " ".join(toks), child.children) if (from_ or until) else child
+    return Dated(stripped, key, from_, until)
+
+
+def check_windows(line: Line, lines: list[Dated], build) -> None:
+    """Every window between two dates must read as a whole block, and no one-valued setting may be given twice."""
+    for boundary in sorted({d for l in lines for d in (l.from_, l.until) if d is not None}):
+        effective = in_effect(lines, boundary)
+        seen = set()
+        for d in effective:
+            if d.dated and d.key is not None:
+                if d.key in seen:
+                    raise d.line.error(f"{d.key} is given twice for {boundary.isoformat()}")
+                seen.add(d.key)
+        build(effective)
+
+
 def parse_cover(line: Line, product: Product) -> None:
     toks = tokens(line)
     if len(toks) not in (2, 3) or (len(toks) == 3 and toks[2] != "optional"):
         raise line.error('expected: cover Name [optional]')
     cover = Cover(unquote(toks[1]), optional=len(toks) == 3)
     product.covers.append(cover)  # before parsing children so "X selected" can name it
-    for child in line.children:
+    cover.lines = [dated(child, COVER_KEYS, COVER_LISTS) for child in line.children]
+
+    def build(lines: list[Dated], deferred: list | None = None) -> Cover:
+        fresh = Cover(cover.name, cover.optional)
+        work = product.deferred if deferred is None and product.parsing else []
+        fill_cover(fresh, [d.line for d in lines], product, work)
+        if work is not product.deferred:
+            for w in work:
+                w()
+        return fresh
+
+    cover.build = build
+    fill_cover(cover, [d.line for d in cover.lines if not d.dated], product, product.deferred)
+    check_windows(line, cover.lines, build)
+
+
+def fill_cover(cover: Cover, children: list[Line], product: Product, deferred: list) -> None:
+    """Reads a cover's lines into it. Work that needs the claims block runs from `deferred`."""
+    for child in children:
         toks = tokens(child)
         key = "excess" if toks[0] == "deductible" else toks[0]
         if key == "limit":
@@ -302,10 +358,10 @@ def parse_cover(line: Line, product: Product) -> None:
                 cover.aggregate, rest = True, rest[2:]
                 if len(rest) == 2 and rest[0] == "per":
                     cover.per, rest = rest[1], []
-                    product.deferred.append(lambda line=child: check_per(line, cover, product))
+                    deferred.append(lambda line=child: check_per(line, cover, product))
         elif key == "excess" and len(toks) == 1 and child.children:
             # A table of rows may use facts a claim asks for, which are declared later: parse it last.
-            product.deferred.append(lambda line=child: parse_excess_table(line, cover, product))
+            deferred.append(lambda line=child: parse_excess_table(line, cover, product))
             rest = []
         elif key == "excess":
             cover.excess.amount, rest = expression(child, toks[1:], product, stop={",", "per"})
@@ -592,6 +648,7 @@ def parse_claims(line: Line, product: Product) -> None:
         elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:5] == ["in", "term"] and child.children:
             # Terms imposed once that many claims have been paid: lifecycle lines that override the product's own.
             unless = parse_unless(child, toks[5:], product)
+            forbid_dates(child.children)
             original, product.lifecycle = product.lifecycle, copy.deepcopy(product.lifecycle)
             try:
                 parse_lifecycle(child, product)
@@ -622,11 +679,26 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
             for f in rule_.asks.values():
                 if f.kind in ("calculated", "collection") or f.name in known_words(product):
                     raise child.error(f"{f.name!r} cannot be asked in a claim; it is already known or not a plain type")
+    rule_.lines = [dated(child, CLAIM_KEYS, CLAIM_LISTS) for child in line.children if tokens(child) != ["asks"]]
+    for d in rule_.lines:
+        if d.dated and d.key == "asks":
+            raise d.line.error("asks cannot be dated; the facts a claim asks for are part of every wording")
+
+    def build(lines: list[Dated]) -> ClaimRule:
+        fresh = ClaimRule(name, asks=rule_.asks)
+        fill_claim(fresh, [d.line for d in lines], product)
+        return fresh
+
+    rule_.build = build
+    fill_claim(rule_, [d.line for d in rule_.lines if not d.dated], product)
+    check_windows(line, rule_.lines, build)
+    return rule_
+
+
+def fill_claim(rule_: ClaimRule, children: list[Line], product: Product) -> None:
     facts = set(rule_.asks) | {c for f in rule_.asks.values() for c in f.choices}
-    for child in line.children:
+    for child in children:
         toks = tokens(child)
-        if toks == ["asks"]:
-            continue
         if toks[:1] == ["requires"]:
             rule_.requires = [t for t in toks[1:] if t != ","]
         elif toks[:3] == ["pays", "claimed", "amount"]:
@@ -666,7 +738,6 @@ def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
                 raise child.error(f"unexpected {' '.join(rest)!r}")
         else:
             raise child.error(f"unknown claim setting {child.text!r}")
-    return rule_
 
 
 PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess", ("less", "deductible"): "excess", ("less", "co-payment"): "co-payment"}
@@ -986,6 +1057,15 @@ BLOCKS = {
 }
 
 
+def forbid_dates(lines: list[Line]) -> None:
+    """Only cover and claims lines can be dated: eligibility is moot once bound and the premium charged stands."""
+    for child in lines:
+        toks = tokens(child)
+        if toks[:1] in (["from"], ["until"]) and toks[1:2] and DATE_TOKEN.fullmatch(toks[1]):
+            raise child.error("only cover and claims lines can be dated")
+        forbid_dates(child.children)
+
+
 def parse(text: str, base: str = ".") -> Product:
     """Parses a product. Table files named in it are read relative to base."""
     product = None
@@ -1002,11 +1082,14 @@ def parse(text: str, base: str = ".") -> Product:
         handler = BLOCKS.get(toks[0])
         if handler is None:
             raise line.error(f"unknown block {toks[0]!r}")
+        if toks[0] not in ("cover", "claims"):
+            forbid_dates(line.children)
         handler(line, product)
     if product is None:
         raise ParseError("empty file: expected product \"Name\"")
     for work in product.deferred:
         work()
+    product.parsing = False
     unknown = names(product.term[0]) - set(product.inputs)
     if unknown:
         raise ParseError(f"term refers to {sorted(unknown)[0]!r}, which is not an input")
