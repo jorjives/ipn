@@ -1279,3 +1279,13 @@ class CoverPremiums(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             parse(src)
         self.assertEqual(str(cm.exception), "line 27: Membership's premium never joins the net: 'add cover premiums' is inside 'for each bike', but Membership is not priced per bike")
+
+
+class QuotedChoices(unittest.TestCase):
+    def test_inline_choice_accepts_quoted_values(self):
+        p = parse('product "X"\n  territory UK\n\ninputs\n  industry: choice of construction, "Health & Social Care"\n')
+        self.assertEqual(p.inputs["industry"].choices, ["construction", "Health & Social Care"])
+
+    def test_default_may_be_a_quoted_value(self):
+        p = parse('product "X"\n  territory UK\n\ninputs\n  industry: choice of construction, "Health & Social Care", default "Health & Social Care"\n')
+        self.assertEqual(p.inputs["industry"].default, "Health & Social Care")

@@ -145,7 +145,7 @@ def parse_input_lines(lines: list[Line], nested: bool = False) -> dict[str, Inpu
         if kind == "choice":
             if len(toks) < 5 or toks[3] != "of":
                 raise child.error("expected 'choice of a, b, c'")
-            inputs[name] = Input(name, "choice", [t for t in toks[4:] if t != ","])
+            inputs[name] = Input(name, "choice", [unquote(t) for t in toks[4:] if t != ","])
         elif kind == "collection" and not nested:
             inputs[name] = parse_collection(child, name, toks[3:])
         elif kind in INPUT_KINDS and len(toks) == 3:
@@ -887,8 +887,8 @@ def given_value(line: Line, inp: Input, tok: str):
         return Decimal(tok)
     if inp.kind == "yes/no" and tok in ("yes", "no"):
         return tok == "yes"
-    if inp.kind == "choice" and tok in inp.choices:
-        return tok
+    if inp.kind == "choice" and unquote(tok) in inp.choices:
+        return unquote(tok)
     if inp.kind == "text":
         return unquote(tok)
     if inp.kind == "date" and DATE_TOKEN.fullmatch(tok):
