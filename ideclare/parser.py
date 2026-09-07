@@ -1192,6 +1192,11 @@ def check_cover_premiums(product: Product) -> None:
         raise ParseError(f"line {product.rating_line}: {message}" if product.rating_line else message)
     if priced and len(joins) > 1:
         raise ParseError(f"line {joins[1].line}: cover premiums join twice")
+    if priced and joins[0].label:  # inside a loop, only that item's covers can join
+        for c in product.covers:
+            if c.premium and c.premium_item != joins[0].label:
+                raise ParseError(f"line {joins[0].line}: {c.name}'s premium never joins the net: 'add cover premiums' is inside "
+                                 f"'for each {joins[0].label}', but {c.name} is not priced per {joins[0].label}")
     if joins and not priced:
         raise ParseError(f"line {joins[0].line}: no cover has a premium")
 

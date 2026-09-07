@@ -211,12 +211,11 @@ def attributed(product: Product, shares: dict[str, Decimal], quantum: Decimal, s
 
 def cover_premiums(product: Product, ctx: dict, trail: list, prefix: str, item: str) -> list[tuple[str, Decimal]]:
     """Each included cover's own price, for `add cover premiums`. Inside `for each <item>` it is the current item's
-    per-item premiums; outside, every other cover's, a per-item one summed over its items. A premium of one bare
-    `base` leaves no trail of its own; a block's steps do."""
-    inside = {s.label for step in product.rating for s in step.steps if s.kind == "premiums"}
+    premiums (the parser makes sure every priced cover is per that item); outside, every cover's, a per-item one
+    summed over its items. A premium of one bare `base` leaves no trail of its own; a block's steps do."""
     out = []
     for cover in product.covers:
-        if not cover.premium or (cover.premium_item != item if item else cover.premium_item in inside):
+        if not cover.premium or (item and cover.premium_item != item):
             continue
         contexts = [ctx] if item or not cover.premium_item else [{**ctx, **i} for i in ctx[product.collection_for(cover.premium_item).name]]
         amount, included = Decimal(0), False

@@ -1273,3 +1273,9 @@ class CoverPremiums(unittest.TestCase):
         with self.assertRaises(ParseError) as cm:
             parse(FULL + "rating\n  add cover premiums\n")
         self.assertEqual(str(cm.exception), "line 37: no cover has a premium")
+
+    def test_a_join_inside_a_loop_needs_every_premium_priced_per_that_item(self):
+        src = FLEET.replace("cover Theft\n", "cover Membership\n  premium 20\n\ncover Theft\n").replace("    base 3% of value\n", "    base 3% of value\n    add cover premiums\n")
+        with self.assertRaises(ParseError) as cm:
+            parse(src)
+        self.assertEqual(str(cm.exception), "line 27: Membership's premium never joins the net: 'add cover premiums' is inside 'for each bike', but Membership is not priced per bike")

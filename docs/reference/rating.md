@@ -217,10 +217,10 @@ rating
 - A cover that is not selected, not available or excluded contributes nothing. The steps
   after `add cover premiums` treat the covers' prices like any other share: a `discount`
   or `minimum` scales every cover alike, `for <Cover>` scales one.
-- Inside `for each bike`, `add cover premiums` adds the current bike's premiums for the
-  covers priced on a bike's fields, so the steps that follow in the loop apply to them
-  too. Outside the loop it adds every other cover's premium, a per-item one summed over
-  its items. The quote trail shows each price as it joins (`Buildings + 450.00`,
+- Inside `for each bike`, `add cover premiums` adds the current bike's premiums, so the
+  steps that follow in the loop apply to them too; every priced cover must then be priced
+  on a bike's fields, or the parse fails naming the one that is not. Outside the loop it
+  adds every cover's premium, a per-item one summed over its items. The quote trail shows each price as it joins (`Buildings + 450.00`,
   `bike 1 Fire + 10.00`); a `premium` block also shows its own steps (`Buildings base`).
 - A cover may have a `premium` and a row in `allocate` too: it takes its own price and its
   share of the pool.
