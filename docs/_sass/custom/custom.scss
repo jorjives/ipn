@@ -1,0 +1,98 @@
+// Open IDL custom styles. Tokens live in color_schemes/openidl.scss.
+
+// --- Type -----------------------------------------------------------------
+.main-content {
+  h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
+  h1 { font-size: 2rem; margin-top: 0.5rem; }
+  h2 { font-size: 1.45rem; margin-top: 2.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid $oidl-rule; }
+  h3 { font-size: 1.15rem; margin-top: 1.75rem; }
+  h4 { font-size: 0.95rem; text-transform: none; letter-spacing: 0; font-weight: 600; margin-top: 1.5rem; }
+  p, li { max-width: 72ch; }
+  li { line-height: 1.55; }
+  table { font-size: 0.9rem; }
+  th { font-weight: 600; }
+  code { font-size: 0.86em; }
+  pre.highlight, .highlight pre { font-size: 0.86rem; line-height: 1.55; }
+  blockquote { border-left: 3px solid $oidl-rule; color: lighten($oidl-ink, 15%); }
+}
+.site-title { font-weight: 600; letter-spacing: -0.01em; }
+.nav-list .nav-list-item .nav-list-link { font-size: 0.92rem; }
+
+// --- .idl highlighting (spans added by assets/js/idl.js) ------------------
+.language-idl {
+  .k  { color: $oidl-marine; font-weight: 600; }   // block opener
+  .kw { color: $oidl-marine; }                     // statement word
+  .ty { color: $oidl-teal; }                       // input type
+  .s  { color: $oidl-sepia; }                      // quoted wording
+  .n  { color: $oidl-teal; }                       // number, percent, date
+  .c  { color: #7b7b78; font-style: italic; }      // comment
+}
+
+// --- check output blocks ---------------------------------------------------
+.language-check .highlight, .check-out {
+  .pass { color: $oidl-pass; font-weight: 600; }
+  .fail { color: $oidl-fail; font-weight: 600; }
+}
+
+// --- Landing page ----------------------------------------------------------
+.oidl-hero {
+  margin: 0.5rem 0 2.5rem;
+  h1 { font-size: 2.6rem; line-height: 1.1; max-width: 18ch; margin-bottom: 1rem; }
+  .lede { font-size: 1.15rem; max-width: 56ch; color: lighten($oidl-ink, 12%); margin-bottom: 1.5rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 2rem; }
+  .actions .btn { font-family: $body-font-family; font-size: 1rem; padding: 0.55rem 1.1rem; }
+}
+.oidl-proof {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 1.25rem;
+  align-items: start;
+  border: 1px solid $oidl-rule;
+  border-radius: 4px;
+  background: $oidl-paper;
+  padding: 1rem 1.25rem;
+  @media (max-width: 800px) { grid-template-columns: minmax(0, 1fr); }
+  .file, .out {
+    font-family: $mono-font-family;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    margin: 0;
+    white-space: pre;
+    overflow-x: auto;
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  .out { border-left: 1px solid $oidl-rule; padding-left: 1.25rem; min-height: 100%;
+    @media (max-width: 800px) { border-left: 0; border-top: 1px solid $oidl-rule; padding: 1rem 0 0; } }
+  .cmd { color: lighten($oidl-ink, 25%); }
+  .out .line { display: block; }
+  .out .pass { color: $oidl-pass; font-weight: 600; }
+  .out .sum { margin-top: 0.5rem; display: block; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .oidl-proof .out .line.typed { opacity: 0; animation: oidl-print 0.25s ease-out forwards; }
+  @keyframes oidl-print { to { opacity: 1; } }
+}
+
+.oidl-walk {
+  margin: 2rem 0;
+  .step {
+    display: grid;
+    grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+    gap: 1.5rem;
+    padding: 1.25rem 0;
+    border-top: 1px solid $oidl-rule;
+    align-items: start;
+    @media (max-width: 800px) { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  }
+  .step:last-child { border-bottom: 1px solid $oidl-rule; }
+  .step h3 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+  .step p { margin: 0; font-size: 0.97rem; color: lighten($oidl-ink, 10%); }
+  .step .highlighter-rouge { margin: 0; }
+  .step pre { margin: 0; }
+}
+
+.oidl-lines {
+  td:first-child { white-space: nowrap; }
+}

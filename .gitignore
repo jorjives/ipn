@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+docs/_site/
+docs/.jekyll-cache/
+docs/.sass-cache/

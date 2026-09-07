@@ -1,0 +1,84 @@
+title: Open IDL
+description: An open, declarative language for defining insurance products end to end, proven by scenarios in the same file.
+url: "https://jorjives.github.io"
+baseurl: "/open-idl"
+repository: jorjives/open-idl
+
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+  - jekyll-github-metadata
+  - jekyll-include-cache
+  - jekyll-sitemap
+
+permalink: pretty
+color_scheme: openidl
+logo: ""
+
+exclude:
+  - superpowers/
+  - .jekyll-cache/
+  - .sass-cache/
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+
+search_enabled: true
+search:
+  heading_level: 3
+  previews: 2
+  rel_url: true
+  button: false
+enable_copy_code_button: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: "Back to top"
+
+aux_links:
+  "Open IDL on GitHub":
+    - "https://github.com/jorjives/open-idl"
+nav_external_links:
+  - title: Open IDL on GitHub
+    url: https://github.com/jorjives/open-idl
+nav_error_report: true
+
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/jorjives/open-idl"
+gh_edit_branch: "main"
+gh_edit_source: docs
+gh_edit_view_mode: "tree"
+
+footer_content: "Open IDL. The reference engine is written in Python with no dependencies; every page of examples on this site is generated from files that pass their own scenarios."
+
+callouts:
+  note:
+    title: Note
+    color: blue
+  warning:
+    title: Take care
+    color: red
+  proof:
+    title: Proof
+    color: green
+
+kramdown:
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+liquid:
+  error_mode: strict
+  strict_filters: true
+
+compress_html:
+  clippings: all
+  comments: all
+  endings: all
+  blanklines: false
+  profile: false
+
+sass:
+  quiet_deps: true
+  silence_deprecations: ['import']

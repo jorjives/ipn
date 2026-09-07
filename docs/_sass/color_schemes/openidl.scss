@@ -1,0 +1,53 @@
+// Open IDL: paper, ink and marine. See docs/superpowers/specs/2026-09-07-website-design.md.
+$color-scheme: light;
+
+$oidl-ink: #1c2331;
+$oidl-marine: #274c77;
+$oidl-marine-dk: #1c3a5c;
+$oidl-sepia: #7a4e1e;
+$oidl-teal: #0e6e6a;
+$oidl-pass: #2f7d5b;
+$oidl-fail: #b23a48;
+$oidl-rule: #d9d6cc;
+$oidl-paper: #f6f5f1;
+
+$body-font-family: "Literata", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+$mono-font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+$root-font-size: 17px;
+$body-line-height: 1.5;
+$content-line-height: 1.65;
+$body-heading-line-height: 1.2;
+
+$body-background-color: #ffffff;
+$body-heading-color: $oidl-ink;
+$body-text-color: $oidl-ink;
+$link-color: $oidl-marine;
+$nav-child-link-color: $oidl-ink;
+$sidebar-color: $oidl-paper;
+$base-button-color: #ffffff;
+$btn-primary-color: $oidl-marine;
+$code-background-color: $oidl-paper;
+$feedback-color: darken($oidl-paper, 3%);
+$table-background-color: #ffffff;
+$search-background-color: #ffffff;
+$search-result-preview-color: $oidl-ink;
+$border-color: $oidl-rule;
+
+$blue-000: $oidl-marine;
+$blue-100: $oidl-marine;
+$blue-200: $oidl-marine-dk;
+$blue-300: $oidl-marine-dk;
+$green-000: $oidl-pass;
+$green-100: $oidl-pass;
+$green-200: $oidl-pass;
+$green-300: darken($oidl-pass, 8%);
+$red-000: $oidl-fail;
+$red-100: $oidl-fail;
+$red-200: $oidl-fail;
+$red-300: darken($oidl-fail, 8%);
+$purple-000: $oidl-marine;
+$purple-100: $oidl-marine;
+$purple-200: $oidl-marine-dk;
+$purple-300: $oidl-marine-dk;
+
+@import "./vendor/accessible-pygments/github-light";
