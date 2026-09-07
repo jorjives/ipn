@@ -1,6 +1,7 @@
 # Household: buildings and contents sold as one policy. Each section is optional,
-# rated on its own sum insured with its own excess and claims, and taking both
-# earns a bundle discount. A customer must take at least one section.
+# priced on its own sum insured with its own excess and claims, and taking both
+# earns a bundle discount. A customer must take at least one section. Each
+# section carries its class, so the premium and tax are split between them.
 # Run it with:  python3 -m ideclare check examples/household.idl
 
 product "Household"
@@ -15,12 +16,16 @@ inputs
   previous_claims: integer
 
 cover Buildings optional
+  class 8
+  premium 0.15% of rebuild_cost
   limit rebuild_cost
   excess
     cause is subsidence: 1000
     otherwise: 250
 
 cover Contents optional
+  class 9
+  premium 0.5% of contents_sum
   limit contents_sum
   excess 100
 
@@ -33,8 +38,7 @@ eligibility
   refer when year_built < 1850 because "Listed and very old buildings need an underwriter"
 
 rating
-  add "Buildings" 0.15% of rebuild_cost when Buildings selected
-  add "Contents" 0.5% of contents_sum when Contents selected
+  add cover premiums
   factor "Property type"
     property_type is flat: x 0.90
     property_type is detached: x 1.10
@@ -83,6 +87,7 @@ scenario "Buildings only"
   expect cover Contents "not selected"
   # 0.15% of 300,000 = 450
   expect net 450.00
+  expect net for Buildings 450.00
   expect premium 504.00
 
 scenario "Contents only, in a flat"
@@ -96,8 +101,12 @@ scenario "Both sections earn the bundle discount"
   given rebuild_cost 300000, contents_sum 40000, property_type semi, year_built 1995, previous_claims 0
   select Buildings, Contents
   expect eligible
-  # 450 + 200 = 650, less 10%
+  # 450 + 200 = 650, less 10%; each section keeps its share of the discount and of IPT
   expect net 585.00
+  expect net for Buildings 405.00
+  expect net for Contents 180.00
+  expect tax IPT for Buildings 48.60
+  expect tax IPT for class 9 21.60
   expect premium 655.20
 
 scenario "Neither section is not a policy"

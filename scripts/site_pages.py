@@ -28,6 +28,7 @@ EXAMPLES = [
     ("irish-cycle", "Cycle in Ireland", "Several taxes on one premium and a fixed duty above a threshold"),
     ("home", "Home contents", "Specified items, an excess by cause of loss, the average clause"),
     ("household", "Buildings and contents", "Two optional sections sold as one policy with a bundle discount"),
+    ("ebike-fleet", "E-bike fleet", "Fire cover priced on the e-bikes only; the premium and taxes split by cover class"),
     ("travel", "Single-trip travel", "Insuring people; a term ending on a date; sections in force on different days"),
     ("pet", "Lifetime pet", "An annual limit per condition eroded by claims, a waiting period, a co-payment with age"),
     ("motor", "Private motor", "Named drivers, a no claims discount that steps back, an excess by driver, instalments"),

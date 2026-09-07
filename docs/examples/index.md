@@ -26,6 +26,7 @@ commented with the arithmetic. The rest take the same language across the indust
 | [Cycle in Ireland](irish-cycle.md) | Several taxes on one premium and a fixed duty above a threshold |
 | [Home contents](home.md) | Specified items, an excess by cause of loss, the average clause |
 | [Buildings and contents](household.md) | Two optional sections sold as one policy with a bundle discount |
+| [E-bike fleet](ebike-fleet.md) | Fire cover priced on the e-bikes only; the premium and taxes split by cover class |
 | [Single-trip travel](travel.md) | Insuring people; a term ending on a date; sections in force on different days |
 | [Lifetime pet](pet.md) | An annual limit per condition eroded by claims, a waiting period, a co-payment with age |
 | [Private motor](motor.md) | Named drivers, a no claims discount that steps back, an excess by driver, instalments |

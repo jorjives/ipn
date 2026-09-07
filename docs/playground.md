@@ -21,6 +21,7 @@ engine straight from the repository, so nothing you type leaves your machine.
 <option value="examples/irish-cycle.idl">Cycle in Ireland</option>
 <option value="examples/home.idl">Home contents</option>
 <option value="examples/household.idl">Buildings and contents</option>
+<option value="examples/ebike-fleet.idl">E-bike fleet</option>
 <option value="examples/travel.idl">Single-trip travel</option>
 <option value="examples/pet.idl">Lifetime pet</option>
 <option value="examples/motor.idl">Private motor</option>

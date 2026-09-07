@@ -1,7 +1,7 @@
 ---
 title: Private Motor
 parent: Examples
-nav_order: 10
+nav_order: 11
 ---
 
 # Private Motor
