@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from .expr import evaluate, names
+from .expr import ExprError, evaluate, names
 from .model import Cover, Input, Lifecycle, Product, RatingStep
 
 
@@ -16,7 +16,7 @@ def context(product: Product, inputs: dict, selected: set[str], item: dict | Non
     ctx = {**inputs, "selected": selected, "tables": product.tables, **extra}
     for inp in product.inputs.values():
         if inp.kind == "calculated":
-            ctx[inp.name], _ = run_steps(product, inp.steps, ctx, Decimal(0), [], [])
+            ctx[inp.name] = total(run_steps(product, inp.steps, ctx, [], [])[0])
     for coll in product.collections:
         ctx[coll.name] = ctx[coll.singular] = [calculated(product, coll, i, ctx) for i in ctx.get(coll.name, [])]
         if item and set(item) >= {f.name for f in coll.fields.values() if f.kind not in ("text", "calculated")}:
@@ -51,7 +51,7 @@ def calculated(product: Product, coll: Input, item: dict, ctx: dict) -> dict:
     item = dict(item)
     for f in coll.fields.values():
         if f.kind == "calculated":
-            item[f.name], _ = run_steps(product, f.steps, {**ctx, **item}, Decimal(0), [], [])
+            item[f.name] = total(run_steps(product, f.steps, {**ctx, **item}, [], [])[0])
     return item
 
 
@@ -126,6 +126,16 @@ class Trail:
 
 
 @dataclass
+class Share:
+    """One cover's part of a quote: its net and its part of each attributed line. `by_class` sums them by class."""
+    name: str
+    class_: str
+    net: Decimal
+    lines: list[tuple[str, Decimal]] = field(default_factory=list)
+    commission: list[tuple[str, Decimal]] = field(default_factory=list)
+
+
+@dataclass
 class Quote:
     net: Decimal
     lines: list[tuple[str, Decimal]]  # taxes and fees, in order
@@ -134,24 +144,86 @@ class Quote:
     trail: list[Trail] = field(default_factory=list)
     commission: list[tuple[str, Decimal]] = field(default_factory=list)  # shares of the net owed to intermediaries; reported, never added
     currency: str = ""
+    shares: list[Share] = field(default_factory=list)  # one per cover with a share, in declaration order; empty when nothing is attributed
+
+    def by_class(self) -> list[Share]:
+        out: dict[str, Share] = {}
+        for s in self.shares:
+            c = out.setdefault(s.class_, Share(s.class_, s.class_, Decimal(0), [], []))
+            c.net += s.net
+            c.lines = merged(c.lines, s.lines)
+            c.commission = merged(c.commission, s.commission)
+        return list(out.values())
 
 
-def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lines: list, prefix: str = "") -> tuple[Decimal, Decimal]:
-    """Runs rating steps in order against a running net. Returns the net and the rounding unit.
-    `lines` collects [kind, label, amount] for every tax, fee and commission, evaluated where it stands."""
+def merged(a: list[tuple[str, Decimal]], b: list[tuple[str, Decimal]]) -> list[tuple[str, Decimal]]:
+    out = dict(a)
+    for label, amount in b:
+        out[label] = out.get(label, Decimal(0)) + amount
+    return list(out.items())
+
+
+def total(shares: dict[str, Decimal]) -> Decimal:
+    return sum(shares.values(), Decimal(0))
+
+
+def split(amount: Decimal, weights: dict[str, Decimal], quantum: Decimal) -> dict[str, Decimal]:
+    """`amount` shared in proportion to `weights`, each part rounded, the residue to the largest weight (the first on a tie)."""
+    if not weights:
+        return {}
+    base = total(weights)
+    out = {k: (amount * w / base if base else Decimal(0)).quantize(quantum, ROUNDING) for k, w in weights.items()}
+    largest = max(weights, key=weights.get)
+    out[largest] += amount - total(out)
+    return out
+
+
+def allocated(product: Product, shares: dict[str, Decimal]) -> dict[str, Decimal]:
+    """The shares with the pool shared out by `allocate`, unrounded. Done before any step that names a cover and at the end,
+    so the key's position in the rating never matters."""
+    if not product.allocation:
+        return shares
+    out = {**{c.name: shares.get(c.name, Decimal(0)) for c in product.covers}, "": Decimal(0)}
+    for name, part in product.allocation:
+        out[name] += shares.get("", Decimal(0)) * part
+    return out
+
+
+def attributed(product: Product, shares: dict[str, Decimal], quantum: Decimal) -> dict[str, Decimal]:
+    """The covers' rounded shares of the rounded net; empty for a product that attributes nothing."""
+    if not product.attributed:
+        return {}
+    shares = allocated(product, shares)
+    pool = shares.get("", Decimal(0)).quantize(quantum, ROUNDING)
+    if pool:
+        raise ExprError(f"{pool:f} of the premium is not attributed to a cover; add allocate")
+    return split(total(shares).quantize(quantum, ROUNDING), {c.name: shares.get(c.name, Decimal(0)) for c in product.covers}, quantum)
+
+
+def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, prefix: str = "") -> tuple[dict[str, Decimal], Decimal]:
+    """Runs rating steps in order against a running net held as shares by cover ("" is the unattributed pool);
+    the net is their sum. Returns the shares and the rounding unit. `lines` collects [kind, label, amount, shares]
+    for every tax, fee and commission, evaluated where it stands."""
     quantum = product.quantum_for(ctx.get("territory", ""))
+    shares: dict[str, Decimal] = {"": Decimal(0)}
 
     def value(node, **words):
         return Decimal(evaluate(node, {**ctx, **words} if words else ctx))
 
     def record(label, applied):
-        trail.append(Trail(prefix + label, applied, net))
+        trail.append(Trail(prefix + label, applied, total(shares)))
+
+    def scale(mult: Decimal, cover: str) -> None:
+        for k in shares if not cover else [cover]:
+            shares[k] = shares.get(k, Decimal(0)) * mult
+
+    def words_for(net: Decimal, covers: dict[str, Decimal], line_shares) -> dict:
+        """What a line may read: the net as the customer sees it, net plus the lines above, each tax above, each cover's share."""
+        above = sum((line_shares(l) for l in lines if l[0] != "commission"), Decimal(0))
+        return {**{l[1]: line_shares(l) for l in lines if l[0] == "tax"}, **covers, "net": net, "premium": net + above}
 
     def line_words() -> dict:
-        """What a line may read: the net so far as the customer sees it, net plus the lines above, each word-named tax."""
-        rounded = net.quantize(quantum, ROUNDING)
-        above = sum((amount for kind, _, amount in lines if kind != "commission"), Decimal(0))
-        return {**{label: amount for kind, label, amount in lines if kind == "tax"}, "net": rounded, "premium": rounded + above}
+        return words_for(total(shares).quantize(quantum, ROUNDING), attributed(product, shares, quantum), lambda l: l[2])
 
     for step in steps:
         if step.kind == "round":
@@ -159,48 +231,67 @@ def run_steps(product: Product, steps, ctx: dict, net: Decimal, trail: list, lin
     for step in steps:
         if step.condition is not None and not evaluate(step.condition, {**ctx, **line_words()}):
             continue
+        key = step.cover or ""
+        if key:
+            shares = allocated(product, shares)  # a cover's share must hold its part of the pool before a step touches it
         if step.kind == "base":
-            net = value(step.amount)
-            record("base", f"{net:.2f}")
+            shares = {key: value(step.amount)}
+            record("base", f"{total(shares):.2f}")
         elif step.kind == "each":
             coll = product.collection_for(step.label)
-            total = Decimal(0)
+            added = Decimal(0)
             items = list(enumerate(ctx.get(coll.name, []), start=1))  # numbered as declared, so trail and claims agree
-            for key, descending in reversed(step.order):  # stable sorts, last key first
-                items.sort(key=lambda pair: evaluate(key, {**ctx, **pair[1]}), reverse=descending)
+            for k, descending in reversed(step.order):  # stable sorts, last key first
+                items.sort(key=lambda pair: evaluate(k, {**ctx, **pair[1]}), reverse=descending)
             for position, (i, item) in enumerate(items, start=1):
-                sub, _ = run_steps(product, step.steps, {**ctx, **item, "position": position}, Decimal(0), trail, lines, f"{prefix}{step.label} {i} ")
-                trail.append(Trail(f"{prefix}{step.label} {i}", "net", sub))  # the item's own share
-                total += sub
-            net += total
-            record(coll.name, f"{total:.2f}")
+                sub, _ = run_steps(product, step.steps, {**ctx, **item, "position": position}, trail, lines, f"{prefix}{step.label} {i} ")
+                trail.append(Trail(f"{prefix}{step.label} {i}", "net", total(sub)))  # the item's own share
+                for k, v in sub.items():
+                    shares[k] = shares.get(k, Decimal(0)) + v
+                added += total(sub)
+            record(coll.name, f"{added:.2f}")
         elif step.kind == "factor":
             row = next((r for r in step.rows if r.condition is None or evaluate(r.condition, ctx)), None)
             if row is None:
                 continue
-            net = apply_row(net, row, ctx)
-            record(step.label, f"{row.op} {evaluate(row.amount, ctx)}")
+            amount = Decimal(evaluate(row.amount, ctx))
+            if row.op == "x":
+                scale(amount, key)
+            else:
+                shares[key] = shares.get(key, Decimal(0)) + (amount if row.op == "+" else -amount)
+            record(step.label, f"{row.op} {amount}")
         elif step.kind == "add":
             amount = value(step.amount)
-            net += amount
+            shares[key] = shares.get(key, Decimal(0)) + amount
             record(step.label or "add", f"+ {amount}")
         elif step.kind in ("discount", "load"):
             pct = value(step.amount)
             mult = (1 - pct) if step.kind == "discount" else (1 + pct)
-            net *= mult
+            scale(mult, key)
             record(step.label or step.kind, f"x {mult}")
         elif step.kind in ("minimum", "maximum"):
-            bound = value(step.amount)
-            net = max(net, bound) if step.kind == "minimum" else min(net, bound)
+            bound, net = value(step.amount), total(shares)
+            target = max(net, bound) if step.kind == "minimum" else min(net, bound)
+            if net:
+                scale(target / net, "")
+            else:
+                shares = {"": target}
             record(step.label or step.kind, str(bound))
         elif step.kind in ("tax", "fee", "commission"):
-            amount = value(step.amount, **line_words()).quantize(quantum, ROUNDING)
+            net, covers = total(shares).quantize(quantum, ROUNDING), attributed(product, shares, quantum)
+            amount = value(step.amount, **words_for(net, covers, lambda l: l[2])).quantize(quantum, ROUNDING)
+            parts = {}
+            if covers and step.kind != "fee":  # attributed in proportion to the base worked out with each cover's figures
+                weights = {c: value(step.amount, **words_for(covers[c], {k: covers[c] if k == c else Decimal(0) for k in covers}, lambda l: l[3].get(c, Decimal(0))))
+                           for c in covers}
+                parts = split(amount, weights, quantum)
             same = next((l for l in lines if l[0] == step.kind and l[1] == step.label), None)
             if same is None:
-                lines.append([step.kind, step.label, amount])
+                lines.append([step.kind, step.label, amount, parts])
             else:
                 same[2] += amount  # the same line across items, or repeated, is one line
-    return net, quantum
+                same[3] = {c: same[3].get(c, Decimal(0)) + parts.get(c, Decimal(0)) for c in set(same[3]) | set(parts)}
+    return shares, quantum
 
 
 def apply_row(value: Decimal, row, ctx: dict) -> Decimal:
@@ -217,12 +308,16 @@ def rate(product: Product, inputs: dict, selected: set[str], loading: Decimal = 
     loads += [RatingStep("load", "Underwriter load", amount=("num", underwriter))] if underwriter else []
     first = next((i for i, s in enumerate(product.rating) if s.kind in ("tax", "fee", "commission")), len(product.rating))
     steps = product.rating[:first] + loads + product.rating[first:]
-    net, quantum = run_steps(product, steps, ctx, Decimal(0), trail, lines)
-    net = net.quantize(quantum, ROUNDING)
-    taxes = sum((a for kind, _, a in lines if kind == "tax"), Decimal(0))
-    fees = sum((a for kind, _, a in lines if kind == "fee"), Decimal(0))
-    return Quote(net, [(label, a) for kind, label, a in lines if kind != "commission"], net + taxes + fees, net + taxes, trail,
-                 [(label, a) for kind, label, a in lines if kind == "commission"], product.currency_for(ctx.get("territory", "")))
+    shares, quantum = run_steps(product, steps, ctx, trail, lines)
+    net = total(shares).quantize(quantum, ROUNDING)
+    taxes = sum((l[2] for l in lines if l[0] == "tax"), Decimal(0))
+    fees = sum((l[2] for l in lines if l[0] == "fee"), Decimal(0))
+    covers = attributed(product, shares, quantum)
+    by_cover = [Share(c.name, c.class_, covers[c.name], [(l[1], l[3].get(c.name, Decimal(0))) for l in lines if l[0] == "tax"],
+                      [(l[1], l[3].get(c.name, Decimal(0))) for l in lines if l[0] == "commission"]) for c in product.covers if c.name in covers]
+    return Quote(net, [(l[1], l[2]) for l in lines if l[0] != "commission"], net + taxes + fees, net + taxes, trail,
+                 [(l[1], l[2]) for l in lines if l[0] == "commission"], product.currency_for(ctx.get("territory", "")),
+                 [s for s in by_cover if s.net or any(a for _, a in s.lines + s.commission)])
 
 
 # --- lifecycle --------------------------------------------------------------

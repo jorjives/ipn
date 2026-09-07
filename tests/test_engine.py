@@ -1288,3 +1288,95 @@ class LinesInOrder(unittest.TestCase):
     def test_a_commission_may_take_a_base_too(self):
         q = rate(parse(FULL + 'rating\n  base 100\n  tax IPT 12%\n  commission "Broker" 15% of premium\n'), risk(), set())
         self.assertEqual(q.commission, [("Broker", Decimal("16.80"))])
+
+
+from ideclare.engine import split
+from ideclare.expr import ExprError
+
+CLASSED = FULL.replace("cover Theft\n", "cover Theft\n  class 9\n").replace('cover "Accidental Damage"\n', 'cover "Accidental Damage"\n  class 3\n').replace("cover Racing optional\n", "cover Racing optional\n  class 3\n")
+ATTRIBUTED = CLASSED + '''rating
+  base 100
+  add "Racing cover" 45 for Racing when Racing selected
+  allocate
+    "Accidental Damage" 60%
+    Theft 40%
+'''
+
+
+def shares_of(q):
+    return {s.name: s.net for s in q.shares}
+
+
+class Attribution(unittest.TestCase):
+    """The net is a partition across covers; every step keeps it so."""
+
+    def test_split_rounds_each_share_and_gives_the_residue_to_the_largest(self):
+        self.assertEqual(split(Decimal("10.00"), {"a": Decimal(1), "b": Decimal(1), "c": Decimal(1)}, Decimal("0.01")),
+                         {"a": Decimal("3.34"), "b": Decimal("3.33"), "c": Decimal("3.33")})
+        self.assertEqual(split(Decimal("10.00"), {"a": Decimal(1), "b": Decimal(3)}, Decimal("0.01")), {"a": Decimal("2.50"), "b": Decimal("7.50")})
+        self.assertEqual(split(Decimal("5.00"), {"a": Decimal(0), "b": Decimal(0)}, Decimal("0.01")), {"a": Decimal("5.00"), "b": Decimal("0.00")})
+
+    def test_allocate_shares_the_pool_and_for_credits_a_cover(self):
+        q = rate(parse(ATTRIBUTED), risk(racing=True), {"Racing"})
+        self.assertEqual(shares_of(q), {"Theft": Decimal("40.00"), "Accidental Damage": Decimal("60.00"), "Racing": Decimal("45.00")})
+        self.assertEqual([s.class_ for s in q.shares], ["9", "3", "3"])
+        self.assertEqual(shares_of(rate(parse(ATTRIBUTED), risk(), set())), {"Theft": Decimal("40.00"), "Accidental Damage": Decimal("60.00")})
+
+    def test_bounds_and_whole_net_factors_scale_every_share_alike(self):
+        q = rate(parse(ATTRIBUTED + "  discount 10%\n  minimum 200\n"), risk(racing=True), {"Racing"})
+        # 145 less 10% = 130.50, raised to 200: each share x 200/130.50
+        self.assertEqual(q.net, Decimal("200.00"))
+        self.assertEqual(shares_of(q), {"Theft": Decimal("55.17"), "Accidental Damage": Decimal("82.76"), "Racing": Decimal("62.07")})
+        self.assertEqual(sum(shares_of(q).values()), q.net)
+
+    def test_for_scales_one_cover_only(self):
+        q = rate(parse(ATTRIBUTED + "  factor \"Theft area\" x 1.5 for Theft\n"), risk(), set())
+        self.assertEqual((q.net, shares_of(q)), (Decimal("120.00"), {"Theft": Decimal("60.00"), "Accidental Damage": Decimal("60.00")}))
+
+    def test_items_shares_add_up(self):
+        src = FLEET.replace("cover Theft\n", "cover Theft\n  class 9\n").replace("    base 3% of value\n", "    base 3% of value for Theft\n")
+        q = rate(parse(src), fleet((2000, 0, "gold"), (1000, 3, "silver")), set())
+        self.assertEqual(shares_of(q), {"Theft": q.net})
+
+    def test_unattributed_premium_with_no_allocate_is_an_error(self):
+        with self.assertRaises(ExprError) as cm:
+            rate(parse(CLASSED + "rating\n  base 100\n  add 45 for Racing\n"), risk(), set())
+        self.assertEqual(str(cm.exception), "100.00 of the premium is not attributed to a cover; add allocate")
+
+    def test_a_plain_product_has_no_shares(self):
+        self.assertEqual(rate(parse(RATING), risk(), set()).shares, [])
+
+    def test_by_class_sums_the_covers(self):
+        q = rate(parse(ATTRIBUTED), risk(racing=True), {"Racing"})
+        self.assertEqual([(s.name, s.net) for s in q.by_class()], [("9", Decimal("40.00")), ("3", Decimal("105.00"))])
+
+
+class LineAttribution(unittest.TestCase):
+    """A line is attributed in proportion to its base worked out with each cover's figures."""
+
+    def quote(self, lines):
+        return rate(parse(ATTRIBUTED + lines), risk(racing=True), {"Racing"})
+
+    def test_a_tax_of_net_follows_the_net(self):
+        q = self.quote("  tax IPT 12%\n")
+        self.assertEqual({s.name: dict(s.lines)["IPT"] for s in q.shares}, {"Theft": Decimal("4.80"), "Accidental Damage": Decimal("7.20"), "Racing": Decimal("5.40")})
+
+    def test_a_tax_of_one_cover_is_wholly_that_covers(self):
+        q = self.quote('  tax "Racing levy" 10% of Racing\n  tax IPT 12% of net less Racing\n')
+        by = {s.name: dict(s.lines) for s in q.shares}
+        self.assertEqual(q.lines, [("Racing levy", Decimal("4.50")), ("IPT", Decimal("12.00"))])
+        self.assertEqual(by["Racing"], {"Racing levy": Decimal("4.50"), "IPT": Decimal("0.00")})
+        self.assertEqual((by["Theft"]["IPT"], by["Accidental Damage"]["IPT"]), (Decimal("4.80"), Decimal("7.20")))
+
+    def test_a_fee_has_no_share_and_a_commission_is_split(self):
+        q = self.quote('  fee "Admin" 10\n  commission "Broker" 10%\n')
+        self.assertEqual([dict(s.lines) for s in q.shares], [{}, {}, {}])
+        self.assertEqual({s.name: dict(s.commission)["Broker"] for s in q.shares}, {"Theft": Decimal("4.00"), "Accidental Damage": Decimal("6.00"), "Racing": Decimal("4.50")})
+
+    def test_a_tax_on_a_tax_follows_the_first_taxs_shares(self):
+        q = self.quote('  tax IPT 12% of net less Racing\n  tax "Surcharge" 10% of IPT\n')
+        self.assertEqual({s.name: dict(s.lines)["Surcharge"] for s in q.shares}, {"Theft": Decimal("0.48"), "Accidental Damage": Decimal("0.72"), "Racing": Decimal("0.00")})
+
+    def test_premium_per_cover_is_its_net_plus_its_lines(self):
+        q = self.quote('  tax "Racing levy" 10% of Racing\n  tax "QST" 10% of premium\n')
+        self.assertEqual({s.name: dict(s.lines)["QST"] for s in q.shares}, {"Theft": Decimal("4.00"), "Accidental Damage": Decimal("6.00"), "Racing": Decimal("4.95")})
