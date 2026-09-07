@@ -224,7 +224,7 @@ claim_block     = 'claim' cover_name
 asks_block      = 'asks'
                     { field_line }
 claim_line      = 'requires' name { ',' name }
-                | 'pays' 'claimed' 'amount' [ pays_clause { ',' pays_clause } ]
+                | 'pays' 'claimed' 'amount' [ [ ',' ] pays_clause { ',' pays_clause } ]
                 | 'pays' expression [ monthly ] { ',' pays_clause }
                 | 'co-payment' expression [ 'when' condition ]
                 | 'decline' 'when' condition 'because' string
@@ -315,7 +315,7 @@ expectation     = 'eligible' | ( 'declined' | 'referred' ) [ string ]
                 | 'net' [ 'for' item_name integer ] number
                 | 'premium' number | 'tax' word number | 'fee' string number
                 | 'commission' string number | 'currency' word
-                | 'factor' string 'x' number
+                | 'factor' string operator number
                 | 'instalment' 'charge' number | 'instalment' integer number
                 | 'status' word [ 'on' date ] | 'expiry' date
                 | 'refund' number | 'additional' 'premium' number | 'return' 'premium' number
