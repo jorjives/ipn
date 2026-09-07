@@ -100,9 +100,10 @@ each` (see `rating`), with the item's other fields, or the other inputs, in scop
 enrichment_block = 'enrichment' string [ 'for' 'each' name ] 'from' name { ',' name }
                      'provides'
                        { field_line }
-                     [ 'when' 'unavailable' ':' ( name 'is' value { ',' name 'is' value }
-                                                | ( 'refer' | 'decline' ) 'because' string ) ]
+                     [ 'when' 'unavailable' ':' fallback ]
                      [ 'held' 'for' 'the' 'term' ]
+fallback         = name 'is' value { ',' name 'is' value }
+                 | ( 'refer' | 'decline' ) 'because' string
 ```
 
 `provides` is required and its fields are plain types (not `calculated`). The keys after
@@ -224,15 +225,14 @@ asks_block      = 'asks'
                     { field_line }
 claim_line      = 'requires' name { ',' name }
                 | 'pays' 'claimed' 'amount' [ pays_clause { ',' pays_clause } ]
-                | 'pays' expression [ 'per' 'month' 'for' expression 'months'
-                                      [ 'after' expression ( 'days' | 'weeks' | 'months' ) ] ]
-                                    { ',' pays_clause }
+                | 'pays' expression [ monthly ] { ',' pays_clause }
                 | 'co-payment' expression [ 'when' condition ]
                 | 'decline' 'when' condition 'because' string
                 | ( 'depreciation' | 'settlement' )
                     { factor_row }
                 | 'does' 'not' 'count' 'towards' 'claims' 'in' 'term'
                 | 'counts' 'towards' 'claims' 'in' 'term' 'when' condition
+monthly         = 'per' 'month' 'for' expression 'months' [ 'after' expression ( 'days' | 'weeks' | 'months' ) ]
 pays_clause     = 'up' 'to' 'limit'
                 | 'less' excess_word
                 | 'less' 'co-payment'
@@ -289,19 +289,19 @@ a date input is `given departure_date 2026-07-10`; text values are quoted.
 ```
 event           = 'bound' 'on' date [ 'unpaid' ]
                 | 'paid' 'on' date
-                | 'accepted' 'by' 'underwriter' 'on' date [ 'with' term { ',' term } ]
+                | 'accepted' 'by' 'underwriter' 'on' date [ 'with' underwriting_term { ',' underwriting_term } ]
                 | 'declined' 'by' 'underwriter' 'on' date
                 | 'reinstated' cover_name 'on' date
                 | 'cancelled' 'by' ( 'customer' | 'insurer' ) 'on' date
                 | 'adjusted' 'on' date 'with' name value { ',' name value }
                 | 'adjusted' 'on' date 'adding' item_name field_name value { ',' field_name value }
                 | 'adjusted' 'on' date 'removing' item_name integer
-                | 'claim' cover_name [ 'on' item_name integer ] [ 'for' number ] 'on' date
-                    [ 'reported' date ] [ 'with' with_item { ',' with_item } ]
+                | 'claim' cover_name [ 'on' item_name integer ] [ 'for' number ] 'on' date claim_detail
                 | 'renewed' 'on' date [ 'with' name value { ',' name value } ]
-term            = ( 'load' | 'discount' ) number '%'
-                | 'excess' number 'on' cover_name
-                | 'excluding' cover_name
+underwriting_term = ( 'load' | 'discount' ) number '%'
+                  | 'excess' number 'on' cover_name
+                  | 'excluding' cover_name
+claim_detail    = [ 'reported' date ] [ 'with' with_item { ',' with_item } ]
 with_item       = name                       -- a piece of evidence
                 | name value                 -- a fact the claim asks for
 ```
@@ -349,8 +349,8 @@ sum             = term { ( '+' | '-' ) term }
 term            = unary { ( '*' | '/' ) unary }
 unary           = '-' unary | power
 power           = postfix [ '^' unary ]
-postfix         = primary [ '%' [ 'of' unary ] ] [ 'selected' ]
-                          [ 'from' string [ 'interpolated' [ 'linearly' | 'geometrically' ] 'on' name ] ]
+postfix         = primary [ '%' [ 'of' unary ] ] [ 'selected' ] [ lookup ]
+lookup          = 'from' string [ 'interpolated' [ 'linearly' | 'geometrically' ] 'on' name ]
 primary         = number | string | date | 'yes' | 'no' | name
                 | '(' expression ')'
                 | function '(' expression { ',' expression } ')'
