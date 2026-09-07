@@ -5,7 +5,7 @@
 (function () {
   var BLOCKS = /^(product|inputs|eligibility|cover|rating|lifecycle|claims|scenario|table|enrichment|upgrading)\b/;
   var TYPES = /^(money|integer|number|text|date|calculated|yes\/no|choice|collection)\b/;
-  var WORDS = /^(decline|refer|excludes|available|when|because|unless|otherwise|limit|excess|deductible|base|factor|add|discount|load|minimum|maximum|tax|fee|commission|round|cooling|cancellation|adjustment|lapse|renewal|instalments|invite|index|claim|requires|asks|pays|co-payment|depreciation|settlement|counts|given|select|expect|for|each|from|until|per|term|territory|currency|published|optional|waiting|reinstatement|keyed|interpolated|provides|unavailable|held|ordered|selected|and|or|not|is|of|to|by|on|with|x|ask|after|in|force|up|less|claimed|amount|does|count|towards)\b/;
+  var WORDS = /^(decline|refer|excludes|available|when|because|unless|otherwise|limit|excess|deductible|base|factor|add|discount|load|minimum|maximum|tax|fee|commission|round|cooling|cancellation|adjustment|lapse|renewal|instalments|invite|index|claim|requires|asks|pays|co-payment|depreciation|settlement|counts|given|select|expect|for|each|from|until|per|term|territory|currency|published|optional|waiting|reinstatement|class|premium|premiums|allocate|keyed|interpolated|provides|unavailable|held|ordered|selected|and|or|not|is|of|to|by|on|with|x|ask|after|in|force|up|less|claimed|amount|does|count|towards)\b/;
   var STRING = /^"[^"]*"/, DATE = /^\d{4}-\d{2}-\d{2}/, NUM = /^\d+(\.\d+)?%?/, IDENT = /^[A-Za-z_][A-Za-z0-9_\/-]*/;
 
   // The class and length of the token at the start of `rest`: c, s, n, k, ty, kw, or null for
