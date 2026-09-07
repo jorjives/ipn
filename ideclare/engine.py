@@ -61,6 +61,36 @@ class Eligibility:
     reasons: list[str] = field(default_factory=list)
 
 
+def check_inputs(product: Product, inputs: dict) -> list[str]:
+    """Why a risk's answers cannot be priced: inputs left out, and keyed choices not listed under their keys."""
+    missing = [n for n, i in product.inputs.items() if n not in inputs and i.kind not in ("text", "calculated", "collection") and not i.provided]
+    problems = [f"missing {', '.join(missing)}"] if missing else []
+    problems += keyed_choice_problems(product, product.inputs, inputs, inputs)
+    for coll in product.collections:
+        for n, item in enumerate(inputs.get(coll.name, []), start=1):
+            problems += [f"{coll.name} item {n}: {why}" for why in keyed_choice_problems(product, coll.fields, item, {**inputs, **item})]
+    return problems
+
+
+def keyed_choice_problems(product: Product, fields: dict[str, Input], record: dict, ctx: dict) -> list[str]:
+    """Each keyed choice in the record whose value the table does not list under the record's keys."""
+    out = []
+    for f in fields.values():
+        if f.source and f.source[2] and f.name in record:
+            table, column, keys = f.source
+            if record[f.name] not in product.tables[table].values_for(column, keys, ctx):
+                where = ", ".join(f"{k} {show(ctx.get(k))}" for k in keys)
+                out.append(f"{f.name} {show(record[f.name])} is not {'an' if column[0] in 'aeiou' else 'a'} {column} for {where}")
+    return out
+
+
+def show(value) -> str:
+    """A value as a message names it: text in quotes, yes/no, or the number."""
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    return f'"{value}"' if isinstance(value, str) else str(value)
+
+
 def check_eligibility(product: Product, inputs: dict, selected: set[str] = frozenset()) -> Eligibility:
     ctx = context(product, inputs, set(selected))
     reasons, declined = [], False

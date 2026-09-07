@@ -1,10 +1,10 @@
 import unittest
 from decimal import Decimal
 
-from ideclare.parser import parse
-from ideclare.engine import Underwriting, check_eligibility, context, cover_state, cover_states, instalments
+from ideclare.parser import parse, with_defaults
+from ideclare.engine import Underwriting, check_eligibility, check_inputs, context, cover_state, cover_states, instalments
 from ideclare.scenarios import run_all
-from tests.test_parser import FULL
+from tests.test_parser import FULL, occupations
 
 
 def risk(**over):
@@ -1515,3 +1515,26 @@ class LifecycleSplit(unittest.TestCase):
 
     def test_a_plain_product_has_one_unnamed_share(self):
         self.assertEqual(rate(parse(RATING), risk(), set()).split(Decimal("10.00")), {"": Decimal("10.00")})
+
+
+class CheckInputs(unittest.TestCase):
+    def test_missing_inputs_are_reported(self):
+        p = parse(occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: text\n  age: integer\n'))
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {})), ["missing industry, age"])
+
+    def test_keyed_choice_must_be_listed_under_its_keys(self):
+        p = parse(occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: choice of occupation from "Occupations" for industry\n'))
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"industry": "construction", "occupation": "Nurse"})),
+                         ['occupation "Nurse" is not an occupation for industry "construction"'])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"industry": "construction", "occupation": "Labourer"})), [])
+
+    def test_items_are_checked_with_their_position(self):
+        p = parse(occupations('inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n'))
+        items = [{"industry": "construction", "occupation": "Labourer"}, {"industry": "construction", "occupation": "Nurse"}]
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})),
+                         ['people item 2: occupation "Nurse" is not an occupation for industry "construction"'])
+
+    def test_a_number_key_reads_plainly(self):
+        p = parse('product "X"\n  territory UK\n\ninputs\n  band: integer\n  plan: choice of plan from "Plans" for band\n\ntable "Plans" keyed on band, plan\n  band, plan\n  1, basic\n  2, basic\n  2, plus\n')
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(1), "plan": "plus"})), ['plan "plus" is not a plan for band 1'])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(2), "plan": "plus"})), [])
