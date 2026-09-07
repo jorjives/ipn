@@ -72,8 +72,8 @@ upgrading
 
 ## Dated lines: mid-term amendments
 
-A change that must reach policies already in force is not a new version; it is an
-amendment with an effective date. Any line inside a `cover` block or a `claim` block may
+A change that must reach policies already in force is an amendment with an effective
+date, written inside the current version rather than as a new one. Any line inside a `cover` block or a `claim` block may
 begin with `from DATE`, `until DATE`, or both:
 
 ```idl
