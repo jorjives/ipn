@@ -154,6 +154,14 @@ class Quote:
     currency: str = ""
     shares: list[Share] = field(default_factory=list)  # one per cover with a share, in declaration order; empty when nothing is attributed
 
+    def split(self, amount: Decimal) -> dict[str, Decimal]:
+        """The amount shared by each cover's earning (its net plus its taxes), residue to the largest; a quote with
+        no shares gives it all under one unnamed share. How a refund, an adjustment or a renewal premium is split."""
+        if not self.shares:
+            return {"": amount}
+        quantum = Decimal(1).scaleb(self.net.as_tuple().exponent)
+        return split(amount, {s.name: s.net + sum((a for _, a in s.lines), Decimal(0)) for s in self.shares}, quantum)
+
     def by_class(self) -> list[Share]:
         out: dict[str, Share] = {}
         for s in self.shares:
@@ -397,6 +405,7 @@ class RenewalOffer:
     declined: str | None = None
     version: Product | None = None  # the version the new term would be on
     needs: list[str] = field(default_factory=list)  # answers the new version asks for before it can price; nothing else is decided while any remain
+    quote: Quote | None = None  # what the offer was priced on, so its premium can be split by cover
 
 
 @dataclass
@@ -467,6 +476,10 @@ class Policy:
     @property
     def quote(self) -> Quote:
         return rate(self.product, self.inputs, self.selected, underwriter=self.underwriter_load)
+
+    def split(self, amount: Decimal) -> dict[str, Decimal]:
+        """An amount this policy produced (a refund, an adjustment's difference) by cover, as the quote now stands."""
+        return self.quote.split(amount)
 
     @property
     def underwriter_load(self) -> Decimal:
@@ -663,8 +676,8 @@ class Policy:
         if needs:
             return RenewalOffer(invite, Decimal(0), Decimal(0), inputs, version=target, needs=needs)
         ctx = context(target, inputs, self.selected, claims_in_term=self.claims_in_term)
-        new = rate(target, inputs, self.selected, self.claims_loading(), self.underwriter_load).total
-        offer = RenewalOffer(invite, new, new, inputs, version=target)
+        priced = rate(target, inputs, self.selected, self.claims_loading(), self.underwriter_load)
+        offer = RenewalOffer(invite, priced.total, priced.total, inputs, version=target, quote=priced)
         if not lc.renewable:
             offer.declined = "The policy is not renewable"
             return offer

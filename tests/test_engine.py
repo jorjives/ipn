@@ -1491,3 +1491,27 @@ class PerItemCoverPremiums(unittest.TestCase):
         src = EBIKES.replace("  premium 0.5% of value when ebike is yes\n", "  premium 0.5% of value when ebike is yes\n  excludes when value > 2500 because \"Too hot\"\n").replace("  factor \"Fleet\"\n", "  add cover premiums\n  factor \"Fleet\"\n")
         q = rate(parse(src), ebikes((2000, 0, True), (3000, 0, True)), set())
         self.assertEqual(shares_of(q)["Fire"], Decimal("9.50"))
+
+
+class LifecycleSplit(unittest.TestCase):
+    """Any amount a policy produces splits by each cover's earning share of the quote it came from."""
+
+    def policy(self):
+        src = EBIKES.replace('  factor "Fleet"\n', '  add cover premiums\n  factor "Fleet"\n')
+        p = Policy(parse(src), ebikes((2000, 0, True), (1000, 3, False)), set())
+        p.bind(date(2026, 1, 1))
+        return p
+
+    def test_a_refund_splits_by_net_plus_tax(self):
+        p = self.policy()
+        refund = p.cancel(date(2026, 7, 1), "customer")
+        # theft 82.65 + 9.92, fire 9.50 + 1.14 of 103.21; refund 103.21 x 184/365 = 52.03
+        self.assertEqual(refund, Decimal("52.03"))
+        self.assertEqual(p.split(refund), {"Fire": Decimal("5.36"), "Theft": Decimal("46.67")})
+
+    def test_a_renewal_offer_keeps_its_quote(self):
+        offer = self.policy().renew()
+        self.assertEqual(offer.quote.split(offer.premium), {"Fire": Decimal("11.70"), "Theft": Decimal("101.83")})
+
+    def test_a_plain_product_has_one_unnamed_share(self):
+        self.assertEqual(rate(parse(RATING), risk(), set()).split(Decimal("10.00")), {"": Decimal("10.00")})
