@@ -13,7 +13,11 @@ transcribed from the reference parser (`ideclare/parser.py`, `expr.py` and
 is a bug to report.
 
 Notation: `[ x ]` optional, `{ x }` zero or more, `a | b` alternatives, `'word'` a literal
-word, and lower-case names are rules. Indented rules are lines nested under the line above.
+word, and lower-case names are rules. Indented rules are lines nested under the line above:
+indentation in the grammar is indentation in the product, and a bracket opens and closes at
+one indent. The site's tooling reads the grammar from this page (`scripts/grammar_table.py`
+compiles it into the playground's completion table, and `tests.test_grammar` checks every
+example and template parses under it), so the notation is held to exactly.
 
 ## Lexical structure
 
@@ -70,7 +74,8 @@ unless `currency` is given; a territory the engine has no currency for needs one
 ## inputs
 
 ```
-inputs_block    = 'inputs' { input_line }
+inputs_block    = 'inputs'
+                    { input_line }
 input_line      = name ':' type [ ',' 'default' value ]
                 | name ':' 'collection' 'of' name [ bounds ]
                     { field_line }
@@ -95,9 +100,10 @@ each` (see `rating`), with the item's other fields, or the other inputs, in scop
 enrichment_block = 'enrichment' string [ 'for' 'each' name ] 'from' name { ',' name }
                      'provides'
                        { field_line }
-                     [ 'when' 'unavailable' ':' ( name 'is' value { ',' name 'is' value }
-                                                | ( 'refer' | 'decline' ) 'because' string ) ]
+                     [ 'when' 'unavailable' ':' fallback ]
                      [ 'held' 'for' 'the' 'term' ]
+fallback         = name 'is' value { ',' name 'is' value }
+                 | ( 'refer' | 'decline' ) 'because' string
 ```
 
 `provides` is required and its fields are plain types (not `calculated`). The keys after
@@ -121,13 +127,15 @@ choices, a `yes/no` cell `yes`, `no` or `*`, a numeric cell a number, a band or 
 ## eligibility
 
 ```
-eligibility_block = 'eligibility' { ( 'decline' | 'refer' ) 'when' condition 'because' string }
+eligibility_block = 'eligibility'
+                      { ( 'decline' | 'refer' ) 'when' condition 'because' string }
 ```
 
 ## cover
 
 ```
-cover_block     = 'cover' cover_name [ 'optional' ] { [ dated ] cover_line }
+cover_block     = 'cover' cover_name [ 'optional' ]
+                    { [ dated ] cover_line }
 cover_name      = word | string
 dated           = { 'from' date | 'until' date }
 cover_line      = 'limit' expression [ 'per' 'term' [ 'per' name ] ]
@@ -152,7 +160,8 @@ may use the facts the cover's claim asks for. See [Versions](versions.md) for wh
 ## rating
 
 ```
-rating_block    = 'rating' { rating_step | each_block }
+rating_block    = 'rating'
+                    { rating_step | each_block }
 each_block      = 'for' 'each' name [ ',' 'ordered' 'by' order_key { ',' order_key } ]
                     { rating_step }
 order_key       = expression [ 'descending' ]
@@ -180,7 +189,8 @@ applies nothing.
 ## lifecycle
 
 ```
-lifecycle_block = 'lifecycle' { lifecycle_line }
+lifecycle_block = 'lifecycle'
+                    { lifecycle_line }
 lifecycle_line  = 'cooling' 'off' expression 'days' ',' 'full' 'refund'
                 | 'cancellation' 'by' ( 'customer' | 'insurer' ) ':' refund [ ',' 'fee' number ]
                 | 'adjustment' ':' 'not' 'allowed'
@@ -206,22 +216,23 @@ Restating `index` for the same target replaces the earlier line.
 ## claims
 
 ```
-claims_block    = 'claims' { claim_block | loading_line | terms_block }
+claims_block    = 'claims'
+                    { claim_block | loading_line | terms_block }
 claim_block     = 'claim' cover_name
-                    [ 'asks'
-                        { field_line } ]
+                    [ asks_block ]
                     { [ dated ] claim_line }
+asks_block      = 'asks'
+                    { field_line }
 claim_line      = 'requires' name { ',' name }
-                | 'pays' 'claimed' 'amount' [ pays_clause { ',' pays_clause } ]
-                | 'pays' expression [ 'per' 'month' 'for' expression 'months'
-                                      [ 'after' expression ( 'days' | 'weeks' | 'months' ) ] ]
-                                    { ',' pays_clause }
+                | 'pays' 'claimed' 'amount' [ [ ',' ] pays_clause { ',' pays_clause } ]
+                | 'pays' expression [ monthly ] { ',' pays_clause }
                 | 'co-payment' expression [ 'when' condition ]
                 | 'decline' 'when' condition 'because' string
                 | ( 'depreciation' | 'settlement' )
                     { factor_row }
                 | 'does' 'not' 'count' 'towards' 'claims' 'in' 'term'
                 | 'counts' 'towards' 'claims' 'in' 'term' 'when' condition
+monthly         = 'per' 'month' 'for' expression 'months' [ 'after' expression ( 'days' | 'weeks' | 'months' ) ]
 pays_clause     = 'up' 'to' 'limit'
                 | 'less' excess_word
                 | 'less' 'co-payment'
@@ -238,7 +249,8 @@ known word; `asks` cannot be dated. Lines in a `terms_block` cannot be dated. Th
 ## upgrading
 
 ```
-upgrading_block = 'upgrading' { upgrade }
+upgrading_block = 'upgrading'
+                    { upgrade }
 upgrade         = name ':' 'ask'
                 | name ':' old_expression
                 | name ':' old_expression 'when' old_condition { ',' old_expression 'when' old_condition } ',' 'otherwise' old_value
@@ -249,6 +261,8 @@ upgrade         = name ':' 'ask'
 upgrade_row     = old_condition ':' old_value
                 | 'otherwise' ':' old_value          -- required, and last
 old_value       = 'ask' | old_expression
+old_expression  = expression
+old_condition   = condition
 ```
 
 `name` is an input of this version (or, under `for each`, a field of the collection).
@@ -259,7 +273,8 @@ set.
 ## scenario
 
 ```
-scenario_block  = 'scenario' string { given_line | select_line | when_line | expect_line }
+scenario_block  = 'scenario' string
+                    { given_line | select_line | when_line | expect_line }
 given_line      = 'given' name value { ',' name value }
                 | 'given' item_name field_name value { ',' field_name value }
                 | 'given' collection_name 'from' string
@@ -274,19 +289,19 @@ a date input is `given departure_date 2026-07-10`; text values are quoted.
 ```
 event           = 'bound' 'on' date [ 'unpaid' ]
                 | 'paid' 'on' date
-                | 'accepted' 'by' 'underwriter' 'on' date [ 'with' term { ',' term } ]
+                | 'accepted' 'by' 'underwriter' 'on' date [ 'with' underwriting_term { ',' underwriting_term } ]
                 | 'declined' 'by' 'underwriter' 'on' date
                 | 'reinstated' cover_name 'on' date
                 | 'cancelled' 'by' ( 'customer' | 'insurer' ) 'on' date
                 | 'adjusted' 'on' date 'with' name value { ',' name value }
                 | 'adjusted' 'on' date 'adding' item_name field_name value { ',' field_name value }
                 | 'adjusted' 'on' date 'removing' item_name integer
-                | 'claim' cover_name [ 'on' item_name integer ] [ 'for' number ] 'on' date
-                    [ 'reported' date ] [ 'with' with_item { ',' with_item } ]
+                | 'claim' cover_name [ 'on' item_name integer ] [ 'for' number ] 'on' date claim_detail
                 | 'renewed' 'on' date [ 'with' name value { ',' name value } ]
-term            = ( 'load' | 'discount' ) number '%'
-                | 'excess' number 'on' cover_name
-                | 'excluding' cover_name
+underwriting_term = ( 'load' | 'discount' ) number '%'
+                  | 'excess' number 'on' cover_name
+                  | 'excluding' cover_name
+claim_detail    = [ 'reported' date ] [ 'with' with_item { ',' with_item } ]
 with_item       = name                       -- a piece of evidence
                 | name value                 -- a fact the claim asks for
 ```
@@ -300,7 +315,7 @@ expectation     = 'eligible' | ( 'declined' | 'referred' ) [ string ]
                 | 'net' [ 'for' item_name integer ] number
                 | 'premium' number | 'tax' word number | 'fee' string number
                 | 'commission' string number | 'currency' word
-                | 'factor' string 'x' number
+                | 'factor' string operator number
                 | 'instalment' 'charge' number | 'instalment' integer number
                 | 'status' word [ 'on' date ] | 'expiry' date
                 | 'refund' number | 'additional' 'premium' number | 'return' 'premium' number
@@ -334,14 +349,18 @@ sum             = term { ( '+' | '-' ) term }
 term            = unary { ( '*' | '/' ) unary }
 unary           = '-' unary | power
 power           = postfix [ '^' unary ]
-postfix         = primary [ '%' [ 'of' unary ] ] [ 'selected' ]
-                          [ 'from' string [ 'interpolated' [ 'linearly' | 'geometrically' ] 'on' name ] ]
+postfix         = primary [ '%' [ 'of' unary ] ] [ 'selected' ] [ lookup ]
+lookup          = 'from' string [ 'interpolated' [ 'linearly' | 'geometrically' ] 'on' name ]
 primary         = number | string | date | 'yes' | 'no' | name
                 | '(' expression ')'
                 | function '(' expression { ',' expression } ')'
                 | 'count' 'of' collection_name
                 | ( 'total' | 'highest' | 'lowest' ) field_name 'of' collection_name
                 | ( 'any' | 'every' ) item_name 'where' condition
+                | 'claims' 'in' 'term'
+                | ( 'days' | 'months' ) 'in' 'force'
+                | 'reported' 'after' number 'days'
+                | 'within' number ( 'days' | 'months' ) 'of' 'inception'
 function        = 'exp' | 'ln' | 'sqrt' | 'round' | 'min' | 'max'
 ```
 
@@ -349,7 +368,8 @@ function        = 'exp' | 'ln' | 'sqrt' | 'round' | 'min' | 'max'
 the number N/100; `N% of x` multiplies. `X selected` names an optional cover. Dates
 subtract to a number of days and compare like numbers.
 
-Before an expression is parsed, these English phrases are folded into single words:
+The last four `primary` forms are English phrases the engine folds into single words before
+it parses the expression; they are only meaningful in some places:
 
 | Phrase | Becomes | Where |
 |---|---|---|

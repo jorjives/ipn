@@ -52,10 +52,12 @@ Keep every figure a `Decimal`; never introduce a float. Prefer an error with a l
 to a default. A construct that only one product would ever use is probably a `calculated`
 input or a table, not a new keyword.
 
-## Regenerating the site's example pages
+## Regenerating the site's generated files
 
-The example and template pages on this site are generated from the `.idl` files, and a
-test fails if they are stale:
+The example and template pages on this site are generated from the `.idl` files, and the
+playground's completion table (`docs/assets/idl-grammar.json`) is compiled from the
+[grammar](reference/grammar.md) page; a test fails if either is stale, and
+`tests.test_grammar` fails if the grammar page no longer covers every example:
 
 ```sh
 python3 scripts/site_pages.py

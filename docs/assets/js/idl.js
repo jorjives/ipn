@@ -1,31 +1,40 @@
 // Colours fenced ```idl blocks. Rouge has no lexer for Open IDL, so the blocks arrive as
 // plain text; this wraps block openers, statement words, types, strings, numbers and
-// comments in spans styled by _sass/custom/custom.scss.
+// comments in spans styled by _sass/custom/custom.scss. The playground editor colours its
+// text with the same classify() so the two never disagree.
 (function () {
   var BLOCKS = /^(product|inputs|eligibility|cover|rating|lifecycle|claims|scenario|table|enrichment|upgrading)\b/;
   var TYPES = /^(money|integer|number|text|date|calculated|yes\/no|choice|collection)\b/;
   var WORDS = /^(decline|refer|excludes|available|when|because|unless|otherwise|limit|excess|deductible|base|factor|add|discount|load|minimum|maximum|tax|fee|commission|round|cooling|cancellation|adjustment|lapse|renewal|instalments|invite|index|claim|requires|asks|pays|co-payment|depreciation|settlement|counts|given|select|expect|for|each|from|until|per|term|territory|currency|published|optional|waiting|reinstatement|keyed|interpolated|provides|unavailable|held|ordered|selected|and|or|not|is|of|to|by|on|with|x|ask|after|in|force|up|less|claimed|amount|does|count|towards)\b/;
   var STRING = /^"[^"]*"/, DATE = /^\d{4}-\d{2}-\d{2}/, NUM = /^\d+(\.\d+)?%?/, IDENT = /^[A-Za-z_][A-Za-z0-9_\/-]*/;
 
+  // The class and length of the token at the start of `rest`: c, s, n, k, ty, kw, or null for
+  // plain text. `atStart` and `indent` say whether a block opener is possible here.
+  function classify(rest, atStart, indent) {
+    var m;
+    if (rest[0] === "#") return ["c", rest.length];
+    if ((m = rest.match(STRING))) return ["s", m[0].length];
+    if ((m = rest.match(DATE))) return ["n", m[0].length];
+    if ((m = rest.match(NUM))) return ["n", m[0].length];
+    if (atStart && indent === 0 && (m = rest.match(BLOCKS))) return ["k", m[0].length];
+    if ((m = rest.match(TYPES))) return ["ty", m[0].length];
+    if ((m = rest.match(WORDS))) return ["kw", m[0].length];
+    if ((m = rest.match(IDENT))) return [null, m[0].length];
+    return [null, 1];
+  }
+
   function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function span(cls, s) { return '<span class="' + cls + '">' + esc(s) + "</span>"; }
 
   function line(text) {
-    var out = "", i = 0, atStart = true, m;
+    var out = "", i = 0, atStart = true;
     var indent = text.match(/^\s*/)[0];
     out += indent; i = indent.length;
     while (i < text.length) {
       var rest = text.slice(i);
-      if (rest[0] === "#") { out += span("c", rest); break; }
-      if ((m = rest.match(STRING))) { out += span("s", m[0]); }
-      else if ((m = rest.match(DATE))) { out += span("n", m[0]); }
-      else if ((m = rest.match(NUM))) { out += span("n", m[0]); }
-      else if (atStart && indent.length === 0 && (m = rest.match(BLOCKS))) { out += span("k", m[0]); }
-      else if ((m = rest.match(TYPES))) { out += span("ty", m[0]); }
-      else if ((m = rest.match(WORDS))) { out += span("kw", m[0]); }
-      else if ((m = rest.match(IDENT))) { out += esc(m[0]); }
-      else { m = [rest[0]]; out += esc(m[0]); }
-      i += m[0].length;
+      var tok = classify(rest, atStart, indent.length), cls = tok[0], len = tok[1];
+      out += cls ? span(cls, rest.slice(0, len)) : esc(rest.slice(0, len));
+      i += len;
       atStart = false;
     }
     return out;
@@ -43,7 +52,8 @@
     }).join("\n");
   }
 
-  window.oidlCheckOutput = checkOutput;  // the playground colours its output the same way
+  window.oidlClassify = classify;      // the playground's editor tokenises with it
+  window.oidlCheckOutput = checkOutput;  // and colours its output the same way
 
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".language-idl pre code, code.language-idl, code.idl").forEach(colour);

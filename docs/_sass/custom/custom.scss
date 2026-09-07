@@ -19,7 +19,7 @@
 .nav-list .nav-list-item .nav-list-link { font-size: 0.92rem; }
 
 // --- .idl highlighting (spans added by assets/js/idl.js) ------------------
-.language-idl, code.language-idl, code.idl {
+.language-idl, code.language-idl, code.idl, .oidl-play .cm-editor {
   .k  { color: $oidl-marine; font-weight: 600; }   // block opener
   .kw { color: $oidl-marine; }                     // statement word
   .ty { color: $oidl-teal; }                       // input type
@@ -104,11 +104,19 @@
 
 // --- playground -----------------------------------------------------------
 .oidl-play {
-  textarea {
-    width: 100%; min-height: 28rem; resize: vertical; tab-size: 2;
-    font-family: $mono-font-family; font-size: 0.8rem; line-height: 1.55;
-    padding: 0.75rem; border: 1px solid $oidl-rule; border-radius: 4px;
+  .cm-editor {
+    min-height: 28rem; font-size: 0.8rem; border: 1px solid $oidl-rule; border-radius: 4px;
     background: $oidl-paper; color: $oidl-ink;
+    &.cm-focused { outline: none; border-color: $oidl-marine; }
+    .cm-scroller { font-family: $mono-font-family; line-height: 1.55; }
+    .cm-content { padding: 0.75rem 0; }
+    .cm-gutters { background: transparent; border-right: 1px solid $oidl-rule; color: lighten($oidl-ink, 45%); }
+    .cm-activeLine, .cm-activeLineGutter { background: rgba(0, 0, 0, 0.03); }
+  }
+  .cm-tooltip.cm-tooltip-autocomplete {
+    border: 1px solid $oidl-rule; border-radius: 4px; background: #fff;
+    > ul { font-family: $mono-font-family; font-size: 0.8rem; max-height: 14rem; }
+    > ul > li[aria-selected] { background: $oidl-marine; color: #fff; }
   }
   .bar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin: 0.75rem 0; }
   select { font-family: $body-font-family; font-size: 0.95rem; padding: 0.4rem 0.6rem; border: 1px solid $oidl-rule; border-radius: 4px; background: #fff; color: $oidl-ink; }
