@@ -139,6 +139,9 @@ cover_block     = 'cover' cover_name [ 'optional' ]
 cover_name      = word | string
 dated           = { 'from' date | 'until' date }
 cover_line      = 'class' ( word | number )
+                | 'premium' expression [ 'when' condition ]
+                | 'premium'
+                    { premium_step }
                 | 'limit' expression [ 'per' 'term' [ 'per' name ] ]
                 | excess_word expression [ 'per' 'term' ] [ ',' 'minimum' expression ] [ ',' 'maximum' expression ]
                 | excess_word
@@ -148,13 +151,21 @@ cover_line      = 'class' ( word | number )
                 | 'in' 'force' ( 'from' | 'until' ) expression
                 | 'waiting' 'period' integer 'days'
                 | 'reinstatement' 'at' number '%' 'of' 'premium' 'pro' 'rata'
+premium_step    = 'base' [ string ] expression [ 'when' condition ]
+                | 'factor' string
+                    { factor_row }
+                | 'factor' string operator expression [ 'when' condition ]
+                | 'add' [ string ] expression [ 'when' condition ]
+                | ( 'discount' | 'load' ) [ string ] expression [ 'when' condition ]
+                | ( 'minimum' | 'maximum' ) [ string ] expression [ 'when' condition ]
 excess_word     = 'excess' | 'deductible'
 excess_row      = condition ':' expression
                 | 'otherwise' ':' expression      -- required, and last
 ```
 
 `per term per X` names an item (which makes the cover per item) or a fact a claim on the
-cover `asks` for. `reinstatement` needs a `limit ... per term`. Rows of an excess table
+cover `asks` for. A `premium` reads inputs only: not `net`, `premium`, a tax or a cover
+name, and the fields of at most one collection. `reinstatement` needs a `limit ... per term`. Rows of an excess table
 may use the facts the cover's claim asks for. See [Versions](versions.md) for what
 `dated` lines may replace or accumulate.
 
@@ -173,6 +184,7 @@ rating_step     = 'base' [ string ] expression [ 'for' cover_name ] [ 'when' con
                     { factor_row }
                 | 'factor' string operator expression [ 'for' cover_name ] [ 'when' condition ]
                 | 'add' [ string ] expression [ 'for' cover_name ] [ 'when' condition ]
+                | 'add' 'cover' 'premiums'
                 | ( 'discount' | 'load' ) [ string ] expression [ 'for' cover_name ] [ 'when' condition ]
                 | ( 'minimum' | 'maximum' ) [ string ] expression [ 'when' condition ]
                 | 'tax' ( word | string ) expression [ 'when' condition ]
@@ -191,6 +203,8 @@ factor with no matching row applies nothing. A `tax` or `commission` expression 
 `N% of` is a rate of the net; with it, the expression is the amount. In a line's expression
 or condition `net`, `premium`, every `tax` above it (a quoted label as a string) and every
 cover name are words. A cover's `class` is a word or a number. The rows of `allocate` must sum to 100%.
+`add cover premiums` is written exactly once, at the top level or inside `for each`, when any
+cover has a `premium`, and not at all otherwise.
 
 ## lifecycle
 
@@ -343,7 +357,8 @@ Amounts in expectations are compared as numbers, so `2100` equals `2100.00`.
 ## Expressions
 
 Conditions and amounts share one grammar. Precedence runs from loosest at the top to
-tightest at the bottom; `^` is right-associative.
+tightest at the bottom; `^` is right-associative. `less` is `-`, and `N% of` takes the whole sum
+after it (`12% of net less Fire`).
 
 ```
 condition       = expression
@@ -352,11 +367,11 @@ or_expr         = and_expr { 'or' and_expr }
 and_expr        = not_expr { 'and' not_expr }
 not_expr        = 'not' not_expr | comparison
 comparison      = sum [ ( '<' | '<=' | '>' | '>=' | 'is' | 'is' 'not' ) sum ]
-sum             = term { ( '+' | '-' ) term }
+sum             = term { ( '+' | '-' | 'less' ) term }
 term            = unary { ( '*' | '/' ) unary }
 unary           = '-' unary | power
 power           = postfix [ '^' unary ]
-postfix         = primary [ '%' [ 'of' unary ] ] [ 'selected' ] [ lookup ]
+postfix         = primary [ '%' [ 'of' sum ] ] [ 'selected' ] [ lookup ]
 lookup          = 'from' string [ 'interpolated' [ 'linearly' | 'geometrically' ] 'on' name ]
 primary         = number | string | date | 'yes' | 'no' | name
                 | '(' expression ')'

@@ -164,6 +164,8 @@ rating
   tax "Racing levy" 5% of Racing
 ```
 
+- `add cover premiums` credits each cover that has a `premium` with its own price; see
+  below.
 - `for <Cover>` after the amount of a `base`, `add`, `factor`, `discount` or `load` credits
   that amount to the cover, or scales that cover's share only. It goes before `when`. It
   cannot be written on `minimum`, `maximum` or a line.
@@ -178,11 +180,50 @@ rating
   `12% of net less Racing` is split over the others. A fee is a policy charge and has no
   share.
 
-Once any cover has a `class`, any step has `for` or the block has `allocate`, every pound
-of the net must belong to a cover: a pool left over with no `allocate` is a rating error
-naming the amount. A product that uses none of these has no shares and prices as it
-always has.
+Once any cover has a `class` or a `premium`, any step has `for` or the block has
+`allocate`, every pound of the net must belong to a cover: a pool left over with no
+`allocate` is a rating error naming the amount. A product that uses none of these has no
+shares and prices as it always has.
 
 The `quote` command prints each cover's share and the class subtotals; `batch` gives each
 cover a column per figure; scenarios check them with `expect net for Theft 29.99` and
 `expect tax IPT for class 3 5.40`.
+
+## Covers that price themselves
+
+A section of cover may carry its own price (see [cover](cover.md)), and `add cover
+premiums` is the step where those prices join the running net, each credited to its
+cover. Buildings and contents sold together, each priced on its own sum insured:
+
+```idl
+cover Buildings optional
+  class 8
+  premium 0.15% of rebuild_cost
+
+cover Contents optional
+  class 9
+  premium 0.5% of contents_sum
+
+rating
+  add cover premiums
+  discount 10% when Buildings selected and Contents selected
+  minimum 60
+  tax IPT 12%
+```
+
+- A product where any cover has a `premium` must write `add cover premiums` exactly once;
+  one where no cover has a premium may not write it. Each cover's premium joins the net
+  once.
+- A cover that is not selected, not available or excluded contributes nothing. The steps
+  after `add cover premiums` treat the covers' prices like any other share: a `discount`
+  or `minimum` scales every cover alike, `for <Cover>` scales one.
+- Inside `for each bike`, `add cover premiums` adds the current bike's premiums for the
+  covers priced on a bike's fields, so the steps that follow in the loop apply to them
+  too. Outside the loop it adds every other cover's premium, a per-item one summed over
+  its items. The quote trail shows each price as it joins (`Buildings + 450.00`,
+  `bike 1 Fire + 10.00`); a `premium` block also shows its own steps (`Buildings base`).
+- A cover may have a `premium` and a row in `allocate` too: it takes its own price and its
+  share of the pool.
+
+The [e-bike fleet](../examples/ebike-fleet.md) example prices fire cover on the e-bikes of
+a mixed fleet this way.

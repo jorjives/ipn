@@ -26,6 +26,18 @@ cover Racing optional
   a word the engine does not interpret, so `class 8`, `class 9a` and `class Kasko` all
   work, and several covers may share one. A product whose covers have classes attributes
   its premium to them; see [rating](rating.md#shares-by-cover).
+- `premium 0.5% of value` prices the cover on its own, with the full expression language
+  (`N% of x`, arithmetic, `rate from "Table"`, calculated inputs) and an optional `when`:
+  no premium when the condition fails. `premium` on its own line, with rating steps
+  indented below it (`base`, `factor`, `add`, `discount`, `load`, `minimum`, `maximum`,
+  each with its usual `when`), prices it the way a `calculated` input is worked out. Lines
+  (`tax`, `fee`, `commission`, `round`) and `for each` are not allowed there, nor are the
+  rating words `net`, `premium` and cover names: a cover premium reads inputs only.
+  An optional cover that is not selected, or a cover excluded for the risk, has no premium.
+  A premium that reads an item's fields (`value` of a `bike`) is priced once per item and
+  the cover's premium is the sum; it may read the fields of one collection only. The
+  `rating` block says where cover premiums join the net with `add cover premiums`; see
+  [rating](rating.md#covers-that-price-themselves).
 - `available when` says when an optional cover may be offered at all.
 - `excludes when` removes the cover for this risk and records the reason.
 - `limit` and `excess` are amounts; `claim` inside an excess means the amount claimed.
