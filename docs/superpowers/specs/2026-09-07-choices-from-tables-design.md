@@ -1,5 +1,7 @@
 # Choices from tables: long lists and dependent choices
 
+> **Status:** ✅ Complete — 2026-09-07 — `3ed153f` — delivered via standalone plan
+
 ## Purpose
 
 `choice of a, b, c` is fine for a handful of values and useless for an occupation list
