@@ -313,7 +313,7 @@ expectation     = 'eligible' | ( 'declined' | 'referred' ) [ string ]
                 | 'cover' cover_name [ 'on' item_name integer ] 'remaining' number [ 'for' name string ]
                 | 'cover' cover_name 'excess' 'remaining' number
                 | 'net' [ 'for' item_name integer ] number
-                | 'premium' number | 'tax' word number | 'fee' string number
+                | 'premium' number | 'tax' ( word | string ) number | 'fee' string number
                 | 'commission' string number | 'currency' word
                 | 'factor' string operator number
                 | 'instalment' 'charge' number | 'instalment' integer number
