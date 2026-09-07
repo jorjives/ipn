@@ -185,7 +185,9 @@ has_toc: false
 Sixteen products and one product in three versions, each a complete `.idl` file with the
 scenarios that prove it. These pages are generated from the files in
 [`examples/`](https://github.com/jorjives/open-idl/tree/main/examples) and every scenario
-passes; a file whose proof fails cannot be published here.
+passes; a file whose proof fails cannot be published here. The files are dedicated to the
+public domain under [CC0](https://github.com/jorjives/open-idl/blob/main/examples/LICENSE):
+copy them into your own products without attribution.
 
 Start with [Cycle](cycle.md): it uses every part of the language and its scenarios are
 commented with the arithmetic. The rest take the same language across the industry.
@@ -213,7 +215,9 @@ Starting points, one per shape of product. Each is a small working product with 
 that say what to change, and each passes its own scenarios, so you begin from something
 proven and keep it that way. Copy the file from
 [`templates/`](https://github.com/jorjives/open-idl/tree/main/templates), rename the product,
-and run `check` after every change.
+and run `check` after every change. The templates are dedicated to the public domain under
+[CC0](https://github.com/jorjives/open-idl/blob/main/templates/LICENSE), so what you build
+from one is yours without attribution.
 
 | Template | For |
 |---|---|
