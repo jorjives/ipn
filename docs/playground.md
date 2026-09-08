@@ -51,7 +51,8 @@ modules, the engine, and the selected example.
 </div>
 
 Change an `expect` line and check again to see a failure; change a rate and watch the
-scenarios that pin it fail. [Getting started](getting-started.md) builds a small
+scenarios that pin it fail. To see a rate change hit a sample book, use
+[Price a book](book.md). [Getting started](getting-started.md) builds a small
 contents product this way. The same `check` on your machine is under
 [For engineers](engineers.md).
 

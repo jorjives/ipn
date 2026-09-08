@@ -1,0 +1,7 @@
+rebuild_cost,contents_sum,property_type,year_built,previous_claims,select
+300000,0,semi,1995,0,Buildings
+0,40000,flat,2005,0,Contents
+300000,40000,semi,1995,0,Buildings;Contents
+0,1000,semi,1995,0,Contents
+250000,20000,flat,1990,0,Buildings;Contents
+400000,50000,detached,1820,1,Buildings;Contents

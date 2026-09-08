@@ -32,6 +32,9 @@ python3 -m ipngine check examples/cycle.ipn
 
 # Quote a single risk (scalar inputs only; use scenarios for items)
 python3 -m ipngine quote examples/cycle.ipn bike_value=2000 rider_age=22 security=gold racing=no previous_claims=0
+
+# Price a book of risks
+python3 -m ipngine batch examples/household.ipn examples/household-risks.csv
 ```
 
 ## Architecture

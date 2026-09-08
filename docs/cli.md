@@ -105,12 +105,14 @@ for the net and for each tax and commission. A row the product cannot price
 says why in its own `error` column instead of stopping the run.
 
 ```sh
-python3 -m ipngine batch examples/household.ipn risks.csv > priced.csv
+python3 -m ipngine batch examples/household.ipn examples/household-risks.csv > priced.csv
 ```
 
 A declined risk is still priced, so the book can be compared before and after
 a rule change. A repeatable item cannot be given in a batch row; price such
-products with `quote` and an items file, or in a scenario.
+products with `quote` and an items file, or in a scenario. The site's
+[Price a book](book.md) page runs the same comparison in the browser on a
+prepared contents sample.
 
 ## Versions
 

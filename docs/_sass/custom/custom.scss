@@ -124,3 +124,18 @@
   .hint { font-size: 0.9rem; color: lighten($oidl-ink, 25%); margin: 0.25rem 0 1rem; }
   pre.check-out { min-height: 5rem; white-space: pre-wrap; }
 }
+
+.oidl-book {
+  .pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    margin: 1rem 0;
+    @media (max-width: 800px) { grid-template-columns: minmax(0, 1fr); }
+  }
+  .pane { font-weight: 600; font-size: 1.05rem; margin: 0.75rem 0 0.4rem; }
+  .cm-editor { min-height: 18rem; }
+  .table-wrap { overflow-x: auto; margin: 0.5rem 0 1.25rem; }
+  table { width: 100%; font-variant-numeric: tabular-nums; }
+  tr.moved td { background: rgba($oidl-marine, 0.08); }
+}

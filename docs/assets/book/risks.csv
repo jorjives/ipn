@@ -1,0 +1,13 @@
+contents_sum,property_type,alarm
+20000,terrace,no
+20000,terrace,yes
+20000,semi,no
+20000,flat,no
+20000,detached,no
+4000,terrace,no
+4000,flat,no
+200000,terrace,no
+200000,semi,no
+50000,terrace,no
+80000,detached,yes
+15000,terrace,no

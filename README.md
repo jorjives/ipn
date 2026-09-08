@@ -13,7 +13,7 @@ only. `python3 -m unittest` runs its tests.
 ```
 python3 -m ipngine check examples/home.ipn
 python3 -m ipngine quote examples/household.ipn rebuild_cost=250000 contents_sum=20000 property_type=flat year_built=1990 previous_claims=0 'select=Buildings;Contents'
-python3 -m ipngine batch examples/household.ipn risks.csv > priced.csv
+python3 -m ipngine batch examples/household.ipn examples/household-risks.csv > priced.csv
 ```
 
 - `docs/`: the site, built by GitHub Pages. Start at the playground; engineers

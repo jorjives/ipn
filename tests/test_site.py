@@ -59,8 +59,11 @@ class Playground(unittest.TestCase):
     """The browser playground fetches the engine and the products by name, so the names must not drift."""
 
     def test_engine_file_list_matches_the_package(self):
-        js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
-        self.assertEqual(set(re.findall(r'"(\w+\.py)"', js)), {p.name for p in (ROOT / "ipngine").glob("*.py")})
+        expected = {p.name for p in (ROOT / "ipngine").glob("*.py")}
+        for name in ("playground.js", "book.js"):
+            js = (DOCS / "assets/js" / name).read_text(encoding="utf-8")
+            with self.subTest(name):
+                self.assertEqual(set(re.findall(r'"(\w+\.py)"', js)), expected)
 
     def test_every_same_site_asset_the_playground_uses_exists(self):
         js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
@@ -77,3 +80,27 @@ class Playground(unittest.TestCase):
         md = (DOCS / "playground.md").read_text(encoding="utf-8")
         expected = [f"examples/{s}.ipn" for s, *_ in EXAMPLES] + [f"templates/{s}.ipn" for s, *_ in TEMPLATES]
         self.assertEqual(re.findall(r'value="([^"]+\.ipn)"', md), expected)
+
+
+class Book(unittest.TestCase):
+    """The Price a book page prices a prepared sample twice and must keep its files."""
+
+    def test_the_page_loads_the_prepared_files_from_the_site(self):
+        md = (DOCS / "book.md").read_text(encoding="utf-8")
+        js = (DOCS / "assets/js/book.js").read_text(encoding="utf-8")
+        self.assertIn("title: Price a book", md)
+        self.assertIn("assets/js/book.js", md)
+        for name in ("before.ipn", "after.ipn", "risks.csv"):
+            self.assertIn(name, js)
+            self.assertTrue((DOCS / "assets/book" / name).exists(), name)
+
+    def test_every_same_site_asset_the_page_uses_exists(self):
+        js = (DOCS / "assets/js/book.js").read_text(encoding="utf-8")
+        md = (DOCS / "book.md").read_text(encoding="utf-8")
+        used = ([DOCS / "assets/js" / m for m in re.findall(r'"\./([\w.-]+)"', js)]
+                + [DOCS / "assets" / m for m in re.findall(r'"\.\./([\w./-]+)"', js)]
+                + [DOCS / "assets" / m for m in re.findall(r'/assets/([\w./-]+)"', md)])
+        self.assertGreaterEqual(len(used), 2, "the page script and the files it fetches")
+        for path in used:
+            with self.subTest(str(path.relative_to(DOCS))):
+                self.assertTrue(path.exists(), f"{path.name} is used by Price a book but missing")

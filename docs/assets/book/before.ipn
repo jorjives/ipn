@@ -1,0 +1,25 @@
+product "Home Contents"
+  territory UK
+  term 12 months
+
+inputs
+  contents_sum: money
+  property_type: choice of detached, semi, terrace, flat
+  alarm: yes/no
+
+eligibility
+  decline when contents_sum < 5000 because "The minimum sum insured is 5,000"
+  refer when contents_sum > 150000 because "Sums over 150,000 need a high net worth policy"
+
+cover Contents
+  limit contents_sum
+  excess 100
+
+rating
+  base 0.5% of contents_sum
+  factor "Property type"
+    property_type is detached: x 1.10
+    property_type is flat: x 0.90
+    otherwise: x 1.00
+  discount 10% when alarm is yes
+  tax IPT 12%
