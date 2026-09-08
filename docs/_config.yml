@@ -1,5 +1,5 @@
 title: IPN
-description: Insurance Product Notation: an open proposal for declaring insurance product behaviour end to end, with scenarios in the same file.
+description: "Insurance Product Notation: an open proposal for declaring insurance product behaviour end to end, with scenarios in the same file."
 url: "https://jorjives.github.io"
 baseurl: "/ipn"
 repository: jorjives/ipn

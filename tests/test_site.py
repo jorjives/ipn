@@ -8,6 +8,32 @@ from scripts.site_pages import EXAMPLES, ROOT, TEMPLATES, render
 DOCS = ROOT / "docs"
 
 
+class Config(unittest.TestCase):
+    def test_plain_scalars_do_not_contain_colon_space(self):
+        """GitHub Pages (Psych) rejects unquoted `key: foo: bar` as a nested mapping."""
+        for i, line in enumerate((DOCS / "_config.yml").read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.lstrip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("- "):
+                rest = stripped[2:]
+                if ": " in rest and rest[:1] not in {'"', "'", "[", "{"}:
+                    value = rest.split(": ", 1)[1]
+                else:
+                    value = rest
+            elif ": " in stripped:
+                value = stripped.split(": ", 1)[1]
+            else:
+                continue
+            if value[:1] in {'"', "'", "[", "{", "|", ">"}:
+                continue
+            self.assertNotIn(
+                ": ",
+                value,
+                f"docs/_config.yml:{i}: quote this value; an unquoted colon-space is invalid YAML",
+            )
+
+
 class GeneratedPages(unittest.TestCase):
     def test_committed_pages_are_what_the_script_renders(self):
         for rel, content in render().items():
