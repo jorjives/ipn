@@ -55,6 +55,27 @@ class Links(unittest.TestCase):
                     self.assertTrue((page.parent / target).resolve().exists(), f"{page.relative_to(ROOT)} links to missing {target}")
 
 
+class Truthful(unittest.TestCase):
+    """No hand-written page may still say a repeatable item cannot be batched."""
+
+    def test_no_page_says_items_cannot_be_batched(self):
+        for page in DOCS.rglob("*.md"):
+            if "superpowers" in page.parts:
+                continue
+            with self.subTest(page.relative_to(ROOT)):
+                self.assertNotIn("cannot be given in a batch row", page.read_text(encoding="utf-8"))
+
+    def test_the_command_line_page_documents_the_collection_bindings(self):
+        md = (DOCS / "cli.md").read_text(encoding="utf-8")
+        self.assertIn("python3 -m ipngine batch FILE.ipn RISKS.csv [collection=file.csv ...]", md)
+        self.assertIn(
+            "python3 -m ipngine batch examples/home.ipn examples/home-risks.csv "
+            "specified_items=examples/home-specified-items.csv",
+            md,
+        )
+        self.assertIn("`risk`", md)
+
+
 class Playground(unittest.TestCase):
     """The browser playground fetches the engine and the products by name, so the names must not drift."""
 

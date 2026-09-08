@@ -12,7 +12,7 @@ has three commands.
 ```sh
 python3 -m ipngine check FILE.ipn
 python3 -m ipngine quote FILE.ipn input=value ... [select=Cover] [items=file.csv]
-python3 -m ipngine batch FILE.ipn RISKS.csv
+python3 -m ipngine batch FILE.ipn RISKS.csv [collection=file.csv ...]
 ```
 
 `check` builds a `History` from sibling files of the same product name, where
@@ -98,7 +98,7 @@ dated amendments apply to events on a policy, not to a price.
 ## batch: price a book
 
 `batch` reads one risk per row from a CSV whose columns are the input names
-(plus an optional `select` column) and writes one row per risk: eligibility,
+(plus optional `select` and `risk` columns) and writes one row per risk: eligibility,
 reasons, net, every tax and fee, the total, the currency, each commission,
 and, when the product attributes its premium to covers, a column per cover
 for the net and for each tax and commission. A row the product cannot price
@@ -109,10 +109,30 @@ python3 -m ipngine batch examples/household.ipn examples/household-risks.csv > p
 ```
 
 A declined risk is still priced, so the book can be compared before and after
-a rule change. A repeatable item cannot be given in a batch row; price such
-products with `quote` and an items file, or in a scenario. The site's
-[Price a book](book.md) page runs the same comparison in the browser on a
-prepared contents sample.
+a rule change.
+
+`risk` names the row in the output; left out, the rows are numbered from 1. It
+must be unique and non-blank, and it is matched as text, so `01` and `1` are
+different rows.
+
+Repeatable items come from one further CSV per collection, named as an extra
+argument. Its header is `risk` and the item's fields, and each row attaches to
+the book row with the same `risk`:
+
+```sh
+python3 -m ipngine batch examples/home.ipn examples/home-risks.csv specified_items=examples/home-specified-items.csv
+```
+
+That prices three risks: one with a watch, one with nothing specified, one
+with a necklace and a painting. A risk with no matching row has an empty
+collection, so a product that requires items declines it and prices it anyway.
+An item row naming a risk the book does not have stops the run before any
+premium is written. A collection may still be a column on the book whose cell
+is the name of a file beside the product, which suits one risk rather than a
+book.
+
+The site's [Price a book](book.md) page runs the same comparison in the
+browser on a prepared contents sample.
 
 ## Versions
 
