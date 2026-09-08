@@ -104,3 +104,17 @@ class Book(unittest.TestCase):
         for path in used:
             with self.subTest(str(path.relative_to(DOCS))):
                 self.assertTrue(path.exists(), f"{path.name} is used by Price a book but missing")
+
+    def test_the_page_shows_the_two_file_shape_for_risks_with_items(self):
+        md = (DOCS / "book.md").read_text(encoding="utf-8")
+        self.assertNotIn("cannot be given in a batch row", md)
+        self.assertIn("## Risks with items", md)
+        self.assertIn("home-risks.csv", md)
+        self.assertIn("home-specified-items.csv", md)
+        self.assertIn("specified_items=examples/home-specified-items.csv", md)
+        self.assertIn("(cli.md)", md)
+
+    def test_the_live_comparison_is_untouched(self):
+        js = (DOCS / "assets/js/book.js").read_text(encoding="utf-8")
+        self.assertNotIn("home-specified-items.csv", js)
+        self.assertNotIn("specified_items", js)

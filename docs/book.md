@@ -16,9 +16,8 @@ the table follows the product.
 Checks and this comparison run in the browser. The page does not submit your
 product text to a server. On first load it fetches
 [Pyodide](https://pyodide.org) (CPython, about 10 MB, once) and the engine. A
-repeatable item cannot be given in a batch row. A real book of thousands of
-rows is `python3 -m ipngine batch` on your machine; see
-[Command line](cli.md).
+real book of thousands of rows is `python3 -m ipngine batch` on your machine;
+see [Command line](cli.md).
 
 <div class="oidl-play oidl-book">
 <div class="pair">
@@ -45,6 +44,35 @@ rows is `python3 -m ipngine batch` on your machine; see
 The [playground](playground.md) is where you write a product and check its
 scenarios. [Getting started](getting-started.md) builds a small contents product
 that way.
+
+## Risks with items
+
+A book whose risks carry specified items, named drivers or scheme members is
+two CSVs, joined on `risk`.
+
+```
+# examples/home-risks.csv
+risk,postcode,contents_sum,property_type,alarm,occupied_during_day,previous_claims,flood_risk,theft_area
+A,SW1A 1AA,20000,terrace,no,yes,0,low,low
+B,E1 6AN,20000,terrace,no,yes,0,low,low
+C,M1 1AE,80000,detached,yes,no,1,low,high
+```
+
+```
+# examples/home-specified-items.csv
+risk,description,value
+A,watch,2000
+C,necklace,4000
+C,painting,8000
+```
+
+```sh
+python3 -m ipngine batch examples/home.ipn examples/home-risks.csv specified_items=examples/home-specified-items.csv
+```
+
+A has one item, C has two, and B has none: a risk with no matching row has an
+empty collection, and a product that requires items declines those rows and
+prices them anyway. See [Command line](cli.md).
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
 <script type="importmap">
