@@ -291,6 +291,27 @@ rating
         self.assertEqual(rows[1][-1], "bike is missing value")
         self.assertEqual(rows[2][3], "40.00")
 
+    def test_a_product_that_requires_items_declines_an_empty_risk_and_still_prices_it(self):
+        product = self.write("family.ipn", '''product "Family"
+  term 12 months
+inputs
+  rider_age: integer
+  bikes: collection of bike, 1 to 4
+    value: money
+rating
+  base 10
+  for each bike
+    add 3% of value
+''')
+        risks = self.write("book.csv", "risk,rider_age\nH-1,30\nH-2,30\n")
+        items = self.write("only-one.csv", "risk,value\nH-1,1000\n")
+        code, out = run("batch", product, risks, f"bikes={items}")
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(rows[1][1:4], ["eligible", "", "40.00"])
+        self.assertEqual(rows[2][1:4], ["declined", "bikes: at least 1 required", "10.00"])
+        self.assertEqual(rows[2][-1], "")
+
 
 class CheckVersions(unittest.TestCase):
     V1 = 'product "Bike"\n  published 2026-01-01\n  term 12 months\ninputs\n  bike_value: money\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\n'
