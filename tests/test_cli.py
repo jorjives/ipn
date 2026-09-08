@@ -156,6 +156,62 @@ rating
         self.assertEqual(code, 2)
         self.assertIn("RISKS.csv", out)
 
+    def test_book_risk_column_is_the_join_key_and_the_output(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\nH-2,30\n",
+            "risk,value,age,security\nH-1,1000,0,gold\n",
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual([r[0] for r in rows[1:]], ["H-1", "H-2"])
+        self.assertEqual(rows[1][3], "40.00")
+        self.assertEqual(rows[2][3], "10.00")
+
+    def test_stray_item_risk_stops_before_any_premium(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\n",
+            "risk,value,age,security\nH-9,1000,0,gold\n",
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(len(rows), 1)
+        self.assertIn("unknown risk", rows[0][0])
+        self.assertNotEqual(rows[0][0], "risk")
+
+    def test_duplicate_book_risk_is_a_run_error(self):
+        code, rows = self.run_batch("risk,rider_age\nH-1,30\nH-1,30\n", "risk,value,age,security\n")
+        self.assertEqual(code, 2)
+        self.assertIn("duplicate risk", rows[0][0])
+
+    def test_blank_book_risk_is_a_run_error(self):
+        code, rows = self.run_batch("risk,rider_age\n,30\n", "risk,value,age,security\n")
+        self.assertEqual(code, 2)
+        self.assertIn("blank risk", rows[0][0])
+
+    def test_items_file_needs_a_risk_column(self):
+        code, rows = self.run_batch("rider_age\n30\n", "value,age,security\n1000,0,gold\n")
+        self.assertEqual(code, 2)
+        self.assertIn("missing column 'risk'", rows[0][0])
+
+    def test_unreadable_collection_file_is_a_run_error(self):
+        code, rows = self.run_batch("rider_age\n30\n", extra=["bikes=/no/such/bikes.csv"])
+        self.assertEqual(code, 2)
+        self.assertIn("cannot read", rows[0][0])
+
+    def test_extra_argument_must_be_a_collection(self):
+        code, rows = self.run_batch("rider_age\n30\n", extra=["rider_age=x.csv"])
+        self.assertEqual(code, 2)
+        self.assertIn("not a collection", rows[0][0])
+
+    def test_cli_file_and_path_in_cell_conflict(self):
+        sidecar = os.path.join(self.d.name, "one.csv")
+        with open(sidecar, "w") as f:
+            f.write("value,age,security\n1000,0,gold\n")
+        code, rows = self.run_batch(
+            "rider_age,bikes\n30,one.csv\n",
+            "risk,value,age,security\n1,1000,0,gold\n",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("command line and as a column", rows[0][0])
+
 
 if __name__ == "__main__":
     unittest.main()
