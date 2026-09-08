@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
-from ipngine.parser import parse, ParseError
+from ipngine.parser import Line, ParseError, group_item_rows, parse
 
 
 HEADER = '''
@@ -1369,3 +1369,39 @@ class ChoiceFromTable(unittest.TestCase):
         other = 'table "Other" keyed on industry\n  industry, rate\n  construction, 1\n\n'
         with self.assertRaisesRegex(ParseError, "line 8: Other is keyed on industry, which draws on table 'Occupations'; declare Occupations first"):
             parse(text.replace('table "Occupations"', other + 'table "Occupations"'))
+
+
+class GroupItemRows(unittest.TestCase):
+    def test_groups_by_stripped_risk_and_drops_the_join_key(self):
+        records = [
+            {"risk": "A", "description": "watch", "value": "2000"},
+            {"risk": " C ", "description": "necklace", "value": "4000"},
+            {"risk": "C", "description": "painting", "value": "8000"},
+        ]
+        grouped = group_item_rows(Line(0, 0, ""), records)
+        self.assertEqual(list(grouped), ["A", "C"])
+        self.assertEqual(grouped["A"], [[("description", "watch"), ("value", "2000")]])
+        self.assertEqual(len(grouped["C"]), 2)
+        self.assertEqual(grouped["C"][1], [("description", "painting"), ("value", "8000")])
+
+    def test_leading_zero_is_a_different_risk(self):
+        records = [
+            {"risk": "01", "value": "1"},
+            {"risk": "1", "value": "2"},
+        ]
+        grouped = group_item_rows(Line(0, 0, ""), records)
+        self.assertEqual(set(grouped), {"01", "1"})
+
+    def test_empty_rows_are_skipped(self):
+        records = [
+            {"risk": "A", "value": "1"},
+            {"risk": "", "value": ""},
+            {"risk": "B", "value": "2"},
+        ]
+        grouped = group_item_rows(Line(0, 0, ""), records)
+        self.assertEqual(list(grouped), ["A", "B"])
+
+    def test_blank_risk_on_a_kept_row_is_an_error(self):
+        with self.assertRaises(ParseError) as cm:
+            group_item_rows(Line(0, 0, ""), [{"risk": "", "value": "1"}])
+        self.assertIn("missing risk", str(cm.exception))

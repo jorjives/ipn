@@ -936,6 +936,21 @@ def items_from_file(line: Line, coll: Input, path: str, base: str) -> list[dict]
     return items
 
 
+def group_item_rows(line: Line, records: list[dict]) -> dict[str, list[list[tuple[str, str]]]]:
+    """CSV rows grouped by stripped `risk`. Empty rows skipped. `risk` is not a field."""
+    grouped: dict[str, list[list[tuple[str, str]]]] = {}
+    for record in records:
+        cells = [(k.strip(), (v or "").strip()) for k, v in record.items() if k]
+        if not any(v for _, v in cells):
+            continue
+        risk = next((v for k, v in cells if k == "risk"), "")
+        if not risk:
+            raise line.error("item row is missing risk")
+        fields = [(k, v) for k, v in cells if k != "risk" and v]
+        grouped.setdefault(risk, []).append(fields)
+    return grouped
+
+
 def parse_scenario(line: Line, product: Product) -> None:
     toks = tokens(line)
     if len(toks) != 2 or not toks[1].startswith('"'):
