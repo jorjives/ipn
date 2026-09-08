@@ -111,10 +111,15 @@ inputs
     value: money
     age: integer
     security: choice of gold, silver, bronze
+  riders: collection of rider, at most 10
+    name: text
+    age: integer
 rating
   base 10
   for each bike
     add 3% of value
+  for each rider
+    add 5
   tax IPT 12%
 '''
 
@@ -127,16 +132,17 @@ rating
     def tearDown(self):
         self.d.cleanup()
 
+    def write(self, name: str, text: str) -> str:
+        path = os.path.join(self.d.name, name)
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
     def run_batch(self, book: str, items: str | None = None, extra: list[str] | None = None) -> tuple[int, list[list[str]]]:
-        risks = os.path.join(self.d.name, "risks.csv")
-        with open(risks, "w") as f:
-            f.write(book)
+        risks = self.write("risks.csv", book)
         argv = ["batch", self.product, risks]
         if items is not None:
-            path = os.path.join(self.d.name, "bikes.csv")
-            with open(path, "w") as f:
-                f.write(items)
-            argv.append(f"bikes={path}")
+            argv.append(f"bikes={self.write('bikes.csv', items)}")
         argv.extend(extra or [])
         code, out = run(*argv)
         return code, list(csv.reader(io.StringIO(out)))
@@ -211,6 +217,57 @@ rating
         )
         self.assertEqual(code, 2)
         self.assertIn("command line and as a column", rows[0][0])
+
+    def test_two_collections_are_joined_independently(self):
+        riders = self.write("riders.csv", "risk,name,age\nH-1,Ann,30\nH-2,Bob,40\nH-2,Cid,50\n")
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\nH-2,30\n",
+            "risk,value,age,security\nH-1,1000,0,gold\n",
+            extra=[f"riders={riders}"],
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual(rows[1][3], "45.00")  # 10 + 3% of 1000 + one rider
+        self.assertEqual(rows[2][3], "20.00")  # 10 + no bike + two riders
+
+    def test_join_keys_are_text_so_leading_zeros_are_distinct(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\n01,30\n1,30\n",
+            "risk,value,age,security\n01,1000,0,gold\n",
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual([r[0] for r in rows[1:]], ["01", "1"])
+        self.assertEqual(rows[1][3], "40.00")
+        self.assertEqual(rows[2][3], "10.00")
+
+    def test_an_empty_item_row_is_skipped_and_the_rest_still_join(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\n",
+            "risk,value,age,security\nH-1,1000,0,gold\n,,,\nH-1,2000,0,silver\n",
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual(rows[1][3], "100.00")  # 10 + 30 + 60; the all-blank row is skipped
+
+    def test_a_blank_risk_on_an_item_row_stops_the_run(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\n",
+            "risk,value,age,security\n,1000,0,gold\n",
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(len(rows), 1)
+        self.assertIn("missing risk", rows[0][0])
+
+    def test_a_joined_path_is_read_as_given_not_against_the_product(self):
+        os.mkdir(os.path.join(self.d.name, "p"))
+        product = self.write(os.path.join("p", "fleet.ipn"), self.SRC)
+        self.write("risks.csv", "risk,rider_age\nH-1,30\n")
+        self.write("bikes.csv", "risk,value,age,security\nH-1,1000,0,gold\n")
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.d.name)
+        code, out = run("batch", os.path.join("p", "fleet.ipn"), "risks.csv", "bikes=bikes.csv")
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(rows[1][3], "40.00")  # bikes.csv found beside the book, not beside the product
 
 
 class CheckVersions(unittest.TestCase):
