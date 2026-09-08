@@ -7,7 +7,7 @@ has_toc: false
 
 # Examples
 
-Sixteen products and one product in three versions, each a complete `.idl` file with the
+Sixteen products and one product in three versions, each a complete `.ipn` file with the
 scenarios that prove it. These pages are generated from the files in
 [`examples/`](https://github.com/jorjives/open-idl/tree/main/examples) and every scenario
 passes; a file whose proof fails cannot be published here. The files are dedicated to the

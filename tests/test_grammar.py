@@ -163,8 +163,8 @@ class ProductTokens(unittest.TestCase):
         self.assertIn(("str", '"x # y"'), toks)
 
 
-CORPUS = sorted(list((ROOT / "examples").glob("*.idl")) + list((ROOT / "examples" / "versioned").glob("*.idl"))
-                + list((ROOT / "templates").glob("*.idl")) + list((ROOT / "templates" / "versioned").glob("*.idl")))
+CORPUS = sorted(list((ROOT / "examples").glob("*.ipn")) + list((ROOT / "examples" / "versioned").glob("*.ipn"))
+                + list((ROOT / "templates").glob("*.ipn")) + list((ROOT / "templates" / "versioned").glob("*.ipn")))
 
 
 class Corpus(unittest.TestCase):

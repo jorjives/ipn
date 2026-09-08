@@ -11,17 +11,17 @@ Lifetime Pet Cover: an annual vet fee limit that every paid claim eats into and 
 {: .proof }
 > 18 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/pet.idl
+> python3 -m ipngine check examples/pet.ipn
 > ```
 
-The file: [`examples/pet.idl`](https://github.com/jorjives/open-idl/blob/main/examples/pet.idl).
+The file: [`examples/pet.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/pet.ipn).
 
-```idl
+```ipn
 # Lifetime Pet Cover: an annual vet fee limit that every paid claim eats into and
 # that comes back at renewal, a waiting period before illness is covered, and a
 # co-payment once the pet is older. The pet's age moves on each year, so the
 # co-payment arrives by itself.
-# Run it with:  python3 -m ideclare check examples/pet.idl
+# Run it with:  python3 -m ipngine check examples/pet.ipn
 
 product "Lifetime Pet Cover"
   territory UK

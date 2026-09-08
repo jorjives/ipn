@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from ideclare.tables import Table, TableError, load_table
+from ipngine.tables import Table, TableError, load_table
 
 
 ROWS = """driver_age, area, vehicle_group, rate, note

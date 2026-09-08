@@ -11,16 +11,16 @@ Home Contents: a flat sum insured plus specified high value items, an excess tha
 {: .proof }
 > 19 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/home.idl
+> python3 -m ipngine check examples/home.ipn
 > ```
 
-The file: [`examples/home.idl`](https://github.com/jorjives/open-idl/blob/main/examples/home.idl).
+The file: [`examples/home.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/home.ipn).
 
-```idl
+```ipn
 # Home Contents: a flat sum insured plus specified high value items, an excess that
 # depends on the cause of loss, and the average clause: when the contents turn out
 # to be worth more than the sum insured, the claim is scaled down in proportion.
-# Run it with:  python3 -m ideclare check examples/home.idl
+# Run it with:  python3 -m ipngine check examples/home.ipn
 
 product "Home Contents"
   territory UK

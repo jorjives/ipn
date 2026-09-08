@@ -34,7 +34,7 @@ class Playground(unittest.TestCase):
 
     def test_engine_file_list_matches_the_package(self):
         js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
-        self.assertEqual(set(re.findall(r'"(\w+\.py)"', js)), {p.name for p in (ROOT / "ideclare").glob("*.py")})
+        self.assertEqual(set(re.findall(r'"(\w+\.py)"', js)), {p.name for p in (ROOT / "ipngine").glob("*.py")})
 
     def test_every_same_site_asset_the_playground_uses_exists(self):
         js = (DOCS / "assets/js/playground.js").read_text(encoding="utf-8")
@@ -49,5 +49,5 @@ class Playground(unittest.TestCase):
 
     def test_example_menu_matches_the_generated_pages(self):
         md = (DOCS / "playground.md").read_text(encoding="utf-8")
-        expected = [f"examples/{s}.idl" for s, *_ in EXAMPLES] + [f"templates/{s}.idl" for s, *_ in TEMPLATES]
-        self.assertEqual(re.findall(r'value="([^"]+\.idl)"', md), expected)
+        expected = [f"examples/{s}.ipn" for s, *_ in EXAMPLES] + [f"templates/{s}.ipn" for s, *_ in TEMPLATES]
+        self.assertEqual(re.findall(r'value="([^"]+\.ipn)"', md), expected)

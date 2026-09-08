@@ -11,19 +11,19 @@ Term Life rated from a mortality curve. The actuary supplies the annual death ra
 {: .proof }
 > 11 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/mortality.idl
+> python3 -m ipngine check examples/mortality.ipn
 > ```
 
-The file: [`examples/mortality.idl`](https://github.com/jorjives/open-idl/blob/main/examples/mortality.idl).
+The file: [`examples/mortality.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/mortality.ipn).
 
-```idl
+```ipn
 # Term Life rated from a mortality curve. The actuary supplies the annual death rate
 # per 1,000 lives at five-year ages; the product reads the rate off that curve for
 # any age, interpolating geometrically because mortality grows by a ratio, not by a
 # fixed amount, between knots. A BMI loading is a power law, a large-sum discount
 # decays exponentially, and the expense loading is interpolated linearly because
 # expenses are additive.
-# Run it with:  python3 -m ideclare check examples/mortality.idl
+# Run it with:  python3 -m ipngine check examples/mortality.ipn
 
 product "Mortality Rated Term Life"
   territory UK

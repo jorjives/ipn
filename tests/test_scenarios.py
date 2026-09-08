@@ -2,8 +2,8 @@ import os
 import tempfile
 import unittest
 
-from ideclare.parser import parse
-from ideclare.scenarios import run_all
+from ipngine.parser import parse
+from ipngine.scenarios import run_all
 from tests.test_parser import FULL, occupations
 
 
@@ -502,7 +502,7 @@ scenario "off the table"
         self.assertIn("no row in Age and lock for rider_age 16, security gold", res["off the table"][0])
 
 
-from ideclare.versions import History
+from ipngine.versions import History
 
 
 def two_versions(scenarios: str):
@@ -763,7 +763,7 @@ class LifecycleShares(unittest.TestCase):
 
     def test_a_renewal_class_is_read_from_the_renewal_quote(self):
         from tests.test_engine import EBIKES
-        from ideclare.versions import History
+        from ipngine.versions import History
         src = EBIKES.replace('  factor "Fleet"\n', '  add cover premiums\n  factor "Fleet"\n')
         old = src.replace('product "Family Cycle Cover"\n', 'product "Family Cycle Cover"\n  published 2026-01-01\n')
         new = src.replace('product "Family Cycle Cover"\n', 'product "Family Cycle Cover"\n  published 2026-06-01\n').replace("cover Fire\n  class 8\n", "cover Fire\n  class 7\n")

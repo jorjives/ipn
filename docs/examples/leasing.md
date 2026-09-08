@@ -13,17 +13,17 @@ Reads [`leasing_members.csv`](https://github.com/jorjives/open-idl/blob/main/exa
 {: .proof }
 > 13 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/leasing.idl
+> python3 -m ipngine check examples/leasing.ipn
 > ```
 
-The file: [`examples/leasing.idl`](https://github.com/jorjives/open-idl/blob/main/examples/leasing.idl).
+The file: [`examples/leasing.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/leasing.ipn).
 
-```idl
+```ipn
 # Cycle Leasing Scheme: a group policy. The policyholder is the leasing supplier,
 # which owns the bikes; the members are employees who hold them under a lease.
 # Members join and leave all year, each member's cover runs for their own lease
 # dates inside a rolling annual master policy, and claims are settled per member.
-# Run it with:  python3 -m ideclare check examples/leasing.idl
+# Run it with:  python3 -m ipngine check examples/leasing.ipn
 
 product "Cycle Leasing Scheme"
   territory UK

@@ -8,7 +8,7 @@ nav_order: 1
 # Declare an insurance product. Prove it in the same file.
 {: .no_toc }
 
-<p class="lede">Open IDL is a declarative language for defining an insurance product end to end: the questions asked, who is eligible, what is covered, how it is priced, how the policy behaves from purchase to renewal, and how claims are paid. It reads like a policy wording, and the scenarios that prove it live in the same file.</p>
+<p class="lede">IPN (Insurance Product Notation) is an open spec for declaring an insurance product end to end: the questions asked, who is eligible, what is covered, how it is priced, how the policy behaves from purchase to renewal, and how claims are paid. It reads like a policy wording, and the scenarios that prove it live in the same file.</p>
 
 <div class="actions">
 <a class="btn btn-primary" href="{{ site.baseurl }}/getting-started/">Get started</a>
@@ -17,7 +17,7 @@ nav_order: 1
 </div>
 
 <div class="oidl-proof">
-<pre class="file"><code class="idl">product "Bike Cover"
+<pre class="file"><code class="ipn">product "Bike Cover"
   territory UK
   term 12 months
 
@@ -71,7 +71,7 @@ scenario "Cancelling mid term refunds pro rata, less the fee"
   when bound on 2026-03-01
   when cancelled by customer on 2026-09-01
   expect refund 16.99</code></pre>
-<pre class="out"><span class="cmd">$ python3 -m ideclare check bike.idl</span>
+<pre class="out"><span class="cmd">$ python3 -m ipngine check bike.ipn</span>
 <span class="line typed" style="animation-delay:.4s"><span class="pass">PASS</span> A young rider with a gold lock</span><span class="line typed" style="animation-delay:.7s"><span class="pass">PASS</span> Theft is paid less the excess</span><span class="line typed" style="animation-delay:1s"><span class="pass">PASS</span> Cancelling mid term refunds pro rata, less the fee</span><span class="line typed sum" style="animation-delay:1.3s">Bike Cover: 3 passed, 0 failed</span></pre>
 </div>
 
@@ -89,7 +89,7 @@ a few lines an underwriter, a product manager or a pricing actuary would write t
 ### inputs
 The questions asked at quote, each with a type. Repeatable items (several bikes, named drivers) are a `collection`; a value worked out from the others is `calculated`.
 </div>
-```idl
+```ipn
 inputs
   bike_value: money
   rider_age: integer
@@ -105,7 +105,7 @@ inputs
 ### eligibility
 Who is declined and who is referred to an underwriter, each with the reason the customer will be given. A decline outranks a refer.
 </div>
-```idl
+```ipn
 eligibility
   decline when rider_age < 16 because "Riders must be 16 or over"
   refer when previous_claims >= 3 because "Claims history needs an underwriter"
@@ -117,7 +117,7 @@ eligibility
 ### cover
 One block per section: the limit, the excess, when it is excluded, whether it is optional. Aggregates, waiting periods, dates in force and per-item cover are the same few words.
 </div>
-```idl
+```ipn
 cover Theft
   limit bike_value
   excess 10% of claim, minimum 50
@@ -134,7 +134,7 @@ cover Racing optional
 ### rating
 The premium, step by step, in the order written. Factors, flat additions, discounts and loads, floors and caps, tax on the rounded net and any fees, each line where it stands; and, when a regulator wants it, every figure split by cover and class. Big tables come from the pricing team's spreadsheet.
 </div>
-```idl
+```ipn
 rating
   base 3% of bike_value
   factor "Rider age"
@@ -153,7 +153,7 @@ rating
 ### lifecycle
 How the policy behaves after it is bought: cooling off, cancellation by either party, mid-term changes, lapse, instalments, and renewal with indexing, a cap and a collar.
 </div>
-```idl
+```ipn
 lifecycle
   cooling off 14 days, full refund
   cancellation by customer: refund pro rata, fee 25
@@ -171,7 +171,7 @@ lifecycle
 ### claims
 What each claim needs, how it is settled, and what a paid claim changes. The `pays` clauses apply in the order written, because a sum insured and a liability limit are worded differently.
 </div>
-```idl
+```ipn
 claims
   claim Theft
     requires crime_reference
@@ -186,7 +186,7 @@ claims
 ### scenario
 Answers, then events in the order they happen, then what must be true after each. `check` runs every scenario and names the line that disagrees.
 </div>
-```idl
+```ipn
 scenario "Two claims load the renewal, within the cap"
   given bike_value 2000, rider_age 22, lock gold
   when bound on 2026-01-01
@@ -234,9 +234,9 @@ versions and the Irish levies on a cycle policy.
 ## Three commands
 
 ```sh
-python3 -m ideclare check product.idl                 # run the scenarios: PASS or FAIL, line by line
-python3 -m ideclare quote product.idl bike_value=2000 rider_age=22 lock=gold
-python3 -m ideclare batch product.idl risks.csv > priced.csv
+python3 -m ipngine check product.ipn                 # run the scenarios: PASS or FAIL, line by line
+python3 -m ipngine quote product.ipn bike_value=2000 rider_age=22 lock=gold
+python3 -m ipngine batch product.ipn risks.csv > priced.csv
 ```
 
 The reference engine is Python with no dependencies. Every figure is a decimal, so a

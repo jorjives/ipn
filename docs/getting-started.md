@@ -18,13 +18,13 @@ cd open-idl
 python3 -m unittest
 ```
 
-The reference engine is the `ideclare` package in the repository (the project's working
-name). Every command below is `python3 -m ideclare ...` run from that directory.
+The reference engine is the `ipngine` package in the repository. Every command below is
+`python3 -m ipngine ...` run from that directory.
 
 ## Run an example
 
 ```sh
-python3 -m ideclare check examples/cycle.idl
+python3 -m ipngine check examples/cycle.ipn
 ```
 
 ```check
@@ -36,16 +36,16 @@ PASS Depreciation: an older bike is settled at 85% before the excess
 Cycle Cover: 35 passed, 0 failed
 ```
 
-Open [`examples/cycle.idl`](examples/cycle.md) beside the output. Each `scenario` at the
+Open [`examples/cycle.ipn`](examples/cycle.md) beside the output. Each `scenario` at the
 bottom of the file is one of those lines, and the scenarios above the lifecycle ones are
 commented with the arithmetic. Every example on this site runs the same way.
 
 ## Write your first product
 
-Make a file called `camera.idl` with a product, its questions, one cover, a price, and a
+Make a file called `camera.ipn` with a product, its questions, one cover, a price, and a
 scenario that says what the price should be:
 
-```idl
+```ipn
 product "Camera Cover"
   territory UK
   term 12 months
@@ -69,7 +69,7 @@ scenario "A camera worth 1,000"
 ```
 
 ```sh
-python3 -m ideclare check camera.idl
+python3 -m ipngine check camera.ipn
 ```
 
 ```check
@@ -85,7 +85,7 @@ that holds it to the number you meant.
 Add an `eligibility` block, a `factor` on the owner's age, and two scenarios for them.
 The factor's rows are tried in order and the first that holds applies.
 
-```idl
+```ipn
 eligibility
   decline when owner_age < 18 because "Owners must be 18 or over"
   refer when camera_value > 10000 because "Cameras over 10,000 need an underwriter"
@@ -135,7 +135,7 @@ The `lifecycle` block says how the policy behaves after it is bought; the `claim
 says what a claim needs and how it is paid. Scenarios can now play events in order with
 `when`, and check the state after each.
 
-```idl
+```ipn
 lifecycle
   cooling off 14 days, full refund
   cancellation by customer: refund pro rata, fee 10
@@ -199,7 +199,7 @@ factor's first row no longer holds, and the loading falls away by itself.
 `quote` prices one risk and prints the trail, step by step:
 
 ```sh
-python3 -m ideclare quote camera.idl camera_value=1000 owner_age=22
+python3 -m ipngine quote camera.ipn camera_value=1000 owner_age=22
 ```
 
 ```

@@ -11,18 +11,18 @@ Irish Cycle: the three Irish charges on a non-life premium. The Government levy 
 {: .proof }
 > 4 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/irish-cycle.idl
+> python3 -m ipngine check examples/irish-cycle.ipn
 > ```
 
-The file: [`examples/irish-cycle.idl`](https://github.com/jorjives/open-idl/blob/main/examples/irish-cycle.idl).
+The file: [`examples/irish-cycle.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/irish-cycle.ipn).
 
-```idl
+```ipn
 # Irish Cycle: the three Irish charges on a non-life premium. The Government levy
 # (3%) and the Insurance Compensation Fund contribution (2%) are taxes on the
 # premium, refunded with it; the stamp duty is a fixed EUR 1 on each policy with
 # EUR 20 or more of annual premium, charged when the policy is issued and never
 # refunded, so it is a fee with a threshold.
-# Run it with:  python3 -m ideclare check examples/irish-cycle.idl
+# Run it with:  python3 -m ipngine check examples/irish-cycle.ipn
 
 product "Irish Cycle"
   territory IE

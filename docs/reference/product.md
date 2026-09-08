@@ -6,7 +6,7 @@ nav_order: 1
 
 # product
 
-```idl
+```ipn
 product "Cycle Cover"
   territory UK
   term 12 months
@@ -17,7 +17,7 @@ product "Cycle Cover"
 keyed on it carries the country's tax and loading and a condition can say `territory is
 CH`. With one territory it is assumed. The currency follows the territory (GBP for UK,
 EUR for DE, CHF for CH, and so on); a product priced in another currency, or sold
-somewhere the engine does not know, says `currency EUR`. See [`examples/gadget.idl`](../examples/gadget.md).
+somewhere the engine does not know, says `currency EUR`. See [`examples/gadget.ipn`](../examples/gadget.md).
 
 `published 2026-07-01` says when this version of the product went on sale; see
 [Versions](versions.md). A product without it is a single version.

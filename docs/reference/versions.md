@@ -8,7 +8,7 @@ nav_order: 11
 
 A customer stays on the version of a product they bought until it renews. A version is
 identified by the date it went on sale, `published 2026-07-01` in the `product` block; there
-are no version numbers. The other versions of a product are the `.idl` files in the same
+are no version numbers. The other versions of a product are the `.ipn` files in the same
 directory that declare the same product name. `check` finds them itself, and a file sees
 only the versions published on or before its own date, so a proof written in an old version
 stays true when new ones are published. See [`examples/versioned/`](../examples/bike-versioned.md).
@@ -39,7 +39,7 @@ field or choice value of the **previous** version (the one published immediately
 this file), or a choice value of the input being set. There is no `previous` keyword: the
 right-hand side always reads the old answers, even when the name is kept.
 
-```idl
+```ipn
 upgrading
   lock_rating
     security is gold: gold
@@ -76,7 +76,7 @@ A change that must reach policies already in force is an amendment with an effec
 date, written inside the current version rather than as a new one. Any line inside a `cover` block or a `claim` block may
 begin with `from DATE`, `until DATE`, or both:
 
-```idl
+```ipn
 cover Theft
   limit bike_value
   from 2027-03-01 limit 2 * bike_value

@@ -6,7 +6,7 @@ nav_order: 5
 
 # eligibility
 
-```idl
+```ipn
 eligibility
   decline when rider_age < 16 because "Rider must be at least 16"
   refer when previous_claims >= 3 because "Claims history needs an underwriter"

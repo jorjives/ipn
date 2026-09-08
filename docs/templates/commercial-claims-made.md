@@ -11,16 +11,16 @@ Commercial claims-made: a business rated on its turnover and profession, a limit
 {: .proof }
 > 6 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/commercial-claims-made.idl`](https://github.com/jorjives/open-idl/blob/main/templates/commercial-claims-made.idl), rename the product, and replace each
+Copy [`templates/commercial-claims-made.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/commercial-claims-made.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
-```idl
+```ipn
 # Commercial claims-made: a business rated on its turnover and profession, a limit that
 # applies in the aggregate for the term, a retroactive date that decides which work is
 # covered, a short-rate cancellation scale and broker commission. Professional indemnity
 # is the usual case; directors' and officers' or cyber take the same shape. Copy this file
 # and replace the professions, the rates and the scale.
-# Run it with:  python3 -m ideclare check templates/commercial-claims-made.idl
+# Run it with:  python3 -m ipngine check templates/commercial-claims-made.ipn
 
 product "Commercial Claims-Made"
   territory UK

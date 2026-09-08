@@ -6,19 +6,19 @@ nav_order: 1
 
 # Cycle Cover
 
-Cycle Cover: a worked example exercising every part of the Open IDL language.
+Cycle Cover: a worked example exercising every part of IPN.
 
 {: .proof }
 > 35 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/cycle.idl
+> python3 -m ipngine check examples/cycle.ipn
 > ```
 
-The file: [`examples/cycle.idl`](https://github.com/jorjives/open-idl/blob/main/examples/cycle.idl).
+The file: [`examples/cycle.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/cycle.ipn).
 
-```idl
-# Cycle Cover: a worked example exercising every part of the Open IDL language.
-# Run it with:  python3 -m ideclare check examples/cycle.idl
+```ipn
+# Cycle Cover: a worked example exercising every part of IPN.
+# Run it with:  python3 -m ipngine check examples/cycle.ipn
 
 product "Cycle Cover"
   territory UK

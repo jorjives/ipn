@@ -12,7 +12,7 @@ reads one in its *long* form: one row per cell, one column per key, then the val
 columns. That is what a spreadsheet grid becomes with one unpivot, and it carries any
 number of dimensions:
 
-```idl
+```ipn
 table "Van rates" from "van_rates.csv" keyed on driver_age, area, vehicle_group
 
 table "Theft excess" keyed on area, use
@@ -22,7 +22,7 @@ table "Theft excess" keyed on area, use
   4-5, *, 500
 ```
 
-- `from "file.csv"` reads the rows from a file beside the `.idl`; without it the rows are
+- `from "file.csv"` reads the rows from a file beside the `.ipn`; without it the rows are
   written below, as plain CSV with the header first. The same text works in either place.
 - `keyed on` names the columns matched against the product's inputs, item fields,
   calculated inputs or enrichment-provided fields. The column headers are the input names.
@@ -52,7 +52,7 @@ A stepped table becomes a curve with `interpolated [linearly | geometrically] on
 other keys match as in a plain lookup. On a knot the value is the knot's, between two knots
 it is interpolated, and outside the knots it is an error:
 
-```idl
+```ipn
 table "Mortality" keyed on age, smoker
   age, smoker, rate
   40, no, 1.30
@@ -69,13 +69,13 @@ rating
 
 At 42 the curve above gives 1.5598 geometrically and 1.60 linearly. A cubic spline
 (`smoothly`) and interpolation across two keys are not provided; each is one more branch
-in the same place. [`examples/mortality.idl`](../examples/mortality.md) prices a term life product from such a curve.
+in the same place. [`examples/mortality.ipn`](../examples/mortality.md) prices a term life product from such a curve.
 
 A value is taken with `<column> from "<table>"` anywhere an amount can go: a factor, a
 `base`, an `add`, a `limit`, an `excess`, a benefit. Inside `for each` the lookup uses the
 current item's fields.
 
-```idl
+```ipn
 rating
   base 6% of vehicle_value
   factor "Driver, area and group" x rate from "Van rates"
@@ -89,4 +89,4 @@ column of the table, at least one value column exists, every cell reads, and no 
 repeat the same keys. When a risk is priced, exactly one row must match: none is reported
 as `no row in Van rates for driver_age 16, area 3, vehicle_group 5`, and two equally
 specific rows (overlapping bands) as ambiguous. A value between bands is an error, so the
-scenarios that prove the product are how the pricing team checks a reissued table. [`examples/van.idl`](../examples/van.md) rates from a three-dimensional table of 300 cells.
+scenarios that prove the product are how the pricing team checks a reissued table. [`examples/van.ipn`](../examples/van.md) rates from a three-dimensional table of 300 cells.

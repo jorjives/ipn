@@ -5,14 +5,14 @@ nav_order: 7
 
 # Command line
 
-The reference engine is a Python package, `ideclare` (the project's working name), with no
-dependencies. It has three commands. Every one reads a product file and, where the file
-declares a `published` date, the other versions of the product beside it.
+The reference engine is a Python package, `ipngine`, with no dependencies. It has three
+commands. Every one reads a product file and, where the file declares a `published` date,
+the other versions of the product beside it.
 
 ```sh
-python3 -m ideclare check FILE.idl
-python3 -m ideclare quote FILE.idl input=value ... [select=Cover] [items=file.csv]
-python3 -m ideclare batch FILE.idl RISKS.csv
+python3 -m ipngine check FILE.ipn
+python3 -m ipngine quote FILE.ipn input=value ... [select=Cover] [items=file.csv]
+python3 -m ipngine batch FILE.ipn RISKS.csv
 ```
 
 ## check: run the scenarios
@@ -49,7 +49,7 @@ It prints the eligibility outcome, the state of every cover, and the rating trai
 step:
 
 ```sh
-python3 -m ideclare quote examples/cycle.idl bike_value=2000 rider_age=22 security=gold racing=yes previous_claims=0 bike_age=0 select=Racing
+python3 -m ipngine quote examples/cycle.ipn bike_value=2000 rider_age=22 security=gold racing=yes previous_claims=0 bike_age=0 select=Racing
 ```
 
 ```
@@ -90,7 +90,7 @@ stopping the run, so an impact analysis over a hundred thousand policies reports
 rows that fell off a table instead of stopping at the first one:
 
 ```sh
-python3 -m ideclare batch examples/cycle.idl risks.csv > priced.csv
+python3 -m ipngine batch examples/cycle.ipn risks.csv > priced.csv
 ```
 
 ```
@@ -108,7 +108,7 @@ and an items file, or in a scenario.
 ## Versions
 
 When the file has a `published` date, all three commands find the other versions of the
-product in the same directory (the `.idl` files declaring the same product name, published
+product in the same directory (the `.ipn` files declaring the same product name, published
 on or before the file) and use them: a scenario that binds a policy before this version was
 published runs it on the version live that day, and moves it here at renewal. See
 [Versions](reference/versions.md).

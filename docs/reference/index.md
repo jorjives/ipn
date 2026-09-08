@@ -7,13 +7,13 @@ has_toc: false
 
 # Language reference
 
-Open IDL describes an insurance product in one plain text file: what you ask the
+IPN (Insurance Product Notation) describes an insurance product in one plain text file: what you ask the
 customer, who you will and will not insure, what is covered, how it is priced, how the
 policy behaves from purchase to renewal, and how claims are paid. You then prove the
 product does what you meant by writing *scenarios* in the same file and running:
 
 ```sh
-python3 -m ideclare check my-product.idl
+python3 -m ipngine check my-product.ipn
 ```
 
 Every scenario prints `PASS` or `FAIL`, and every failure says which line disagreed and

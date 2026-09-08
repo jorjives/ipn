@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
-from ideclare.expr import parse_expr, evaluate, names, ExprError
+from ipngine.expr import parse_expr, evaluate, names, ExprError
 
 
 def ev(src, **ctx):
@@ -114,7 +114,7 @@ class Dates(unittest.TestCase):
 
 class Lookups(unittest.TestCase):
     def setUp(self):
-        from ideclare.tables import load_table
+        from ipngine.tables import load_table
         self.tables = {"Rates": load_table("Rates", ["age", "area"], ["age, area, rate", "17-20, *, 2.5", "21+, 1, 1.1"])}
 
     def test_parses_column_from_table(self):
@@ -132,7 +132,7 @@ class Lookups(unittest.TestCase):
             evaluate(node, {"tables": self.tables})
 
     def test_names_and_lookups(self):
-        from ideclare.expr import lookups
+        from ipngine.expr import lookups
         node, _ = parse_expr(["rate", "from", '"Rates"', "+", "base"])
         self.assertEqual(names(node), {"base"})
         self.assertEqual(lookups(node), {("rate", "Rates")})
@@ -176,7 +176,7 @@ class Functions(unittest.TestCase):
 
 class Interpolated(unittest.TestCase):
     def setUp(self):
-        from ideclare.tables import load_table
+        from ipngine.tables import load_table
         self.tables = {"Curve": load_table("Curve", ["age"], ["age, rate", "30, 1", "40, 3"])}
 
     def test_parses_default_and_named_methods(self):
@@ -191,7 +191,7 @@ class Interpolated(unittest.TestCase):
             parse_expr(["rate", "from", '"Curve"', "interpolated", "wildly", "on", "age"])
 
     def test_evaluates(self):
-        from ideclare.expr import lookups
+        from ipngine.expr import lookups
         node, _ = parse_expr(["rate", "from", '"Curve"', "interpolated", "on", "age"])
         self.assertEqual(evaluate(node, {"age": Decimal(35), "tables": self.tables}), Decimal(2))
         self.assertEqual(lookups(node), {("rate", "Curve")})

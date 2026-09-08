@@ -1,4 +1,4 @@
-// Open IDL custom styles. Tokens live in color_schemes/openidl.scss.
+// IPN custom styles. Tokens live in color_schemes/openidl.scss.
 
 // --- Type -----------------------------------------------------------------
 .main-content {
@@ -18,8 +18,8 @@
 .site-title { font-weight: 600; letter-spacing: -0.01em; }
 .nav-list .nav-list-item .nav-list-link { font-size: 0.92rem; }
 
-// --- .idl highlighting (spans added by assets/js/idl.js) ------------------
-.language-idl, code.language-idl, code.idl, .oidl-play .cm-editor {
+// --- .ipn highlighting (spans added by assets/js/ipn.js) ------------------
+.language-ipn, code.language-ipn, code.ipn, .oidl-play .cm-editor {
   .k  { color: $oidl-marine; font-weight: 600; }   // block opener
   .kw { color: $oidl-marine; }                     // statement word
   .ty { color: $oidl-teal; }                       // input type
@@ -91,9 +91,9 @@
   td:first-child { white-space: nowrap; }
 }
 
-// Rouge has no lexer for idl, so ```idl and ```check blocks are bare <pre><code>. Give them
+// Rouge has no lexer for idl, so ```ipn and ```check blocks are bare <pre><code>. Give them
 // the same box the theme gives div.highlighter-rouge.
-.main-content pre:has(> code.language-idl), .main-content pre:has(> code.language-check), .main-content pre.check-out {
+.main-content pre:has(> code.language-ipn), .main-content pre:has(> code.language-check), .main-content pre.check-out {
   margin: 0 0 $sp-3;
   padding: $sp-3;
   overflow-x: auto;

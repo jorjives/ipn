@@ -1,4 +1,4 @@
-"""Writes the site's example and template pages from the .idl files, so the site cannot drift from the code.
+"""Writes the site's example and template pages from the .ipn files, so the site cannot drift from the code.
 
     python3 scripts/site_pages.py          # write docs/examples/*.md and docs/templates/*.md
     python3 -m unittest tests.test_site    # fail if the committed pages differ from what this renders
@@ -16,8 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts import grammar_table  # noqa: E402
-from ideclare.scenarios import run_all  # noqa: E402
-from ideclare.versions import History  # noqa: E402
+from ipngine.scenarios import run_all  # noqa: E402
+from ipngine.versions import History  # noqa: E402
 
 # Curated order and the line of business each example stands for. The description is the file's own.
 EXAMPLES = [
@@ -83,11 +83,11 @@ def sidecars(path: Path) -> list[str]:
 
 def source_block(path: Path, rel: str) -> str:
     text = path.read_text(encoding="utf-8").rstrip("\n")
-    return f"```idl\n{text}\n```\n"
+    return f"```ipn\n{text}\n```\n"
 
 
 def example_page(stem: str, line: str, shows: str, order: int) -> str:
-    path = ROOT / "examples" / f"{stem}.idl"
+    path = ROOT / "examples" / f"{stem}.ipn"
     text = path.read_text(encoding="utf-8")
     desc, command = description(text)
     n = check(path)
@@ -108,12 +108,12 @@ nav_order: {order}
 {{: .proof }}
 > {n} scenarios, all passing. Run them yourself:
 > ```sh
-> {command or f'python3 -m ideclare check examples/{stem}.idl'}
+> {command or f'python3 -m ipngine check examples/{stem}.ipn'}
 > ```
 
-The file: [`examples/{stem}.idl`](https://github.com/jorjives/open-idl/blob/main/examples/{stem}.idl).
+The file: [`examples/{stem}.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/{stem}.ipn).
 
-{source_block(path, f'examples/{stem}.idl')}"""
+{source_block(path, f'examples/{stem}.ipn')}"""
 
 
 def versioned_page(stems: list[Path], title: str, shows: str, order: int, parent: str, where: str) -> str:
@@ -128,7 +128,7 @@ def versioned_page(stems: list[Path], title: str, shows: str, order: int, parent
 
 {desc}
 
-{n} scenario{'s' if n != 1 else ''}: `{command or f'python3 -m ideclare check {rel}'}`
+{n} scenario{'s' if n != 1 else ''}: `{command or f'python3 -m ipngine check {rel}'}`
 
 {source_block(path, rel)}""")
     return f"""---
@@ -149,7 +149,7 @@ declares the same product name and says when it was published, and `check` finds
 
 
 def template_page(stem: str, title: str, shows: str, order: int) -> str:
-    path = ROOT / "templates" / f"{stem}.idl"
+    path = ROOT / "templates" / f"{stem}.ipn"
     text = path.read_text(encoding="utf-8")
     desc, command = description(text)
     n = check(path)
@@ -166,10 +166,10 @@ nav_order: {order}
 {{: .proof }}
 > {n} scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/{stem}.idl`](https://github.com/jorjives/open-idl/blob/main/templates/{stem}.idl), rename the product, and replace each
+Copy [`templates/{stem}.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/{stem}.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
-{source_block(path, f'templates/{stem}.idl')}"""
+{source_block(path, f'templates/{stem}.ipn')}"""
 
 
 def examples_index() -> str:
@@ -185,7 +185,7 @@ has_toc: false
 
 # Examples
 
-Sixteen products and one product in three versions, each a complete `.idl` file with the
+Sixteen products and one product in three versions, each a complete `.ipn` file with the
 scenarios that prove it. These pages are generated from the files in
 [`examples/`](https://github.com/jorjives/open-idl/tree/main/examples) and every scenario
 passes; a file whose proof fails cannot be published here. The files are dedicated to the
@@ -237,11 +237,11 @@ def render() -> dict[str, str]:
     for n, (stem, line, shows) in enumerate(EXAMPLES, start=1):
         pages[f"docs/examples/{stem}.md"] = example_page(stem, line, shows, n)
     stem, title, shows = VERSIONED
-    pages[f"docs/examples/{stem}.md"] = versioned_page(sorted((ROOT / "examples" / "versioned").glob("*.idl")), title, shows, len(EXAMPLES) + 1, "Examples", "examples/versioned")
+    pages[f"docs/examples/{stem}.md"] = versioned_page(sorted((ROOT / "examples" / "versioned").glob("*.ipn")), title, shows, len(EXAMPLES) + 1, "Examples", "examples/versioned")
     for n, (stem, title, shows) in enumerate(TEMPLATES, start=1):
         pages[f"docs/templates/{stem}.md"] = template_page(stem, title, shows, n)
     stem, title, shows = VERSIONED_TEMPLATE
-    pages[f"docs/templates/{stem}.md"] = versioned_page(sorted((ROOT / "templates" / "versioned").glob("*.idl")), title, shows, len(TEMPLATES) + 1, "Templates", "templates/versioned")
+    pages[f"docs/templates/{stem}.md"] = versioned_page(sorted((ROOT / "templates" / "versioned").glob("*.ipn")), title, shows, len(TEMPLATES) + 1, "Templates", "templates/versioned")
     pages[str(grammar_table.TABLE.relative_to(ROOT))] = grammar_table.render()
     return pages
 

@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
-from ideclare.parser import parse, ParseError
+from ipngine.parser import parse, ParseError
 
 
 HEADER = '''

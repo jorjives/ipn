@@ -27,7 +27,7 @@ one without a default must be given.
 
 ## Repeatable items
 
-```idl
+```ipn
 inputs
   rider_age: integer
   bikes: collection of bike, 1 to 4
@@ -56,7 +56,7 @@ Items appear in conditions and amounts like this:
 A list too long to write inline, or one that depends on an earlier answer, lives in a
 [table](table.md) and the choice names the key column it draws on:
 
-```idl
+```ipn
 inputs
   industry: choice of industry from "Occupations"
   occupation: choice of occupation from "Occupations" for industry
@@ -78,7 +78,7 @@ as usual, so the same file carries the class or rate of every occupation:
 `factor "Occupation" x rate from "Occupations"`. A value from the file is written in the
 product as it appears there: a single word bare, `industry is Construction`, anything
 else quoted, `industry is "Health & Social Care"`. A code such as `1234` is text, not a
-number. [`examples/income.idl`](../examples/income.md) rates on an occupation drawn this
+number. [`examples/income.ipn`](../examples/income.md) rates on an occupation drawn this
 way.
 
 ## Formulas

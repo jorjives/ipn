@@ -1,9 +1,9 @@
 import unittest
 from decimal import Decimal
 
-from ideclare.parser import parse, with_defaults
-from ideclare.engine import Underwriting, check_eligibility, check_inputs, context, cover_state, cover_states, instalments
-from ideclare.scenarios import run_all
+from ipngine.parser import parse, with_defaults
+from ipngine.engine import Underwriting, check_eligibility, check_inputs, context, cover_state, cover_states, instalments
+from ipngine.scenarios import run_all
 from tests.test_parser import FULL, occupations
 
 
@@ -68,7 +68,7 @@ class Covers(unittest.TestCase):
         self.assertEqual(states["Racing"].status, "not available")
 
 
-from ideclare.engine import rate
+from ipngine.engine import rate
 from tests.test_parser import RATING
 
 
@@ -144,7 +144,7 @@ class RatingEngine(unittest.TestCase):
 
 
 from datetime import date
-from ideclare.engine import Policy, add_months
+from ipngine.engine import Policy, add_months
 from tests.test_parser import LIFECYCLE
 
 
@@ -464,7 +464,7 @@ class DepreciationAndIndexation(unittest.TestCase):
         self.assertEqual(pol.renew().inputs["item_age"], Decimal(3))
 
     def test_index_unknown_input_is_error(self):
-        from ideclare.parser import ParseError
+        from ipngine.parser import ParseError
         with self.assertRaises(ParseError):
             parse(DEPRECIATION.replace("index item_value", "index item_colour"))
 
@@ -846,20 +846,20 @@ class TableEngine(unittest.TestCase):
         self.p = parse(TABLED)
 
     def test_lookup_per_item_and_single_row_factor(self):
-        from ideclare.engine import rate
+        from ipngine.engine import rate
         q = rate(self.p, {"area": Decimal(3), "vans": [{"value": Decimal(1000), "driver_age": Decimal(19)}, {"value": Decimal(2000), "driver_age": Decimal(40)}]}, set())
         self.assertEqual(q.net, Decimal("190.00"))  # 50 x 2.00 + 100 x 1.00 - 10
         self.assertEqual([(t.label, t.applied) for t in q.trail if t.label.endswith("Age and area")], [("van 1 Age and area", "x 2.00"), ("van 2 Age and area", "x 1.00")])
         self.assertEqual(q.trail[-1].applied, "- 10")
 
     def test_lookup_in_an_excess(self):
-        from ideclare.engine import excess_amount
+        from ipngine.engine import excess_amount
         ctx = context(self.p, {"area": Decimal(1), "vans": []}, set())
         self.assertEqual(excess_amount(self.p.cover("Theft").excess, ctx), Decimal(150))
 
     def test_no_row_is_an_error_not_a_default(self):
-        from ideclare.engine import rate
-        from ideclare.tables import TableError
+        from ipngine.engine import rate
+        from ipngine.tables import TableError
         with self.assertRaisesRegex(TableError, "no row in Rates for driver_age 16, area 1"):
             rate(self.p, {"area": Decimal(1), "vans": [{"value": Decimal(1000), "driver_age": Decimal(16)}]}, set())
 
@@ -1009,8 +1009,8 @@ class Reinstatement(unittest.TestCase):
 
 
 from datetime import date
-from ideclare.engine import Policy
-from ideclare.versions import History
+from ipngine.engine import Policy
+from ipngine.versions import History
 
 
 def versioned(published: str, base: str, extra_inputs: str = "") -> str:
@@ -1296,8 +1296,8 @@ class LinesInOrder(unittest.TestCase):
         self.assertEqual(q.commission, [("Broker", Decimal("16.80"))])
 
 
-from ideclare.engine import split
-from ideclare.expr import ExprError
+from ipngine.engine import split
+from ipngine.expr import ExprError
 
 CLASSED = FULL.replace("cover Theft\n", "cover Theft\n  class 9\n").replace('cover "Accidental Damage"\n', 'cover "Accidental Damage"\n  class 3\n').replace("cover Racing optional\n", "cover Racing optional\n  class 3\n")
 ATTRIBUTED = CLASSED + '''rating

@@ -11,17 +11,17 @@ Professional Indemnity: a commercial line, rated on turnover, written on a claim
 {: .proof }
 > 19 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/pi.idl
+> python3 -m ipngine check examples/pi.ipn
 > ```
 
-The file: [`examples/pi.idl`](https://github.com/jorjives/open-idl/blob/main/examples/pi.idl).
+The file: [`examples/pi.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/pi.ipn).
 
-```idl
+```ipn
 # Professional Indemnity: a commercial line, rated on turnover, written on a
 # claims-made basis. The policy that responds is the one in force when the claim
 # is made against the insured, provided the work was done after the retroactive
 # date, and the limit of indemnity is in the aggregate, costs inclusive.
-# Run it with:  python3 -m ideclare check examples/pi.idl
+# Run it with:  python3 -m ipngine check examples/pi.ipn
 
 product "Professional Indemnity"
   territory UK

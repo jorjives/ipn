@@ -10,7 +10,7 @@ Products depend on lookups they do not perform themselves: postcode risk, a bike
 vehicle catalogue, claims history. An `enrichment` block declares the shape of such a lookup
 and nothing about how it is done:
 
-```idl
+```ipn
 enrichment "Postcode risk" from postcode
   provides
     theft_area: choice of low, medium, high

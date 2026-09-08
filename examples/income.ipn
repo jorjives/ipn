@@ -1,0 +1,215 @@
+# Short Term Income Protection: a benefit paid over time rather than a loss made
+# good. The claim says how long the customer was off work; a month's benefit is
+# paid at the end of each month after the deferred period, the term's limit is a
+# number of months of benefit in total, and a claim that starts late in the year
+# keeps paying into the next.
+# Run it with:  python3 -m ipngine check examples/income.ipn
+
+product "Short Term Income Protection"
+  territory UK
+  term 12 months
+
+inputs
+  age: integer
+  monthly_income: money
+  monthly_benefit: money
+  # The industry narrows the occupations offered; both come from the occupations table.
+  industry: choice of industry from "Occupations"
+  occupation: choice of occupation from "Occupations" for industry
+  smoker: yes/no
+  deferred_weeks: integer
+  benefit_months: integer
+  # The most the policy pays in a year: the chosen number of months of benefit.
+  max_benefit: calculated
+    base monthly_benefit * benefit_months
+
+# Each occupation carries its class and the rate the class is charged.
+table "Occupations" from "occupations.csv" keyed on industry, occupation
+
+eligibility
+  decline when age < 18 or age > 59 because "Applicants must be between 18 and 59"
+  decline when monthly_benefit > 60% of monthly_income because "Benefit may not exceed 60% of income"
+  decline when monthly_benefit > 3000 because "The maximum benefit is 3,000 a month"
+  decline when benefit_months > 24 because "Benefit is paid for 12 or 24 months at most"
+  refer when occupation_class from "Occupations" is 4 because "Heavy manual occupations need an underwriter"
+
+cover Incapacity
+  limit max_benefit per term
+
+cover Unemployment optional
+  limit monthly_benefit * 6 per term
+  waiting period 90 days
+
+rating
+  # A rate on the annual benefit.
+  base 3% of monthly_benefit * 12
+  factor "Age"
+    age < 30: x 0.80
+    age < 40: x 1.00
+    age < 50: x 1.40
+    otherwise: x 2.00
+  factor "Occupation" x rate from "Occupations"
+  factor "Smoker"
+    smoker is yes: x 1.30
+    otherwise: x 1.00
+  factor "Deferred period"
+    deferred_weeks >= 26: x 0.50
+    deferred_weeks >= 13: x 0.70
+    deferred_weeks >= 8: x 0.85
+    otherwise: x 1.00
+  factor "Benefit period"
+    benefit_months > 12: x 1.40
+    otherwise: x 1.00
+  load 35% when Unemployment selected
+  minimum 60
+  tax IPT 12%
+
+lifecycle
+  cooling off 30 days, full refund
+  cancellation by customer: refund pro rata
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference
+  renewal
+    invite 21 days before expiry
+    increase capped at 25%
+    index age by 1
+    decline when age >= 65 because "Cover ends at 65"
+
+claims
+  claim Incapacity
+    asks
+      weeks_off_work: integer
+      cause: choice of illness, injury, pregnancy, pre_existing
+    requires gp_certificate
+    # A month's benefit for each month off work after the deferred period, never more than the year's limit.
+    pays monthly_benefit per month for ( weeks_off_work - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit
+    decline when weeks_off_work <= deferred_weeks because "Absence did not outlast the deferred period"
+    decline when cause is pre_existing because "Pre-existing conditions are excluded"
+    decline when cause is pregnancy because "Normal pregnancy is not an incapacity"
+  claim Unemployment
+    asks
+      weeks_unemployed: integer
+    requires termination_letter
+    pays monthly_benefit per month for ( weeks_unemployed - deferred_weeks ) / 4 months after deferred_weeks weeks, up to limit
+    decline when weeks_unemployed <= deferred_weeks because "Unemployment did not outlast the deferred period"
+  after 2 claims in term: renewal load x 1.25
+
+# --- Eligibility ---------------------------------------------------------
+# Baseline: 1,500 a month, age 35, an accountant (class 1), non-smoker, 8 weeks deferred, 12 months.
+# 3% of 18,000 = 540, x 0.85 deferred = 459.00 net, IPT 55.08, total 514.08.
+
+scenario "An office worker insuring 1,500 a month"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  expect eligible
+  expect cover Incapacity limit 18000
+  expect net 459.00
+  expect premium 514.08
+
+scenario "Benefit may not exceed 60% of income"
+  given age 35, monthly_income 2000, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  expect declined "Benefit may not exceed 60% of income"
+
+scenario "Heavy manual work is referred"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry Construction, occupation Labourer, smoker no, deferred_weeks 8, benefit_months 12
+  expect referred "Heavy manual occupations need an underwriter"
+
+# --- Rating --------------------------------------------------------------
+
+scenario "A longer deferred period is cheaper, a longer benefit period dearer"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 26, benefit_months 24
+  # 540 x 0.50 x 1.40
+  expect net 378.00
+  expect cover Incapacity limit 36000
+
+scenario "An older smoker in a manual trade"
+  given age 52, monthly_income 3000, monthly_benefit 1500, industry "Health & Social Care", occupation Nurse, smoker yes, deferred_weeks 4, benefit_months 12
+  # 540 x 2.00 x 1.60 x 1.30
+  expect net 2246.40
+
+scenario "Unemployment cover loads the premium"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  select Unemployment
+  expect cover Unemployment limit 9000
+  expect net 619.65
+
+# --- Claims: benefit over time ----------------------------------------------
+
+scenario "Twenty weeks off work pays three months of benefit"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity for 0 on 2026-03-01 with gp_certificate, weeks_off_work 20, cause injury
+  # (20 - 8) / 4 = 3 months at 1,500
+  expect payout 4500.00
+  expect cover Incapacity remaining 13500
+
+scenario "A long absence is capped at the months of benefit left in the year"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity for 0 on 2026-02-01 with gp_certificate, weeks_off_work 20, cause injury
+  when claim Incapacity for 0 on 2026-07-01 with gp_certificate, weeks_off_work 60, cause illness
+  # 13 months' worth would be 19,500; 13,500 is left
+  expect payout 13500.00
+  expect cover Incapacity remaining 0
+
+scenario "A claim late in the year keeps paying into the next"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity on 2026-10-01 with gp_certificate, weeks_off_work 28, cause injury
+  # 20 weeks of benefit from 26 November: 1,500 at the end of each month, five months in all
+  expect payout 7500.00
+  expect benefit paid 1500.00 by 2026-12-31
+  expect benefit paid 4500.00 by 2027-02-28
+  when renewed on 2027-01-01
+  expect benefit paid 7500.00 by 2027-05-01
+  # the new year's limit is untouched by a claim that arose in the old one
+  expect cover Incapacity remaining 18000
+
+scenario "Absence inside the deferred period pays nothing"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity for 0 on 2026-03-01 with gp_certificate, weeks_off_work 6, cause illness
+  expect claim declined "Absence did not outlast the deferred period"
+
+scenario "Excluded causes"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity for 0 on 2026-03-01 with gp_certificate, weeks_off_work 20, cause pre_existing
+  expect claim declined "Pre-existing conditions are excluded"
+  when claim Incapacity for 0 on 2026-03-01 with gp_certificate, weeks_off_work 20, cause pregnancy
+  expect claim declined "Normal pregnancy is not an incapacity"
+  when claim Incapacity for 0 on 2026-03-01 with weeks_off_work 20, cause illness
+  expect claim declined "gp_certificate is required"
+
+scenario "Unemployment cover has an initial exclusion period"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  select Unemployment
+  when bound on 2026-01-01
+  when claim Unemployment for 0 on 2026-03-01 with termination_letter, weeks_unemployed 20
+  expect claim declined "Unemployment is within the 90 day waiting period"
+  when claim Unemployment for 0 on 2026-05-01 with termination_letter, weeks_unemployed 20
+  expect payout 4500.00
+  when claim Unemployment for 0 on 2026-09-01 with termination_letter, weeks_unemployed 30
+  # 8,250 would be due; 4,500 is left of the six months
+  expect payout 4500.00
+
+# --- Renewal -------------------------------------------------------------
+
+scenario "Cover ends at 65"
+  # taken out at the oldest age allowed and renewed each year until the offer would be at 65
+  given age 59, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  expect renewal offered
+  when renewed on 2027-01-01
+  when renewed on 2028-01-01
+  when renewed on 2029-01-01
+  when renewed on 2030-01-01
+  when renewed on 2031-01-01
+  expect renewal declined "Cover ends at 65"
+
+scenario "Two claims in a year load the renewal, within the cap"
+  given age 35, monthly_income 3200, monthly_benefit 1500, industry "Office & Professional", occupation Accountant, smoker no, deferred_weeks 8, benefit_months 12
+  when bound on 2026-01-01
+  when claim Incapacity for 0 on 2026-02-01 with gp_certificate, weeks_off_work 12, cause injury
+  when claim Incapacity for 0 on 2026-07-01 with gp_certificate, weeks_off_work 12, cause illness
+  # 514.08 x 1.25 is exactly the 25% cap
+  expect renewal premium 642.60

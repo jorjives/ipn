@@ -6,7 +6,7 @@ nav_order: 8
 
 # lifecycle
 
-```idl
+```ipn
 lifecycle
   cooling off 14 days, full refund
   cancellation by customer: refund pro rata, fee 25

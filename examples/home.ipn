@@ -1,0 +1,247 @@
+# Home Contents: a flat sum insured plus specified high value items, an excess that
+# depends on the cause of loss, and the average clause: when the contents turn out
+# to be worth more than the sum insured, the claim is scaled down in proportion.
+# Run it with:  python3 -m ipngine check examples/home.ipn
+
+product "Home Contents"
+  territory UK
+  term 12 months
+
+inputs
+  postcode: text
+  contents_sum: money
+  property_type: choice of detached, semi, terrace, flat
+  alarm: yes/no
+  occupied_during_day: yes/no
+  previous_claims: integer
+  specified_items: collection of item, at most 10
+    description: text
+    value: money
+
+enrichment "Postcode risk" from postcode
+  provides
+    flood_risk: choice of low, medium, high
+    theft_area: choice of low, medium, high
+  when unavailable: refer because "Postcode not recognised"
+  held for the term
+
+eligibility
+  decline when contents_sum < 5000 because "The minimum sum insured is 5,000"
+  decline when contents_sum > 150000 because "Sums over 150,000 need a high net worth policy"
+  decline when any item where value > 15000 because "Items over 15,000 need a specialist policy"
+  refer when flood_risk is high because "Flood risk needs an underwriter"
+  refer when total value of specified_items > 50% of contents_sum because "Specified items are a large share of the contents"
+
+cover Contents
+  limit contents_sum
+  excess
+    cause is escape_of_water: 350
+    otherwise: 100
+
+cover "Specified Items"
+  limit value
+  excess 100
+
+cover "Unspecified Valuables"
+  limit 1500
+  excess 100
+
+cover "Accidental Damage" optional
+  limit contents_sum
+  excess 100
+
+rating
+  base 0.5% of contents_sum
+  for each item
+    base 1.5% of value
+  factor "Property type"
+    property_type is flat: x 0.90
+    property_type is detached: x 1.10
+    otherwise: x 1.00
+  factor "Theft area"
+    theft_area is high: x 1.35
+    theft_area is medium: x 1.10
+    otherwise: x 1.00
+  discount 10% when alarm is yes
+  factor "Occupancy"
+    occupied_during_day is yes: x 1.00
+    otherwise: x 1.15
+  factor "Claims history"
+    previous_claims is 0: x 1.00
+    previous_claims is 1: x 1.20
+    otherwise: x 1.50
+  load 20% when "Accidental Damage" selected
+  minimum 60
+  tax IPT 12%
+
+lifecycle
+  cooling off 14 days, full refund
+  cancellation by customer: refund pro rata, fee 20
+  cancellation by insurer: refund pro rata
+  adjustment: reprice, charge pro rata difference
+  renewal
+    invite 21 days before expiry
+    increase capped at 20%
+    index contents_sum by 4%
+    index item value by 4%
+    # This year's claims become next year's claims history.
+    index previous_claims by claims in term
+
+claims
+  claim Contents
+    asks
+      cause: choice of fire, theft, escape_of_water, storm, other
+      true_value: money
+    pays claimed amount up to limit, less excess
+    # The average clause: underinsured by half, paid half.
+    settlement
+      true_value > contents_sum: x contents_sum / true_value
+      otherwise: x 1
+  claim "Specified Items"
+    requires receipt_or_valuation
+    pays claimed amount up to limit, less excess
+  claim "Unspecified Valuables"
+    pays claimed amount up to limit, less excess
+  claim "Accidental Damage"
+    pays claimed amount up to limit, less excess
+  after 2 claims in term: renewal load x 1.20
+
+# --- Eligibility and enrichment -------------------------------------------
+
+scenario "A semi with an alarm in an average area"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  expect eligible
+
+scenario "An unknown postcode is referred"
+  given postcode "ZZ9 9ZZ", contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  expect referred "Postcode not recognised"
+
+scenario "High flood risk is referred"
+  given postcode "YO1 1AA", flood_risk high, theft_area low, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  expect referred "Flood risk needs an underwriter"
+  when bound on 2026-01-01
+  expect refused "referred: Flood risk needs an underwriter; the underwriter must accept it first"
+
+scenario "The underwriter accepts the flood risk on terms"
+  given postcode "YO1 1AA", flood_risk high, theft_area low, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  select "Accidental Damage"
+  when accepted by underwriter on 2025-12-20 with load 25%, excess 1000 on Contents, excluding "Accidental Damage"
+  when bound on 2026-01-01
+  expect factor "Underwriter load" x 1.25
+  expect cover "Accidental Damage" excluded "underwriter terms"
+  when claim Contents for 6000 on 2026-02-10 with cause storm, true_value 40000
+  # the underwriter's 1,000 excess replaces the product's own
+  expect payout 5000.00
+
+scenario "Specified items that dominate the contents are referred"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 20000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  given item description "Engagement ring", value 8000
+  given item description "Watch", value 6000
+  expect referred "Specified items are a large share of the contents"
+
+scenario "A single item over the limit is declined"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 80000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  given item description "Painting", value 20000
+  expect declined "Items over 15,000 need a specialist policy"
+
+# --- Rating --------------------------------------------------------------
+
+scenario "The sum insured and the area set the price"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  # 0.5% of 40,000 = 200, x 1.10 area, less 10% alarm
+  expect factor "Theft area" x 1.10
+  expect net 198.00
+  expect tax IPT 23.76
+  expect premium 221.76
+
+scenario "Specified items are rated on top of the sum insured"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  given item description "Engagement ring", value 3000
+  # 200 + 45 = 245, x 1.10, x 0.90
+  expect net 242.55
+
+scenario "An empty house in a high theft area with claims"
+  given postcode "M1 1AA", flood_risk low, theft_area high, contents_sum 30000, property_type terrace, alarm no, occupied_during_day no, previous_claims 1
+  # 150 x 1.35 x 1.15 x 1.20
+  expect net 279.45
+
+scenario "Accidental damage loads the whole premium"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  select "Accidental Damage"
+  expect net 237.60
+
+# --- Claims: the excess follows the cause ---------------------------------
+
+scenario "Escape of water carries the higher excess"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 4000 on 2026-03-01 with cause escape_of_water, true_value 40000
+  expect payout 3650.00
+  when claim Contents for 4000 on 2026-05-01 with cause fire, true_value 40000
+  expect payout 3900.00
+
+# --- Claims: the average clause -----------------------------------------
+
+scenario "Fully insured contents are paid in full"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 10000 on 2026-03-01 with cause theft, true_value 38000
+  expect payout 9900.00
+
+scenario "Underinsured by half, the claim is paid at half"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 10000 on 2026-03-01 with cause escape_of_water, true_value 80000
+  # 10,000 x 40,000 / 80,000 = 5,000, less the 350 excess
+  expect payout 4650.00
+
+scenario "The true value must be given for the average clause to be applied"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 10000 on 2026-03-01 with cause theft
+  expect claim declined "true_value is required"
+
+scenario "A total loss is capped at the sum insured"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 55000 on 2026-03-01 with cause fire, true_value 40000
+  expect payout 39900.00
+
+# --- Claims: valuables --------------------------------------------------
+
+scenario "A specified item is paid up to its own value"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  given item description "Engagement ring", value 3000
+  given item description "Watch", value 1200
+  when bound on 2026-01-01
+  when claim "Specified Items" on item 1 for 3500 on 2026-03-01 with receipt_or_valuation
+  expect payout 2900.00
+  when claim "Specified Items" on item 2 for 1000 on 2026-03-01
+  expect claim declined "receipt_or_valuation is required"
+
+scenario "An unspecified valuable hits the single article limit"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim "Unspecified Valuables" for 2600 on 2026-03-01
+  expect payout 1400.00
+
+# --- Renewal ---------------------------------------------------------------
+
+scenario "Renewal indexes the sum insured and every specified item"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  given item description "Engagement ring", value 3000
+  when bound on 2026-01-01
+  # 41,600 and 3,120: 208 + 46.80 = 254.80, x 1.10, x 0.90 = 252.25, IPT 30.27
+  expect renewal premium 282.52
+  when renewed on 2027-01-01
+  expect cover "Specified Items" on item 1 limit 3120
+
+scenario "A claim this year is claims history next year"
+  given postcode "CH1 1AA", flood_risk low, theft_area medium, contents_sum 40000, property_type semi, alarm yes, occupied_during_day yes, previous_claims 0
+  when bound on 2026-01-01
+  when claim Contents for 4000 on 2026-03-01 with cause fire, true_value 40000
+  # 41,600 indexed: 208 x 1.10 x 0.90 = 205.92, x 1.20 for one previous claim = 247.10, IPT 29.65 = 276.75;
+  # held to the 20% cap on 221.76
+  expect renewal premium 266.11
+  when renewed on 2027-01-01
+  expect factor "Claims history" x 1.20

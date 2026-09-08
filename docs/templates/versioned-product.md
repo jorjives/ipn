@@ -16,14 +16,14 @@ declares the same product name and says when it was published, and `check` finds
 
 A versioned product, first version. The `published` line says when it went on sale; the later version sits beside it in this directory, and a policy bound under this version stays on it until renewal. Copy both files, keep the product name the same in each, and put each version's own proof in its own file.
 
-1 scenario: `python3 -m ideclare check templates/versioned/versioned-product-2026-01-01.idl`
+1 scenario: `python3 -m ipngine check templates/versioned/versioned-product-2026-01-01.ipn`
 
-```idl
+```ipn
 # A versioned product, first version. The `published` line says when it went on sale; the
 # later version sits beside it in this directory, and a policy bound under this version
 # stays on it until renewal. Copy both files, keep the product name the same in each, and
 # put each version's own proof in its own file.
-# Run it with:  python3 -m ideclare check templates/versioned/versioned-product-2026-01-01.idl
+# Run it with:  python3 -m ipngine check templates/versioned/versioned-product-2026-01-01.ipn
 
 product "Versioned Product"
   published 2026-01-01
@@ -67,15 +67,15 @@ scenario "Full cover carries the loading"
 
 A versioned product, second version. The cover question changes shape: `cover_level` becomes `plan` with three tiers, and a new question arrives with a default. The `upgrading` block says how a customer's old answers become new ones at renewal; a row that says `ask` holds the renewal until the customer answers. Every scenario here that binds before this version was published is written in the first version's words.
 
-3 scenarios: `python3 -m ideclare check templates/versioned/versioned-product-2027-01-01.idl`
+3 scenarios: `python3 -m ipngine check templates/versioned/versioned-product-2027-01-01.ipn`
 
-```idl
+```ipn
 # A versioned product, second version. The cover question changes shape: `cover_level`
 # becomes `plan` with three tiers, and a new question arrives with a default. The
 # `upgrading` block says how a customer's old answers become new ones at renewal; a row
 # that says `ask` holds the renewal until the customer answers. Every scenario here that
 # binds before this version was published is written in the first version's words.
-# Run it with:  python3 -m ideclare check templates/versioned/versioned-product-2027-01-01.idl
+# Run it with:  python3 -m ipngine check templates/versioned/versioned-product-2027-01-01.ipn
 
 product "Versioned Product"
   published 2027-01-01

@@ -8,7 +8,7 @@ nav_order: 6
 
 One block per section of cover.
 
-```idl
+```ipn
 cover Theft
   limit bike_value
   excess 10% of claim, minimum 50

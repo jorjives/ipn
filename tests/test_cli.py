@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 
-from ideclare.cli import main
+from ipngine.cli import main
 from tests.test_parser import DEFAULTS, FLEET, LIFECYCLE, RATING, occupations
 
 
@@ -19,11 +19,11 @@ def run(*argv) -> tuple[int, str]:
 class QuoteCommand(unittest.TestCase):
     def test_items_come_from_a_csv(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "fleet.idl"), "w") as f:
+            with open(os.path.join(d, "fleet.ipn"), "w") as f:
                 f.write(FLEET)
             with open(os.path.join(d, "bikes.csv"), "w") as f:
                 f.write("value,age,security\n2000,0,gold\n1000,3,silver\n")
-            code, out = run("quote", os.path.join(d, "fleet.idl"), "rider_age=30", "bikes=bikes.csv")
+            code, out = run("quote", os.path.join(d, "fleet.ipn"), "rider_age=30", "bikes=bikes.csv")
         self.assertEqual(code, 0, out)
         self.assertIn("Theft on bike 1: included, limit 2000.00", out)
         self.assertIn("Theft on bike 2: included, limit 1000.00", out)
@@ -34,11 +34,11 @@ class QuoteCommand(unittest.TestCase):
 class QuoteDefaults(unittest.TestCase):
     def test_defaulted_inputs_need_not_be_given(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "x.idl"), "w") as f:
+            with open(os.path.join(d, "x.ipn"), "w") as f:
                 f.write(DEFAULTS)
             with open(os.path.join(d, "bikes.csv"), "w") as f:
                 f.write("price,security\n500,\n")
-            code, out = run("quote", os.path.join(d, "x.idl"), "value=1", "bikes=bikes.csv")
+            code, out = run("quote", os.path.join(d, "x.ipn"), "value=1", "bikes=bikes.csv")
         self.assertEqual(code, 0, out)
         self.assertIn("= 110.00", out)
 
@@ -46,9 +46,9 @@ class QuoteDefaults(unittest.TestCase):
 class QuoteInstalments(unittest.TestCase):
     def test_the_schedule_is_shown_when_the_product_offers_one(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "cycle.idl"), "w") as f:
+            with open(os.path.join(d, "cycle.ipn"), "w") as f:
                 f.write(LIFECYCLE + "  instalments 12 monthly, charge 8%\n")
-            code, out = run("quote", os.path.join(d, "cycle.idl"), "bike_value=2000", "rider_age=22", "security=gold", "racing=no")
+            code, out = run("quote", os.path.join(d, "cycle.ipn"), "bike_value=2000", "rider_age=22", "security=gold", "racing=no")
         self.assertEqual(code, 0, out)
         self.assertIn("or 12 monthly: 8.92 then 8.88 (credit charge 7.90)", out)
 
@@ -56,7 +56,7 @@ class QuoteInstalments(unittest.TestCase):
 class BatchCommand(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.TemporaryDirectory()
-        with open(os.path.join(self.d.name, "cycle.idl"), "w") as f:
+        with open(os.path.join(self.d.name, "cycle.ipn"), "w") as f:
             f.write(RATING)
 
     def tearDown(self):
@@ -66,7 +66,7 @@ class BatchCommand(unittest.TestCase):
         import csv
         with open(os.path.join(self.d.name, "risks.csv"), "w") as f:
             f.write(rows)
-        code, out = run("batch", os.path.join(self.d.name, "cycle.idl"), os.path.join(self.d.name, "risks.csv"))
+        code, out = run("batch", os.path.join(self.d.name, "cycle.ipn"), os.path.join(self.d.name, "risks.csv"))
         return code, list(csv.reader(io.StringIO(out)))
 
     def test_one_row_per_risk_with_the_premium_breakdown(self):
@@ -79,7 +79,7 @@ class BatchCommand(unittest.TestCase):
         self.assertEqual(rows[2], ["2", "eligible", "", "94.50", "11.34", "10.00", "115.84", "GBP", ""])
 
     def test_commission_has_its_own_column(self):
-        with open(os.path.join(self.d.name, "cycle.idl"), "a") as f:
+        with open(os.path.join(self.d.name, "cycle.ipn"), "a") as f:
             f.write('  commission "Broker" 15%\n')
         code, rows = self.batch("bike_value,rider_age,security,racing\n2000,22,gold,no\n")
         self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "IPT", "Admin fee", "total", "currency", "Broker", "error"])
@@ -111,9 +111,9 @@ class CheckVersions(unittest.TestCase):
 
     def test_check_finds_the_earlier_versions_beside_the_file(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "bike-2026-01-01.idl"), "w") as f:
+            with open(os.path.join(d, "bike-2026-01-01.ipn"), "w") as f:
                 f.write(self.V1)
-            v2 = os.path.join(d, "bike-2026-07-01.idl")
+            v2 = os.path.join(d, "bike-2026-07-01.ipn")
             with open(v2, "w") as f:
                 f.write(self.V1.replace("2026-01-01", "2026-07-01").replace("base 100", "base 150") + '''
 scenario "renews onto this version"
@@ -130,9 +130,9 @@ scenario "renews onto this version"
 
     def test_a_broken_history_is_reported_like_a_parse_error(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "bike-2026-01-01.idl"), "w") as f:
+            with open(os.path.join(d, "bike-2026-01-01.ipn"), "w") as f:
                 f.write(self.V1)
-            v2 = os.path.join(d, "bike-2026-07-01.idl")
+            v2 = os.path.join(d, "bike-2026-07-01.ipn")
             with open(v2, "w") as f:
                 f.write(self.V1.replace("2026-01-01", "2026-07-01").replace("  bike_value: money\n", "  bike_value: money\n  mileage: integer\n"))
             code, out = run("check", v2)
@@ -143,7 +143,7 @@ scenario "renews onto this version"
 class CheckErrors(unittest.TestCase):
     def test_a_parse_error_names_the_file_once_as_given(self):
         with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "bad.idl")
+            path = os.path.join(d, "bad.ipn")
             with open(path, "w") as f:
                 f.write('product "X"\n  territory UK\n\ninputs\n  age: integer\n\nrating\n  base 10 when agee < 25\n')
             code, out = run("check", path)
@@ -156,13 +156,13 @@ class BatchColumnsForPerItemLines(unittest.TestCase):
         import csv
         src = FLEET.replace("    base 3% of value\n", "    base 3% of value\n    tax \"Fire\" 22% of 20% of net\n")
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "fleet.idl"), "w") as f:
+            with open(os.path.join(d, "fleet.ipn"), "w") as f:
                 f.write(src)
             with open(os.path.join(d, "bikes.csv"), "w") as f:
                 f.write("value,age,security\n1000,2,gold\n")
             with open(os.path.join(d, "risks.csv"), "w") as f:
                 f.write("rider_age,bikes\n30,bikes.csv\n")
-            code, out = run("batch", os.path.join(d, "fleet.idl"), os.path.join(d, "risks.csv"))
+            code, out = run("batch", os.path.join(d, "fleet.ipn"), os.path.join(d, "risks.csv"))
         rows = list(csv.reader(io.StringIO(out)))
         self.assertEqual(rows[0], ["risk", "eligibility", "reasons", "net", "Fire", "IPT", "total", "currency", "error"])
         self.assertEqual(rows[1][4], "1.32")  # 22% of 20% of 30.00
@@ -176,7 +176,7 @@ ATTRIBUTED = RATING.replace("cover Theft\n", "cover Theft\n  class 9\n").replace
 class SharesInTheCli(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.TemporaryDirectory()
-        self.path = os.path.join(self.d.name, "cycle.idl")
+        self.path = os.path.join(self.d.name, "cycle.ipn")
         with open(self.path, "w") as f:
             f.write(ATTRIBUTED)
 
@@ -215,23 +215,23 @@ class KeyedChoices(unittest.TestCase):
 
     def test_quote_rejects_an_occupation_outside_its_industry(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "x.idl"), "w") as f:
+            with open(os.path.join(d, "x.ipn"), "w") as f:
                 f.write(self.PRODUCT)
-            code, out = run("quote", os.path.join(d, "x.idl"), "industry=construction", "occupation=Nurse")
+            code, out = run("quote", os.path.join(d, "x.ipn"), "industry=construction", "occupation=Nurse")
             self.assertEqual((code, out), (2, 'occupation "Nurse" is not an occupation for industry "construction"\n'))
-            code, out = run("quote", os.path.join(d, "x.idl"), "industry=construction")
+            code, out = run("quote", os.path.join(d, "x.ipn"), "industry=construction")
             self.assertEqual((code, out), (2, "missing occupation\n"))
-            code, out = run("quote", os.path.join(d, "x.idl"), "industry=Health & Social Care", "occupation=Nurse")
+            code, out = run("quote", os.path.join(d, "x.ipn"), "industry=Health & Social Care", "occupation=Nurse")
         self.assertEqual(code, 0, out)
         self.assertIn("= 100.00", out)
 
     def test_batch_records_the_reason_in_the_error_column(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "x.idl"), "w") as f:
+            with open(os.path.join(d, "x.ipn"), "w") as f:
                 f.write(self.PRODUCT)
             with open(os.path.join(d, "risks.csv"), "w") as f:
                 f.write('industry,occupation\nconstruction,Nurse\nconstruction,Labourer\n')
-            code, out = run("batch", os.path.join(d, "x.idl"), os.path.join(d, "risks.csv"))
+            code, out = run("batch", os.path.join(d, "x.ipn"), os.path.join(d, "risks.csv"))
         rows = list(csv.reader(io.StringIO(out)))
         self.assertEqual(rows[1][-1], 'occupation "Nurse" is not an occupation for industry "construction"')
         self.assertEqual(rows[2][-1], "")

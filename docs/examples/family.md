@@ -11,14 +11,14 @@ Family Cycle Cover: one policy, several bikes. Shows repeatable items.
 {: .proof }
 > 12 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/family.idl
+> python3 -m ipngine check examples/family.ipn
 > ```
 
-The file: [`examples/family.idl`](https://github.com/jorjives/open-idl/blob/main/examples/family.idl).
+The file: [`examples/family.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/family.ipn).
 
-```idl
+```ipn
 # Family Cycle Cover: one policy, several bikes. Shows repeatable items.
-# Run it with:  python3 -m ideclare check examples/family.idl
+# Run it with:  python3 -m ipngine check examples/family.ipn
 
 product "Family Cycle Cover"
   territory UK

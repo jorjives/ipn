@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GRAMMAR = ROOT / "docs" / "reference" / "grammar.md"
-TABLE = ROOT / "docs" / "assets" / "idl-grammar.json"
+TABLE = ROOT / "docs" / "assets" / "ipn-grammar.json"
 
 # Names the grammar uses without defining: matched by token kind, offered by the runtime.
 TERMINALS = {"string", "date", "number", "integer",
@@ -368,7 +368,7 @@ CLASS_KINDS = {"str": {"string"}, "date": {"date"}, "num": {"number", "integer"}
 
 def product_tokens(text: str) -> list:
     """A product's tokens as (kind, text, line): the parser's kinds plus NEWLINE, INDENT and DEDENT."""
-    from ideclare import parser
+    from ipngine import parser
     out, stack, number = [], [0], 0
     for number, raw in enumerate(text.splitlines(), start=1):
         body = parser._strip_comment(raw)
@@ -407,7 +407,7 @@ def matches(kind: str, value: str, tok_kind: str, tok_text: str) -> bool:
 
 class Walker:
     """Live configurations (rule, state, stack of return points) over the table; the browser's
-    idl-complete.js is a line-for-line port of this class."""
+    ipn-complete.js is a line-for-line port of this class."""
 
     def __init__(self, table: dict, start: str):
         self.rules = table["rules"]

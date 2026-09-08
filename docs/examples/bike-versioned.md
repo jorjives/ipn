@@ -14,14 +14,14 @@ declares the same product name and says when it was published, and `check` finds
 
 ## bike-2026-01-01
 
-Bike Cover as first sold. Later versions of this product sit beside it in this directory; each says when it was published, and a policy stays on the version live when it was bound until it renews. Run:  python3 -m ideclare check examples/versioned/bike-2026-01-01.idl
+Bike Cover as first sold. Later versions of this product sit beside it in this directory; each says when it was published, and a policy stays on the version live when it was bound until it renews. Run:  python3 -m ipngine check examples/versioned/bike-2026-01-01.ipn
 
-2 scenarios: `python3 -m ideclare check examples/versioned/bike-2026-01-01.idl`
+2 scenarios: `python3 -m ipngine check examples/versioned/bike-2026-01-01.ipn`
 
-```idl
+```ipn
 # Bike Cover as first sold. Later versions of this product sit beside it in this directory;
 # each says when it was published, and a policy stays on the version live when it was bound
-# until it renews. Run:  python3 -m ideclare check examples/versioned/bike-2026-01-01.idl
+# until it renews. Run:  python3 -m ipngine check examples/versioned/bike-2026-01-01.ipn
 
 product "Bike Cover"
   published 2026-01-01
@@ -83,9 +83,9 @@ scenario "Theft is paid less the excess"
 
 Bike Cover, second version: the base rate rises and racing cover is offered. Customers on the first version keep it until renewal, when they move here. The renewal cap holds against the premium they were charged, whichever version charged it. It also carries a mid-term amendment: from 1 March 2027 a theft claim needs a photo of the lock as well as a crime reference. A dated line is not a new version; it reaches every policy in force on that date, on this version or the first, so it is written once, here, and never copied into later versions. It must read in the words of every version it reaches.
 
-7 scenarios: `python3 -m ideclare check examples/versioned/bike-2026-07-01.idl`
+7 scenarios: `python3 -m ipngine check examples/versioned/bike-2026-07-01.ipn`
 
-```idl
+```ipn
 # Bike Cover, second version: the base rate rises and racing cover is offered. Customers on
 # the first version keep it until renewal, when they move here. The renewal cap holds
 # against the premium they were charged, whichever version charged it.
@@ -94,7 +94,7 @@ Bike Cover, second version: the base rate rises and racing cover is offered. Cus
 # lock as well as a crime reference. A dated line is not a new version; it reaches every policy
 # in force on that date, on this version or the first, so it is written once, here, and never
 # copied into later versions. It must read in the words of every version it reaches.
-# Run:  python3 -m ideclare check examples/versioned/bike-2026-07-01.idl
+# Run:  python3 -m ipngine check examples/versioned/bike-2026-07-01.ipn
 
 product "Bike Cover"
   published 2026-07-01
@@ -208,14 +208,14 @@ scenario "The amendment reaches a customer still on the first version"
 
 Bike Cover, third version: the lock question changes shape. `security` becomes `lock_rating`, with a new top tier, and a customer's answer moves across with the `upgrading` block. A bronze lock may be no lock worth the name, so those customers are asked rather than guessed at: their renewal needs an answer before it can be priced.
 
-7 scenarios: `python3 -m ideclare check examples/versioned/bike-2027-01-01.idl`
+7 scenarios: `python3 -m ipngine check examples/versioned/bike-2027-01-01.ipn`
 
-```idl
+```ipn
 # Bike Cover, third version: the lock question changes shape. `security` becomes
 # `lock_rating`, with a new top tier, and a customer's answer moves across with the
 # `upgrading` block. A bronze lock may be no lock worth the name, so those customers are
 # asked rather than guessed at: their renewal needs an answer before it can be priced.
-# Run:  python3 -m ideclare check examples/versioned/bike-2027-01-01.idl
+# Run:  python3 -m ipngine check examples/versioned/bike-2027-01-01.ipn
 
 product "Bike Cover"
   published 2027-01-01

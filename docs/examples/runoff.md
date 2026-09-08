@@ -11,12 +11,12 @@ Professional Indemnity Run-off: the cover a practice buys when it closes. No new
 {: .proof }
 > 7 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/runoff.idl
+> python3 -m ipngine check examples/runoff.ipn
 > ```
 
-The file: [`examples/runoff.idl`](https://github.com/jorjives/open-idl/blob/main/examples/runoff.idl).
+The file: [`examples/runoff.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/runoff.ipn).
 
-```idl
+```ipn
 # Professional Indemnity Run-off: the cover a practice buys when it closes. No new
 # work is done, so the exposure is only claims that arrive later for work already
 # done, and the regulators for solicitors, accountants and architects require it
@@ -24,7 +24,7 @@ The file: [`examples/runoff.idl`](https://github.com/jorjives/open-idl/blob/main
 # mid-term change, and the claims-made mechanism from the live policy carries
 # over unchanged: the claim must be made in the period, for work done between the
 # retroactive date and the day the practice ceased.
-# Run it with:  python3 -m ideclare check examples/runoff.idl
+# Run it with:  python3 -m ipngine check examples/runoff.ipn
 
 product "Professional Indemnity Run-off"
   territory UK

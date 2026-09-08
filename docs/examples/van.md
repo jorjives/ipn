@@ -13,17 +13,17 @@ Reads [`van_rates.csv`](https://github.com/jorjives/open-idl/blob/main/examples/
 {: .proof }
 > 14 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/van.idl
+> python3 -m ipngine check examples/van.ipn
 > ```
 
-The file: [`examples/van.idl`](https://github.com/jorjives/open-idl/blob/main/examples/van.idl).
+The file: [`examples/van.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/van.ipn).
 
-```idl
+```ipn
 # Light Commercial Vehicle: rated from a three-dimensional table the pricing team
 # owns as a spreadsheet. Driver age band by postcode area by vehicle group, 300
 # cells, exported as one row per cell to van_rates.csv beside this file. A small
 # two-dimensional table (theft excess by area and use) is written inline instead.
-# Run it with:  python3 -m ideclare check examples/van.idl
+# Run it with:  python3 -m ipngine check examples/van.ipn
 
 product "Light Commercial Vehicle"
   territory UK

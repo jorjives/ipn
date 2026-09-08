@@ -6,7 +6,7 @@ nav_order: 10
 
 # Scenarios
 
-```idl
+```ipn
 scenario "Customer cancels mid term"
   given bike_value 2000, rider_age 22, security gold, racing no, previous_claims 0
   select Racing

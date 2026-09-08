@@ -11,15 +11,15 @@ Fixed-term benefit: a sum paid on an event rather than a loss made good, over a 
 {: .proof }
 > 6 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/fixed-term-benefit.idl`](https://github.com/jorjives/open-idl/blob/main/templates/fixed-term-benefit.idl), rename the product, and replace each
+Copy [`templates/fixed-term-benefit.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/fixed-term-benefit.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
-```idl
+```ipn
 # Fixed-term benefit: a sum paid on an event rather than a loss made good, over a term of
 # years the customer chooses, with no renewal and no mid-term change. Level term life is the
 # usual case; the same shape fits critical illness or a funeral plan. Copy this file and
 # replace the questions, the rating and the event.
-# Run it with:  python3 -m ideclare check templates/fixed-term-benefit.idl
+# Run it with:  python3 -m ipngine check templates/fixed-term-benefit.ipn
 
 product "Fixed Term Benefit"
   territory UK

@@ -6,7 +6,7 @@ nav_order: 9
 
 # claims
 
-```idl
+```ipn
 claims
   claim Theft
     requires police_report, crime_reference
@@ -87,7 +87,7 @@ not restated carries over. Either form takes `unless <condition>`, so a protecte
 claims discount is `after 1 claim in term: renewal load x 1.30 unless "Protected NCD"
 selected`. The `lifecycle` block must come first in the file:
 
-```idl
+```ipn
 claims
   after 1 claim in term
     cancellation by customer: no refund

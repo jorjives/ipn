@@ -11,17 +11,17 @@ Household: buildings and contents sold as one policy. Each section is optional, 
 {: .proof }
 > 8 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/household.idl
+> python3 -m ipngine check examples/household.ipn
 > ```
 
-The file: [`examples/household.idl`](https://github.com/jorjives/open-idl/blob/main/examples/household.idl).
+The file: [`examples/household.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/household.ipn).
 
-```idl
+```ipn
 # Household: buildings and contents sold as one policy. Each section is optional,
 # priced on its own sum insured with its own excess and claims, and taking both
 # earns a bundle discount. A customer must take at least one section. Each
 # section carries its class, so the premium and tax are split between them.
-# Run it with:  python3 -m ideclare check examples/household.idl
+# Run it with:  python3 -m ipngine check examples/household.ipn
 
 product "Household"
   territory UK

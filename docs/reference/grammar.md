@@ -8,7 +8,7 @@ nav_order: 12
 
 The language, formally. The pages before this one say what each line means; this one says
 exactly what may be written, for anyone implementing another engine or tool. It is
-transcribed from the reference parser (`ideclare/parser.py`, `expr.py` and
+transcribed from the reference parser (`ipngine/parser.py`, `expr.py` and
 `scenarios.py`); where they disagree, the parser is the specification and the disagreement
 is a bug to report.
 

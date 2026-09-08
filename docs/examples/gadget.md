@@ -11,17 +11,17 @@ Gadget Cover sold across continental Europe: one product, several territories. T
 {: .proof }
 > 7 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/gadget.idl
+> python3 -m ipngine check examples/gadget.ipn
 > ```
 
-The file: [`examples/gadget.idl`](https://github.com/jorjives/open-idl/blob/main/examples/gadget.idl).
+The file: [`examples/gadget.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/gadget.ipn).
 
-```idl
+```ipn
 # Gadget Cover sold across continental Europe: one product, several territories.
 # The territory is chosen at quote. Everything that differs by country (tax, the
 # loading on the EUR base rate, the currency it is quoted in) lives in a table
 # keyed on territory, not in copies of the product.
-# Run it with:  python3 -m ideclare check examples/gadget.idl
+# Run it with:  python3 -m ipngine check examples/gadget.ipn
 
 product "European Gadget Cover"
   territory DE, FR, NL, CH

@@ -1,0 +1,1260 @@
+"""Turns .ipn text into a Product. Line-oriented, indentation-based."""
+from __future__ import annotations
+
+import copy
+import csv
+import os
+import re
+from datetime import date
+from decimal import Decimal
+from dataclasses import dataclass, field
+
+from .expr import ExprError, lookups, names, parse_expr
+from .tables import TableError, load_table
+from .model import Dated, Enrichment, Cancellation, ClaimRule, Cover, Excess, FactorRow, Input, Product, RatingStep, Rule, Scenario, Step, Upgrade, in_effect
+
+
+class ParseError(Exception):
+    pass
+
+
+@dataclass
+class Line:
+    number: int
+    indent: int
+    text: str
+    children: list["Line"] = field(default_factory=list)
+
+    def error(self, msg: str) -> ParseError:
+        return ParseError(f"line {self.number}: {msg}")
+
+
+def _strip_comment(raw: str) -> str:
+    out, quoted = [], False
+    for ch in raw:
+        if ch == '"':
+            quoted = not quoted
+        if ch == "#" and not quoted:
+            break
+        out.append(ch)
+    return "".join(out).rstrip()
+
+
+def build_tree(text: str) -> list[Line]:
+    """Nest lines by indentation. Any deeper indent is a child; dedent must match an ancestor."""
+    root = Line(0, -1, "")
+    stack = [root]
+    for number, raw in enumerate(text.splitlines(), start=1):
+        body = _strip_comment(raw)
+        if not body.strip():
+            continue
+        indent = len(body) - len(body.lstrip(" "))
+        line = Line(number, indent, body.strip())
+        while stack[-1].indent >= indent:
+            stack.pop()
+        parent = stack[-1]
+        if parent.children and parent.children[-1].indent != indent:
+            raise line.error("inconsistent indentation")
+        parent.children.append(line)
+        stack.append(line)
+    return root.children
+
+
+# --- statement tokens -------------------------------------------------------
+
+DATE_TOKEN = re.compile(r'\d{4}-\d{2}-\d{2}')
+TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<date>\d{4}-\d{2}-\d{2})|(?P<num>\d+(?:\.\d+)?)|(?P<id>co-payment|[A-Za-z_][A-Za-z0-9_/]*)|(?P<op><=|>=|[<>:,%()+\-*/^]))')
+
+
+def tokens(line: Line) -> list[str]:
+    out, pos = [], 0
+    while pos < len(line.text):
+        m = TOKEN.match(line.text, pos)
+        if not m or m.end() == pos:
+            raise line.error(f"cannot read {line.text[pos:]!r}")
+        out.append(m.group(0).strip())
+        pos = m.end()
+    return out
+
+
+def unquote(tok: str) -> str:
+    return tok[1:-1] if tok.startswith('"') else tok
+
+
+# --- blocks -----------------------------------------------------------------
+
+INPUT_KINDS = {"money", "integer", "number", "text", "yes/no", "date"}
+
+
+def parse_product_header(line: Line, product: Product) -> None:
+    for child in line.children:
+        toks = tokens(child)
+        key = toks[0]
+        if key == "territory" and len(toks) >= 2:
+            product.territories = [t for t in toks[1:] if t != ","]
+            one = product.territories[0] if len(product.territories) == 1 else None
+            product.inputs["territory"] = Input("territory", "choice", product.territories, default=one)
+        elif key == "currency" and len(toks) == 2:
+            product.currency = toks[1]
+        elif key == "term" and len(toks) == 3 and toks[2] in ("days", "months", "years"):
+            product.term = (parse_expr([toks[1]])[0], toks[2])
+        elif key == "term" and toks[1:2] == ["until"] and len(toks) == 3:
+            product.term = (parse_expr([toks[2]])[0], "until")
+        elif key == "published" and len(toks) == 2 and DATE_TOKEN.fullmatch(toks[1]):
+            product.published = date.fromisoformat(toks[1])
+        else:
+            raise child.error(f"unknown product setting {child.text!r}")
+    unknown = [t for t in product.territories if not product.currency_for(t)]
+    if unknown:
+        raise line.error(f"no known currency for territory {unknown[0]}; add a 'currency' line")
+
+
+def parse_inputs(line: Line, product: Product) -> None:
+    product.inputs.update(parse_input_lines(line.children, product))
+    for coll in product.collections:
+        clash = set(coll.fields) & (set(product.inputs) - {coll.name})
+        if clash:
+            raise line.error(f"{coll.name} field {sorted(clash)[0]!r} has the same name as an input")
+    # Calculated fields are parsed once every input is known, so their steps can use the other fields.
+    for child in line.children:
+        toks = tokens(child)
+        if toks[2:] == ["calculated"]:
+            product.inputs[toks[0]].steps = calculated_steps(child, product)
+        for sub in child.children:
+            toks = tokens(sub)
+            if toks[2:] == ["calculated"]:
+                product.inputs[tokens(child)[0]].fields[toks[0]].steps = calculated_steps(sub, product)
+
+
+def calculated_steps(line: Line, product: Product) -> list[RatingStep]:
+    if not line.children:
+        raise line.error(f"{tokens(line)[0]} needs its steps indented below it, e.g. base value")
+    return parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS, where="in a calculated field")
+
+
+def parse_input_lines(lines: list[Line], product: Product, nested: bool = False) -> dict[str, Input]:
+    inputs = {}
+    for child in lines:
+        toks = tokens(child)
+        if len(toks) < 3 or toks[1] != ":":
+            raise child.error("expected 'name: type'")
+        default = None
+        if len(toks) >= 6 and toks[-3:-1] == [",", "default"]:
+            default, toks = toks[-1], toks[:-3]
+        name, kind = toks[0], toks[2]
+        if kind == "choice" and toks[3:4] == ["of"] and toks[5:6] == ["from"] and toks[6:7] and toks[6].startswith('"'):
+            table, keys = unquote(toks[6]), toks[7:]
+            if keys and (keys[0] != "for" or len(keys) < 2):
+                raise child.error("expected 'for <input>, ...'")
+            if table in product.tables:
+                raise child.error(f"{name} draws on table {table!r}, which must be declared after it")
+            inputs[name] = Input(name, "choice", source=(table, toks[4], [t for t in keys[1:] if t != ","]))
+        elif kind == "choice":
+            if len(toks) < 5 or toks[3] != "of":
+                raise child.error("expected 'choice of a, b, c'")
+            inputs[name] = Input(name, "choice", [unquote(t) for t in toks[4:] if t != ","])
+        elif kind == "collection" and not nested:
+            inputs[name] = parse_collection(child, name, toks[3:], product)
+        elif kind in INPUT_KINDS and len(toks) == 3:
+            inputs[name] = Input(name, kind)
+        elif kind == "calculated" and len(toks) == 3:
+            inputs[name] = Input(name, "calculated")
+        else:
+            raise child.error(f"unknown input type {' '.join(toks[2:])!r}")
+        if default is not None:
+            inputs[name].default = unquote(default) if inputs[name].source else given_value(child, inputs[name], default)  # a sourced default is checked when its table is read
+        inputs[name].line = child.number
+    return inputs
+
+
+def with_defaults(inputs: dict[str, Input], given: dict) -> dict:
+    """What was given, plus the default of anything with one that was left out."""
+    return {**{n: i.default for n, i in inputs.items() if i.default is not None}, **given}
+
+
+def parse_collection(line: Line, name: str, toks: list[str], product: Product) -> Input:
+    """collection of bike[, 1 to 5 | , at least 1 | , at most 5] with the item's fields indented below."""
+    if toks[:1] != ["of"] or len(toks) < 2:
+        raise line.error("expected 'collection of <item name>'")
+    coll = Input(name, "collection", singular=toks[1], fields=parse_input_lines(line.children, product, nested=True))
+    bounds = toks[2:]
+    if bounds[:1] == [","]:
+        bounds = bounds[1:]
+    if not bounds:
+        pass
+    elif len(bounds) == 3 and bounds[1] == "to":
+        coll.min_items, coll.max_items = int(bounds[0]), int(bounds[2])
+    elif len(bounds) == 3 and bounds[:2] == ["at", "least"]:
+        coll.min_items = int(bounds[2])
+    elif len(bounds) == 3 and bounds[:2] == ["at", "most"]:
+        coll.max_items = int(bounds[2])
+    else:
+        raise line.error("expected ', 1 to 5', ', at least 1' or ', at most 5'")
+    if not coll.fields:
+        raise line.error(f"{name} needs at least one field indented below it")
+    return coll
+
+
+# --- expressions and rules ---------------------------------------------------
+
+# Words an expression may use besides inputs, choices and cover names.
+CONTEXT_WORDS = {"claim", "claimed", "yes", "no", "claims_in_term", "days_to_report", "days_since_inception", "months_since_inception", "days_in_force", "months_in_force"}
+
+
+def fold_phrases(toks: list[str]) -> list[str]:
+    """Rewrites English phrases into the words the expression language understands."""
+    out, i = [], 0
+    while i < len(toks):
+        if toks[i:i + 3] == ["claims", "in", "term"]:
+            out.append("claims_in_term")
+            i += 3
+        elif toks[i:i + 2] == ["reported", "after"] and toks[i + 3:i + 4] == ["days"]:
+            out += ["days_to_report", ">", toks[i + 2]]
+            i += 4
+        elif toks[i:i + 1] == ["within"] and toks[i + 2:i + 3] in (["days"], ["months"]) and toks[i + 3:i + 5] == ["of", "inception"]:
+            out += [f"{toks[i + 2]}_since_inception", "<", toks[i + 1]]
+            i += 5
+        elif toks[i:i + 1] in (["days"], ["months"]) and toks[i + 1:i + 3] == ["in", "force"]:
+            out.append(f"{toks[i]}_in_force")
+            i += 3
+        else:
+            out.append(toks[i])
+            i += 1
+    return out
+
+
+TIME_WORDS = {"days_in_force", "months_in_force"}  # the policy's age, known when it is cancelled
+
+
+def find_input(product: Product, name: str) -> Input | None:
+    """An input, item field or enrichment-provided field by name; the policy's age reads as a number."""
+    if name in product.inputs:
+        return product.inputs[name]
+    if name in TIME_WORDS:
+        return Input(name, "number")
+    return next((c.fields[name] for c in product.collections if name in c.fields), None)
+
+
+def known_words(product: Product) -> set[str]:
+    words = set(CONTEXT_WORDS) | set(product.inputs)
+    for inp in product.inputs.values():
+        words |= set(inp.choices)
+        if inp.kind == "collection":
+            words.add(inp.singular)
+            words |= set(inp.fields)
+            for f in inp.fields.values():
+                words |= set(f.choices)
+    words |= {c.name for c in product.covers}
+    return words
+
+
+def expression(line: Line, toks: list[str], product: Product, stop: set[str] = frozenset(), extra: set[str] = frozenset()) -> tuple[tuple, list[str]]:
+    try:
+        node, rest = parse_expr(fold_phrases(toks), stop)
+    except ExprError as e:
+        raise line.error(str(e))
+    unknown = names(node) - known_words(product) - extra
+    if unknown:
+        raise line.error(f"unknown word {sorted(unknown)[0]!r}")
+    for column, table in sorted(lookups(node)):
+        if table not in product.tables:
+            raise line.error(f"unknown table {table!r}")
+        if column not in product.tables[table].values:
+            raise line.error(f"{table!r} has no column {column!r}; its values are {', '.join(product.tables[table].values)}")
+    for table, key in interpolations(node):
+        if key not in product.tables[table].keys:
+            raise line.error(f"{table!r} is not keyed on {key}; its keys are {', '.join(product.tables[table].keys)}")
+    return node, rest
+
+
+def interpolations(node: tuple) -> set[tuple[str, str]]:
+    """Every (table, key) the expression interpolates on."""
+    if node[0] == "interp":
+        return {(node[2], node[3])}
+    if node[0] == "fn":
+        return set().union(*(interpolations(a) for a in node[2]))
+    return set().union(*(interpolations(c) for c in node[1:] if isinstance(c, tuple)))
+
+
+def rule(line: Line, kind: str, toks: list[str], product: Product, extra: set[str] = frozenset()) -> Rule:
+    """`<kind> when <condition> because "reason"`; toks start after <kind>."""
+    if toks[:1] != ["when"]:
+        raise line.error(f"expected '{kind} when ...'")
+    cond, rest = expression(line, toks[1:], product, stop={"because"}, extra=extra)
+    if len(rest) != 2 or rest[0] != "because" or not rest[1].startswith('"'):
+        raise line.error('expected because "reason"')
+    return Rule(kind, cond, unquote(rest[1]), line.number)
+
+
+def parse_eligibility(line: Line, product: Product) -> None:
+    for child in line.children:
+        toks = tokens(child)
+        if toks[0] not in ("decline", "refer"):
+            raise child.error("expected 'decline when ...' or 'refer when ...'")
+        product.eligibility.append(rule(child, toks[0], toks[1:], product))
+
+
+COVER_KEYS = {"deductible": "excess", "in": "in force"}  # first word -> the setting it sets, where they differ
+COVER_LISTS = {"excludes"}
+CLAIM_KEYS = {"settlement": "depreciation", "does": "counts"}
+CLAIM_LISTS = {"decline", "co-payment"}
+
+
+def dated(child: Line, keys: dict[str, str], lists: set[str]) -> Dated:
+    """A block line with any `from DATE` / `until DATE` prefix taken off and remembered."""
+    toks, from_, until = tokens(child), None, None
+    while toks[:1] in (["from"], ["until"]) and toks[1:2] and DATE_TOKEN.fullmatch(toks[1]):
+        if toks[0] == "from":
+            from_ = date.fromisoformat(toks[1])
+        else:
+            until = date.fromisoformat(toks[1])
+        toks = toks[2:]
+    if not toks:
+        raise child.error("expected a line after the date")
+    key = toks[0] if toks[0] not in lists else None
+    key = keys.get(key, key) if key is not None else None
+    if key == "in force":
+        key = " ".join(toks[:3])  # in force from | in force until
+    stripped = Line(child.number, child.indent, " ".join(toks), child.children) if (from_ or until) else child
+    return Dated(stripped, key, from_, until)
+
+
+def check_windows(line: Line, lines: list[Dated], build) -> None:
+    """Every window between two dates must read as a whole block, and no one-valued setting may be given twice."""
+    for boundary in sorted({d for l in lines for d in (l.from_, l.until) if d is not None}):
+        effective = in_effect(lines, boundary)
+        seen = set()
+        for d in effective:
+            if d.dated and d.key is not None:
+                if d.key in seen:
+                    raise d.line.error(f"{d.key} is given twice for {boundary.isoformat()}")
+                seen.add(d.key)
+        build(effective)
+
+
+def parse_cover(line: Line, product: Product) -> None:
+    toks = tokens(line)
+    if len(toks) not in (2, 3) or (len(toks) == 3 and toks[2] != "optional"):
+        raise line.error('expected: cover Name [optional]')
+    cover = Cover(unquote(toks[1]), optional=len(toks) == 3)
+    product.covers.append(cover)  # before parsing children so "X selected" can name it
+    cover.lines = [dated(child, COVER_KEYS, COVER_LISTS) for child in line.children]
+
+    def build(lines: list[Dated], deferred: list | None = None) -> Cover:
+        fresh = Cover(cover.name, cover.optional)
+        work = product.deferred if deferred is None and product.parsing else []
+        fill_cover(fresh, [d.line for d in lines], product, work)
+        if work is not product.deferred:
+            for w in work:
+                w()
+        return fresh
+
+    cover.build = build
+    fill_cover(cover, [d.line for d in cover.lines if not d.dated], product, product.deferred)
+    check_windows(line, cover.lines, build)
+
+
+def fill_cover(cover: Cover, children: list[Line], product: Product, deferred: list) -> None:
+    """Reads a cover's lines into it. Work that needs the claims block runs from `deferred`."""
+    for child in children:
+        toks = tokens(child)
+        key = "excess" if toks[0] == "deductible" else toks[0]
+        if key == "limit":
+            cover.limit, rest = expression(child, toks[1:], product, stop={"per"})
+            if rest[:2] == ["per", "term"]:
+                cover.aggregate, rest = True, rest[2:]
+                if len(rest) == 2 and rest[0] == "per":
+                    cover.per, rest = rest[1], []
+                    deferred.append(lambda line=child: check_per(line, cover, product))
+        elif key == "excess" and len(toks) == 1 and child.children:
+            # A table of rows may use facts a claim asks for, which are declared later: parse it last.
+            deferred.append(lambda line=child: parse_excess_table(line, cover, product))
+            rest = []
+        elif key == "excess":
+            cover.excess.amount, rest = expression(child, toks[1:], product, stop={",", "per"})
+            if rest[:2] == ["per", "term"]:
+                cover.excess.aggregate, rest = True, rest[2:]
+            for bound in ("minimum", "maximum"):
+                if rest[:2] == [",", bound]:
+                    node, rest = expression(child, rest[2:], product, stop={","})
+                    setattr(cover.excess, bound, node)
+        elif key == "excludes":
+            cover.exclusions.append(rule(child, "excludes", toks[1:], product))
+            rest = []
+        elif key == "class" and len(toks) >= 2:
+            cover.class_, rest = "".join(toks[1:]), []  # a code such as 8, 9a or Kasko; the engine does not read it
+        elif key == "premium":
+            cover.premium, cover.premium_item = parse_cover_premium(child, product)
+            rest = []
+        elif key == "available" and toks[1:2] == ["when"]:
+            cover.available, rest = expression(child, toks[2:], product)
+        elif toks[:3] == ["in", "force", "from"]:
+            cover.from_, rest = expression(child, toks[3:], product)
+        elif toks[:3] == ["in", "force", "until"]:
+            cover.until, rest = expression(child, toks[3:], product)
+        elif toks[:2] == ["waiting", "period"] and toks[3:] == ["days"]:
+            cover.waiting_days, rest = int(toks[2]), []
+        elif toks[:2] == ["reinstatement", "at"] and toks[3:] == ["%", "of", "premium", "pro", "rata"]:
+            cover.reinstatement, rest = Decimal(toks[2]) / 100, []
+            reinstatement_line = child
+        else:
+            raise child.error(f"unknown cover setting {child.text!r}")
+        if rest:
+            raise child.error(f"unexpected {' '.join(rest)!r}")
+    if cover.reinstatement is not None and not cover.aggregate:
+        raise reinstatement_line.error("only a limit per term can be reinstated")
+    used = set().union(*(names(n) for n in (cover.limit, cover.available, cover.from_, cover.until, cover.excess.amount, cover.excess.minimum) if n is not None),
+                       *(names(r.condition) for r in cover.exclusions))
+    cover.item = next((c.singular for c in product.collections if used & set(c.fields)), "") or (cover.per if product.collection_for(cover.per) else "")
+
+
+def parse_cover_premium(line: Line, product: Product) -> tuple[list[RatingStep], str]:
+    """`premium <expression> [when ...]` is one base step; `premium` over indented steps is priced as a calculated
+    input is. Reading an item's fields makes it per item. Returns the steps and the item singular, if any."""
+    toks = tokens(line)
+    if len(toks) == 1 and line.children:
+        steps = parse_rating_steps(line.children, product, allowed=PER_ITEM_STEPS, where="in a cover premium")
+    elif len(toks) > 1:
+        amount, rest = expression(line, toks[1:], product, stop={"when"})
+        condition = None
+        if rest[:1] == ["when"]:
+            condition, rest = expression(line, rest[1:], product)
+        if rest:
+            raise line.error(f"unexpected {' '.join(rest)!r}")
+        steps = [RatingStep("base", amount=amount, condition=condition, line=line.number)]
+    else:
+        raise line.error("premium needs an amount, or its steps indented below it, e.g. base 0.5% of value")
+    amounts = [n for s in steps for n in [s.amount, *(r.amount for r in s.rows)] if n is not None]
+    covers = names_in(amounts) & {c.name for c in product.covers}
+    if covers:
+        raise line.error(f"{sorted(covers)[0]!r} is a cover, not an input; a cover premium reads inputs only")
+    used = names_in(amounts + [s.condition for s in steps if s.condition is not None] + [r.condition for s in steps for r in s.rows if r.condition is not None])
+    colls = [c for c in product.collections if used & set(c.fields)]
+    if len(colls) > 1:
+        raise line.error(f"a cover premium may read the fields of one collection, not {colls[0].name} and {colls[1].name}")
+    return steps, colls[0].singular if colls else ""
+
+
+def names_in(nodes: list[tuple]) -> set[str]:
+    return set().union(*(names(n) for n in nodes)) if nodes else set()
+
+
+def check_per(line: Line, cover: Cover, product: Product) -> None:
+    """`per term per X`: X is an item the policy has, or a fact the claim asks for; checked once the claims are known."""
+    rule_ = product.claims.get(cover.name)
+    if not product.collection_for(cover.per) and not (rule_ and cover.per in rule_.asks):
+        raise line.error(f"{cover.per!r} is neither an item nor a fact that a claim on {cover.name} asks for")
+
+
+def claim_facts(product: Product, cover: str) -> set[str]:
+    """Words a claim on this cover asks for: the fact names and their choice values."""
+    rule_ = product.claims.get(cover)
+    return set(rule_.asks) | {c for f in rule_.asks.values() for c in f.choices} if rule_ else set()
+
+
+def parse_excess_table(line: Line, cover: Cover, product: Product) -> None:
+    """Rows of `condition: amount` with `otherwise: amount` last, like a factor without the x."""
+    facts = claim_facts(product, cover.name)
+    for child in line.children:
+        toks = tokens(child)
+        if cover.excess.rows and cover.excess.rows[-1].condition is None:
+            raise child.error("'otherwise' must be the last row")
+        if toks[:2] == ["otherwise", ":"]:
+            cond, rest = None, toks[2:]
+        else:
+            cond, rest = expression(child, toks, product, stop={":"}, extra=facts)
+            rest = rest[1:]
+        amount, rest = expression(child, rest, product, extra=facts)
+        if rest:
+            raise child.error(f"unexpected {' '.join(rest)!r}")
+        cover.excess.rows.append(FactorRow(cond, "=", amount))
+    if not cover.excess.rows or cover.excess.rows[-1].condition is not None:
+        raise line.error("an excess table must end with an 'otherwise' row; a claim no row matches would otherwise carry no excess")
+
+
+def parse_factor(line: Line, label: str, product: Product, extra: set[str] = frozenset()) -> RatingStep:
+    step = RatingStep("factor", label, line=line.number)
+    for child in line.children:
+        toks = tokens(child)
+        if step.rows and step.rows[-1].condition is None:
+            raise child.error("'otherwise' must be the last row")
+        if toks[:2] == ["otherwise", ":"]:
+            cond, rest = None, toks[2:]
+        else:
+            cond, rest = expression(child, toks, product, stop={":"}, extra=extra)
+            rest = rest[1:]
+        if len(rest) < 2 or rest[0] not in ("x", "+", "-"):
+            raise child.error("expected ': x 1.25' or ': + 10' or ': - 10'")
+        op = rest[0]
+        amount, rest = expression(child, rest[1:], product, extra=extra)
+        if rest:
+            raise child.error(f"unexpected {' '.join(rest)!r}")
+        step.rows.append(FactorRow(cond, op, amount))
+    if not step.rows:
+        raise line.error("factor needs at least one row")
+    return step
+
+
+def parse_rating(line: Line, product: Product) -> None:
+    product.rating_line = line.number
+    product.rating.extend(parse_rating_steps(line.children, product))
+
+
+PER_ITEM_STEPS = {"base", "factor", "add", "discount", "load", "minimum", "maximum"}
+LINE_WORDS = {"net", "premium"}  # the running net so far, and net plus every line above: read by a line's expression or condition
+
+
+ITEM_WORDS = {"position"}  # words only meaningful inside 'for each'
+
+
+def parse_for(line: Line, rest: list[str], product: Product) -> tuple[str, list[str]]:
+    """An optional `for Cover` after a step's amount: the cover the step credits or scales."""
+    if rest[:1] != ["for"]:
+        return "", rest
+    if len(rest) < 2:
+        raise line.error("expected 'for Cover'")
+    return cover_name(line, rest[1], product), rest[2:]
+
+
+def cover_name(line: Line, tok: str, product: Product) -> str:
+    name = unquote(tok)
+    if name not in {c.name for c in product.covers}:
+        raise line.error(f"unknown cover {name!r}")
+    return name
+
+
+def parse_allocation(line: Line, product: Product) -> list[tuple[str, Decimal]]:
+    """`allocate` rows: `Cover N%`, summing to 100%. How the unattributed premium is shared; not a step."""
+    if not line.children:
+        raise line.error("allocate needs rows indented below it, e.g. Theft 40%")
+    rows = []
+    for child in line.children:
+        toks = tokens(child)
+        node, rest = expression(child, toks[1:], product) if len(toks) > 1 else (None, [])
+        if node is None or node[0] != "pct" or node[1][0] != "num" or rest:
+            raise child.error("expected 'Cover N%'")
+        rows.append((cover_name(child, toks[0], product), node[1][1] / 100))
+    total = sum(share for _, share in rows)
+    if total != 1:
+        raise line.error(f"allocate rows sum to {(total * 100).normalize():f}%, not 100%")
+    return rows
+
+
+def quoted_bases(line: Line, node: tuple, product: Product, taxes: set[str]) -> tuple:
+    """A quoted string in a line's amount is a cover or a tax above it, by label: rewrite it to a name."""
+    if node[0] == "str":
+        if node[1] not in {c.name for c in product.covers} | taxes:
+            raise line.error(f"unknown base {node[1]!r}; name a cover or a tax above")
+        return ("name", node[1])
+    if node[0] == "fn":
+        return (node[0], node[1], [quoted_bases(line, a, product, taxes) for a in node[2]])
+    return tuple(quoted_bases(line, c, product, taxes) if isinstance(c, tuple) else c for c in node)
+
+
+def has_base(node: tuple) -> bool:
+    """True when a line's expression names its own base (`N% of x`), so it is an amount rather than a rate of the net."""
+    return node[0] == "*" and node[1][0] == "pct"
+
+
+def parse_order(line: Line, toks: list[str], product: Product) -> list[tuple[tuple, bool]]:
+    """`ordered by <key> [descending], <key> [descending] ...`; toks start after `ordered by`."""
+    order = []
+    while toks:
+        key, toks = expression(line, toks, product, stop={",", "descending"})
+        descending = toks[:1] == ["descending"]
+        order.append((key, descending))
+        toks = toks[1:] if descending else toks
+        if toks[:1] == [","]:
+            toks = toks[1:]
+        elif toks:
+            raise line.error(f"unexpected {' '.join(toks)!r}")
+    if not order:
+        raise line.error("expected 'ordered by <field>'")
+    return order
+
+
+def parse_rating_steps(lines: list[Line], product: Product, allowed: set[str] | None = None, extra: set[str] = frozenset(),
+                       taxes: set[str] | None = None, where: str = "inside 'for each'", item: str = "") -> list[RatingStep]:
+    """Steps in order. `allowed` limits the kinds (`where` says where we are: inside 'for each', a calculated field, a cover
+    premium); `taxes` collects the word-named taxes declared so far, which later lines may use as a base; `item` is the
+    singular of the collection a 'for each' loops over."""
+    steps = []
+    taxes = set() if taxes is None else taxes
+    for child in lines:
+        toks = tokens(child)
+        kind, rest = toks[0], toks[1:]
+        label = ""
+        if rest and rest[0].startswith('"'):
+            label, rest = unquote(rest[0]), rest[1:]
+        step = RatingStep(kind, label, line=child.number)
+        if allowed is not None and kind not in allowed:
+            raise child.error(f"{kind!r} cannot be used {where}; only {', '.join(sorted(allowed))}")
+        if toks == ["add", "cover", "premiums"]:  # where the covers' own prices join the net
+            if allowed is not None and not item:
+                raise child.error(f"'add cover premiums' cannot be used {where}")
+            step = RatingStep("premiums", item, line=child.number)
+        elif toks[:2] == ["for", "each"] and len(toks) >= 3 and allowed is None:
+            if product.collection_for(toks[2]) is None:
+                raise child.error(f"unknown item {toks[2]!r}; declare a collection of {toks[2]}")
+            order = []
+            if toks[3:6] == [",", "ordered", "by"]:
+                order = parse_order(child, toks[6:], product)
+            elif toks[3:]:
+                raise child.error(f"unexpected {' '.join(toks[3:])!r}; use 'for each {toks[2]}, ordered by ...'")
+            step = RatingStep("each", toks[2], steps=parse_rating_steps(child.children, product, allowed=PER_ITEM_STEPS | {"tax"}, extra=ITEM_WORDS,
+                                                                          taxes=taxes, item=toks[2]), order=order, line=child.number)
+        elif kind == "allocate" and allowed is None and not rest:
+            product.allocation = parse_allocation(child, product)
+            continue
+        elif kind == "factor" and rest and rest[0] in ("x", "+", "-"):  # one row: factor "Label" x <amount> [for Cover] [when ...]
+            op, rest = rest[0], rest[1:]
+            amount, rest = expression(child, rest, product, stop={"when", "for"}, extra=extra)
+            step.rows = [FactorRow(None, op, amount)]
+            step.cover, rest = parse_for(child, rest, product)
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif kind == "factor":
+            step = parse_factor(child, label, product, extra)
+            step.cover, rest = parse_for(child, rest, product)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif kind in ("base", "add", "discount", "load", "minimum", "maximum"):
+            step.amount, rest = expression(child, rest, product, stop={"when", "for"}, extra=extra)
+            if kind in ("minimum", "maximum") and rest[:1] == ["for"]:
+                raise child.error(f"'for' cannot be used on {kind}: a bound rescales every cover's share alike")
+            step.cover, rest = parse_for(child, rest, product)
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=extra | {"net"})
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif kind in ("tax", "fee", "commission"):
+            if kind == "tax" and not label and rest and rest[0][0].isalpha():
+                label, rest = rest[0], rest[1:]  # tax IPT 12%
+            if not label:
+                raise child.error(f'{kind} needs a name, e.g. {kind} "Label" ...')
+            step.label = label
+            words = extra | LINE_WORDS | {t for t in taxes if t.isidentifier()}
+            step.amount, rest = expression(child, rest, product, stop={"when", "for"}, extra=words)
+            if rest[:1] == ["for"]:
+                raise child.error(f"'for' cannot be used on {kind}: a line is attributed by its base")
+            step.amount = quoted_bases(child, step.amount, product, taxes)
+            if kind != "fee" and not has_base(step.amount):
+                step.amount = ("*", step.amount, ("name", "net"))  # tax IPT 12% is 12% of the net
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=words)
+            if kind == "tax":
+                taxes.add(label)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        elif kind == "round" and rest[:1] == ["to"]:
+            step.amount, rest = expression(child, rest[1:], product)
+        else:
+            raise child.error(f"unknown rating step {kind!r}")
+        steps.append(step)
+    return steps
+
+
+def parse_lifecycle(line: Line, product: Product) -> None:
+    lc = product.lifecycle
+    for child in line.children:
+        toks = tokens(child)
+        words = " ".join(toks)
+        if toks[:2] == ["cooling", "off"]:
+            lc.cooling_off, rest = expression(child, toks[2:], product, stop={","})
+            if rest != ["days", ",", "full", "refund"]:
+                raise child.error("expected 'cooling off <days> days, full refund'")
+        elif toks[:2] == ["cancellation", "by"] and toks[2] in ("customer", "insurer") and toks[3] == ":":
+            lc.cancellation[toks[2]] = parse_cancellation(child, toks[4:], product)
+        elif toks[:2] == ["adjustment", ":"]:
+            if toks[2:] == ["not", "allowed"]:
+                lc.adjustment_allowed = False
+            elif toks[2:8] == ["reprice", ",", "charge", "pro", "rata", "difference"]:
+                lc.adjustment_allowed, lc.adjustment_upgrades = True, False
+                lc.adjustment_fee = parse_fee(child, toks[8:])
+            elif toks[2:12] == ["reprice", "on", "the", "current", "version", ",", "charge", "pro", "rata", "difference"]:
+                lc.adjustment_allowed, lc.adjustment_upgrades = True, True
+                lc.adjustment_fee = parse_fee(child, toks[12:])
+            else:
+                raise child.error("expected 'adjustment: reprice[ on the current version], charge pro rata difference[, fee N]' or 'adjustment: not allowed'")
+        elif toks[:4] == ["lapse", "when", "unpaid", "after"] and toks[5:] == ["days"]:
+            lc.lapse_days = int(toks[4])
+        elif toks == ["renewal"]:
+            parse_renewal(child, product)
+        elif toks == ["renewal", ":", "none"]:
+            lc.renewable = False
+        elif toks[:1] == ["instalments"]:
+            well_formed = len(toks) > 2 and toks[1].isdigit() and toks[2] == "monthly" and (not toks[3:] or toks[3:5] == [",", "charge"] and toks[6:] == ["%"])
+            if not well_formed:
+                raise child.error("expected 'instalments N monthly' optionally ', charge P%'")
+            lc.instalments = int(toks[1])
+            if toks[3:]:
+                lc.instalment_charge = Decimal(toks[5]) / 100
+        else:
+            raise child.error(f"unknown lifecycle setting {words!r}")
+
+
+def parse_fee(line: Line, toks: list[str]) -> Decimal:
+    if not toks:
+        return Decimal(0)
+    if len(toks) == 3 and toks[:2] == [",", "fee"]:
+        return Decimal(toks[2])
+    raise line.error(f"expected ', fee N' not {' '.join(toks)!r}")
+
+
+def parse_cancellation(line: Line, toks: list[str], product: Product) -> Cancellation:
+    if toks[:3] == ["refund", "pro", "rata"]:
+        return Cancellation("pro rata", parse_fee(line, toks[3:]))
+    if toks[:2] == ["full", "refund"]:
+        return Cancellation("full", parse_fee(line, toks[2:]))
+    if toks[:2] == ["no", "refund"]:
+        return Cancellation("none", parse_fee(line, toks[2:]))
+    if toks[:1] == ["refund"] and len(toks) > 1:  # a share of the earning premium: 50%, or a short-rate table over months in force
+        amount, rest = expression(line, toks[1:], product, stop={","})
+        return Cancellation("amount", parse_fee(line, rest), amount)
+    raise line.error("expected 'refund pro rata', 'full refund', 'no refund' or 'refund <share>', optionally ', fee N'")
+
+
+def parse_renewal(line: Line, product: Product) -> None:
+    lc = product.lifecycle
+    for child in line.children:
+        toks = tokens(child)
+        if toks[:1] == ["invite"] and toks[2:] == ["days", "before", "expiry"]:
+            lc.renewal_invite_days = int(toks[1])
+        elif toks[:3] == ["increase", "capped", "at"] and toks[4:] == ["%"]:
+            lc.renewal_cap = Decimal(toks[3]) / 100
+        elif toks[:3] == ["decrease", "collared", "at"] and toks[4:] == ["%"]:
+            lc.renewal_collar = Decimal(toks[3]) / 100
+        elif toks[:1] == ["decline"]:
+            lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
+        elif toks[:1] == ["index"] and "by" in toks:
+            lc.renewal_index = [ix for ix in lc.renewal_index if ix[0] != ".".join(toks[1:toks.index("by")])]  # restating replaces
+            lc.renewal_index.append(parse_index(child, toks, product))
+        else:
+            raise child.error(f"unknown renewal setting {child.text!r}")
+
+
+def parse_index(line: Line, toks: list[str], product: Product) -> tuple:
+    """`index <input> by <amount>[%][, at least A][, at most B]` -> (input, "%" or "+", amount expression, at least, at most).
+
+    The amount may use `claims in term`, so a claims count can roll forward: `index previous_claims by claims in term`.
+    """
+    target, rest = toks[1:toks.index("by")], toks[toks.index("by") + 1:]
+    coll = product.collection_for(target[0]) if len(target) == 2 else None
+    inp = coll.fields.get(target[1]) if coll else product.inputs.get(target[0]) if len(target) == 1 else None
+    if inp is None or inp.kind not in ("money", "number", "integer"):
+        raise line.error(f"index needs a money, number or integer input, not {' '.join(target)!r}")
+    if not rest:
+        raise line.error("expected 'index <input> by N', 'by N%', 'by -N' or 'by claims in term'")
+    amount, rest = expression(line, rest, product, stop={","})
+    how = "+"
+    if amount[0] == "pct":
+        how, amount = "%", amount[1]
+    bounds = {"least": None, "most": None}
+    while rest[:2] == [",", "at"] and rest[2:3] and rest[2] in bounds and len(rest) >= 4:
+        bounds[rest[2]], rest = Decimal(rest[3]), rest[4:]
+    if rest:
+        raise line.error(f"unexpected {' '.join(rest)!r}; use ', at least N' or ', at most N'")
+    return (".".join(target), how, amount, bounds["least"], bounds["most"])
+
+
+def parse_claims(line: Line, product: Product) -> None:
+    for child in line.children:
+        toks = tokens(child)
+        if toks[:1] == ["claim"] and len(toks) == 2:
+            name = unquote(toks[1])
+            if product.cover(name) is None:
+                raise child.error(f"unknown cover {name!r}")
+            product.claims[name] = parse_claim(child, name, product)
+        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:9] == ["in", "term", ":", "renewal", "load", "x"] and len(toks) >= 10:
+            product.claims_loading.append((int(toks[1]), Decimal(toks[9]), parse_unless(child, toks[10:], product)))
+        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:5] == ["in", "term"] and child.children:
+            # Terms imposed once that many claims have been paid: lifecycle lines that override the product's own.
+            unless = parse_unless(child, toks[5:], product)
+            forbid_dates(child.children)
+            original, product.lifecycle = product.lifecycle, copy.deepcopy(product.lifecycle)
+            try:
+                parse_lifecycle(child, product)
+                product.claims_terms.append((int(toks[1]), product.lifecycle, unless))
+            finally:
+                product.lifecycle = original
+        else:
+            raise child.error("expected 'claim Cover', 'after N claims in term: renewal load x M [unless ...]' or 'after N claims in term [unless ...]' with lifecycle lines below")
+
+
+def parse_unless(line: Line, toks: list[str], product: Product) -> tuple | None:
+    """An optional `unless <condition>`: the line does not apply when the condition holds."""
+    if not toks:
+        return None
+    if toks[0] != "unless":
+        raise line.error(f"unexpected {' '.join(toks)!r}; use 'unless <condition>'")
+    cond, rest = expression(line, toks[1:], product)
+    if rest:
+        raise line.error(f"unexpected {' '.join(rest)!r}")
+    return cond
+
+
+def parse_claim(line: Line, name: str, product: Product) -> ClaimRule:
+    rule_ = ClaimRule(name)
+    for child in line.children:  # facts first, so the other lines can use them
+        if tokens(child) == ["asks"]:
+            rule_.asks = parse_input_lines(child.children, product, nested=True)
+            for f in rule_.asks.values():
+                if f.kind in ("calculated", "collection") or f.name in known_words(product):
+                    raise child.error(f"{f.name!r} cannot be asked in a claim; it is already known or not a plain type")
+                if f.source:
+                    raise child.error(f"{f.name!r} cannot draw on a table; a claim fact lists its choices")
+    rule_.lines = [dated(child, CLAIM_KEYS, CLAIM_LISTS) for child in line.children if tokens(child) != ["asks"]]
+    for d in rule_.lines:
+        if d.dated and d.key == "asks":
+            raise d.line.error("asks cannot be dated; the facts a claim asks for are part of every wording")
+
+    def build(lines: list[Dated]) -> ClaimRule:
+        fresh = ClaimRule(name, asks=rule_.asks)
+        fill_claim(fresh, [d.line for d in lines], product)
+        return fresh
+
+    rule_.build = build
+    fill_claim(rule_, [d.line for d in rule_.lines if not d.dated], product)
+    check_windows(line, rule_.lines, build)
+    return rule_
+
+
+def fill_claim(rule_: ClaimRule, children: list[Line], product: Product) -> None:
+    facts = set(rule_.asks) | {c for f in rule_.asks.values() for c in f.choices}
+    for child in children:
+        toks = tokens(child)
+        if toks[:1] == ["requires"]:
+            rule_.requires = [t for t in toks[1:] if t != ","]
+        elif toks[:3] == ["pays", "claimed", "amount"]:
+            rule_.pays = parse_pays(child, toks[3:], product, facts)
+        elif toks[:1] == ["pays"]:
+            rule_.pays_amount, rest = expression(child, toks[1:], product, stop={",", "per"}, extra=facts)
+            if rest[:2] == ["per", "month"]:  # pays X per month for M months [after D weeks]
+                if rest[2:3] != ["for"]:
+                    raise child.error("expected 'pays <amount> per month for <months> months [after <period> days|weeks|months]'")
+                rule_.months, rest = expression(child, rest[3:], product, stop={",", "months"}, extra=facts)
+                if rest[:1] != ["months"]:
+                    raise child.error(f"expected 'months' after the number of months, not {' '.join(rest[:1])!r}")
+                rest = rest[1:]
+                if rest[:1] == ["after"]:
+                    period, rest = expression(child, rest[1:], product, stop={",", "days", "weeks", "months"}, extra=facts)
+                    if rest[:1] not in (["days"], ["weeks"], ["months"]):
+                        raise child.error(f"the deferred period is in days, weeks or months, not {' '.join(rest[:1])!r}")
+                    rule_.after, rest = (period, rest[0]), rest[1:]
+            rule_.pays = parse_pays(child, rest, product, facts)
+        elif toks[:1] == ["co-payment"]:
+            step = RatingStep("co-payment", line=child.number)
+            step.amount, rest = expression(child, toks[1:], product, stop={"when"}, extra=facts)
+            if rest[:1] == ["when"]:
+                step.condition, rest = expression(child, rest[1:], product, extra=facts)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+            rule_.co_payments.append(step)
+        elif toks[:1] == ["decline"]:
+            rule_.decline.append(rule(child, "decline", toks[1:], product, extra=facts))
+        elif toks in (["depreciation"], ["settlement"]):
+            rule_.depreciation = parse_factor(child, toks[0], product, extra=facts).rows
+        elif toks == ["does", "not", "count", "towards", "claims", "in", "term"]:
+            rule_.counts = ("bool", False)
+        elif toks[:6] == ["counts", "towards", "claims", "in", "term", "when"]:
+            rule_.counts, rest = expression(child, toks[6:], product, extra=facts)
+            if rest:
+                raise child.error(f"unexpected {' '.join(rest)!r}")
+        else:
+            raise child.error(f"unknown claim setting {child.text!r}")
+
+
+PAYS_CLAUSES = {("up", "to", "limit"): "limit", ("less", "excess"): "excess", ("less", "deductible"): "excess", ("less", "co-payment"): "co-payment"}
+
+
+def parse_pays(line: Line, toks: list[str], product: Product, facts: set[str]) -> list:
+    """The clauses after the amount, comma separated, in the order written, which is the order applied:
+    `up to limit`, `less excess`, `less co-payment`, or a cap `up to <amount> [when <condition>]` as ("cap", amount, condition)."""
+    clauses, groups = [], [[]]
+    for t in toks:
+        groups.append([]) if t == "," else groups[-1].append(t)
+    for words in filter(None, groups):
+        if tuple(words) in PAYS_CLAUSES:
+            clauses.append(PAYS_CLAUSES[tuple(words)])
+        elif words[:2] == ["up", "to"]:
+            amount, rest = expression(line, words[2:], product, stop={"when"}, extra=facts)
+            condition = None
+            if rest[:1] == ["when"]:
+                condition, rest = expression(line, rest[1:], product, extra=facts)
+            if rest:
+                raise line.error(f"unexpected {' '.join(rest)!r}")
+            clauses.append(("cap", amount, condition))
+        else:
+            raise line.error(f"expected 'up to limit', 'up to <amount> [when ...]', 'less excess' or 'less co-payment', not {' '.join(words)!r}")
+    return clauses
+
+
+def given_value(line: Line, inp: Input, tok: str):
+    if inp.kind in ("money", "integer", "number") and tok[0].isdigit():
+        return Decimal(tok)
+    if inp.kind == "yes/no" and tok in ("yes", "no"):
+        return tok == "yes"
+    if inp.kind == "choice" and unquote(tok) in inp.choices:
+        return unquote(tok)
+    if inp.kind == "text":
+        return unquote(tok)
+    if inp.kind == "date" and DATE_TOKEN.fullmatch(tok):
+        return date.fromisoformat(tok)
+    raise line.error(f"{inp.name} is {inp.kind}, cannot be {tok!r}")
+
+
+def given_item(line: Line, coll: Input, pairs: list[tuple[str, str]]) -> dict:
+    """One item from (field, value) pairs, checked for unknown and missing fields."""
+    item = {}
+    for name, value in pairs:
+        if name not in coll.fields:
+            raise line.error(f"unknown {coll.singular} field {name!r}")
+        item[name] = given_value(line, coll.fields[name], value)
+    item = with_defaults(coll.fields, item)
+    missing = [f for f in coll.fields if f not in item and coll.fields[f].kind not in ("text", "calculated") and not coll.fields[f].provided]
+    if missing:
+        raise line.error(f"{coll.singular} is missing {', '.join(missing)}")
+    return item
+
+
+def items_from_file(line: Line, coll: Input, path: str, base: str) -> list[dict]:
+    """Items from a CSV whose columns are the fields; a blank cell is a field not given."""
+    full = os.path.join(base, path)
+    try:
+        with open(full, encoding="utf-8", newline="") as f:
+            records = list(csv.DictReader(f))
+    except OSError:
+        raise line.error(f"cannot read {path!r}")
+    items = []
+    for n, record in enumerate(records, start=2):
+        try:
+            items.append(given_item(line, coll, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()]))
+        except ParseError as e:
+            raise line.error(f"{path} row {n}: {str(e).removeprefix(f'line {line.number}: ')}")
+    return items
+
+
+def parse_scenario(line: Line, product: Product) -> None:
+    toks = tokens(line)
+    if len(toks) != 2 or not toks[1].startswith('"'):
+        raise line.error('expected: scenario "Name"')
+    sc = Scenario(unquote(toks[1]), line.number)
+    for child in line.children:
+        toks = tokens(child)
+        if toks[0] == "given":
+            sc.given_lines.append(child)
+        elif toks[0] == "select":
+            for name in toks[1:]:
+                if name == ",":
+                    continue
+                if product.cover(unquote(name)) is None:
+                    raise child.error(f"unknown cover {unquote(name)!r}")
+                sc.selected.add(unquote(name))
+        elif toks[0] in ("when", "expect"):
+            sc.steps.append(Step(child.number, toks))
+        else:
+            raise child.error("expected given, select, when or expect")
+    # A scenario that binds before this version was published is on an earlier version, whose
+    # words the run knows and the parser does not: its given lines are resolved then.
+    if product.published is None or bound_on(sc) is None or bound_on(sc) >= product.published:
+        sc.given, sc.given_lines = resolve_given(product, sc.given_lines), []
+    product.scenarios.append(sc)
+
+
+def bound_on(sc: Scenario) -> date | None:
+    """The date of the scenario's first `when bound`."""
+    for step in sc.steps:
+        if step.tokens[:2] == ["when", "bound"]:
+            dates = [t for t in step.tokens if DATE_TOKEN.fullmatch(t)]
+            return date.fromisoformat(dates[0]) if dates else None
+    return None
+
+
+def resolve_given(product: Product, lines: list[Line]) -> dict:
+    """The answers a scenario's given lines supply, typed against this product's inputs."""
+    given: dict = {}
+    for child in lines:
+        toks = tokens(child)
+        if len(toks) == 4 and toks[2] == "from" and toks[3].startswith('"') and toks[1] in product.inputs and product.inputs[toks[1]].kind == "collection":
+            coll = product.inputs[toks[1]]
+            given.setdefault(coll.name, []).extend(items_from_file(child, coll, unquote(toks[3]), product.base))
+        elif len(toks) > 1 and product.collection_for(toks[1]) is not None:
+            coll = product.collection_for(toks[1])
+            pairs = [t for t in toks[2:] if t != ","]
+            given.setdefault(coll.name, []).append(given_item(child, coll, list(zip(pairs[::2], pairs[1::2]))))
+        else:
+            pairs = [t for t in toks[1:] if t != ","]
+            if len(pairs) % 2:
+                raise child.error("expected 'given name value, name value'")
+            for name, value in zip(pairs[::2], pairs[1::2]):
+                if name not in product.inputs or product.inputs[name].kind == "calculated":
+                    raise child.error(f"unknown input {name!r}" if name not in product.inputs else f"{name} is calculated, not given")
+                given[name] = given_value(child, product.inputs[name], value)
+    return given
+
+
+def parse_enrichment(line: Line, product: Product) -> None:
+    """enrichment "Name" [for each bike] from key[, key] with provides / when unavailable / held for the term."""
+    toks = tokens(line)
+    if len(toks) < 4 or not toks[1].startswith('"'):
+        raise line.error('expected enrichment "Name" [for each <item>] from <input>, ...')
+    e = Enrichment(unquote(toks[1]), [], line=line.number)
+    rest = toks[2:]
+    fields = product.inputs
+    if rest[:2] == ["for", "each"]:
+        coll = product.collection_for(rest[2]) if len(rest) > 2 else None
+        if coll is None:
+            raise line.error(f"unknown item {rest[2:3] and rest[2]!r}; declare a collection first")
+        e.item, fields, rest = coll.singular, coll.fields, rest[3:]
+    if rest[:1] != ["from"]:
+        raise line.error("expected 'from <input>, ...'")
+    e.keys = [t for t in rest[1:] if t != ","]
+    for k in e.keys:
+        if k not in fields or fields[k].provided:
+            raise line.error(f"unknown input {k!r}; enrichment keys must be inputs")
+    for child in line.children:
+        ctoks = tokens(child)
+        if ctoks == ["provides"]:
+            e.provides = parse_input_lines(child.children, product, nested=True)
+            for f in e.provides.values():
+                if f.kind == "calculated":
+                    raise child.error("an enrichment provides plain fields, not calculated ones")
+                if f.name in fields or f.name in product.inputs:
+                    raise child.error(f"{f.name!r} is already an input")
+                f.provided = e.name
+            fields.update(e.provides)
+        elif ctoks[:3] == ["when", "unavailable", ":"] and ctoks[3:4] and ctoks[3] in ("refer", "decline"):
+            if ctoks[4:5] != ["because"] or len(ctoks) != 6:
+                raise child.error(f'expected {ctoks[3]} because "reason"')
+            e.unavailable, e.reason = ctoks[3], unquote(ctoks[5])
+        elif ctoks[:3] == ["when", "unavailable", ":"]:
+            pairs = [t for t in ctoks[3:] if t != ","]
+            if len(pairs) % 3 or any(pairs[i + 1] != "is" for i in range(0, len(pairs), 3)):
+                raise child.error("expected 'when unavailable: field is value, ...' or 'refer/decline because \"reason\"'")
+            for name, _, value in zip(pairs[::3], pairs[1::3], pairs[2::3]):
+                if name not in e.provides:
+                    raise child.error(f"{name!r} is not provided by this enrichment; put 'provides' first")
+                e.defaults[name] = given_value(child, e.provides[name], value)
+        elif ctoks == ["held", "for", "the", "term"]:
+            e.held = True
+        else:
+            raise child.error(f"unknown enrichment setting {child.text!r}")
+    if not e.provides:
+        raise line.error("an enrichment needs a 'provides' section")
+    product.enrichments.append(e)
+
+
+def parse_upgrading(line: Line, product: Product) -> None:
+    """How this version's inputs are derived from the previous version's answers. The words on the
+    right-hand side belong to the previous version, which the parser does not have: the History
+    checks them when the versions are put together."""
+    product.upgrading = [parse_upgrade(child, product.inputs, "input") for child in line.children]
+
+
+def parse_upgrade(line: Line, targets: dict[str, Input], what: str) -> Upgrade:
+    toks = tokens(line)
+    if len(toks) > 1 and toks[1] != ":":
+        raise line.error("expected 'input: value', 'input: ask', 'input: for each <item>' or 'input' with rows below")
+    name, rest = toks[0], toks[2:]
+    if name not in targets:
+        raise line.error(f"unknown {what} {name!r}")
+    up = Upgrade(name, line=line.number)
+    if rest[:2] == ["for", "each"] and len(rest) == 3:
+        if targets[name].kind != "collection":
+            raise line.error(f"{name} is not a collection; 'for each' upgrades the items of one")
+        up.item = rest[2]
+        up.fields = [parse_upgrade(child, targets[name].fields, f"{targets[name].singular} field") for child in line.children]
+    elif not rest and line.children:
+        for child in line.children:
+            ctoks = tokens(child)
+            if up.rows and up.rows[-1][0] is None:
+                raise child.error("'otherwise' must be the last row")
+            if ctoks[:2] == ["otherwise", ":"]:
+                cond, value = None, ctoks[2:]
+            else:
+                cond, value = loose_expression(child, ctoks, stop={":"})
+                value = value[1:]
+            up.rows.append((cond, upgrade_value(child, value)))
+        if not up.rows or up.rows[-1][0] is not None:
+            raise line.error("an upgrading table must end with an 'otherwise' row; say what the answer is when no row matches")
+    elif rest and not line.children:
+        up.rows = parse_upgrade_rows(line, rest)
+    else:
+        raise line.error("expected 'input: value', 'input: ask', 'input: for each <item>' or 'input' with rows below")
+    return up
+
+
+def parse_upgrade_rows(line: Line, toks: list[str]) -> list[tuple]:
+    """`value [when cond][, value when cond]...[, otherwise value]` on one line."""
+    rows = []
+    while toks:
+        if toks[:1] == ["otherwise"]:
+            rows.append((None, upgrade_value(line, toks[1:])))
+            return rows
+        value, toks = split_at(toks, {"when", ","})
+        cond = None
+        if toks[:1] == ["when"]:
+            cond, toks = loose_expression(line, toks[1:], stop={","})
+        rows.append((cond, upgrade_value(line, value)))
+        if toks[:1] == [","]:
+            toks = toks[1:]
+            if not toks:
+                raise line.error("expected another value after ','")
+    if rows[-1][0] is not None:
+        raise line.error("a conditional value needs ', otherwise <value>' last")
+    return rows
+
+
+def split_at(toks: list[str], stop: set[str]) -> tuple[list[str], list[str]]:
+    for i, t in enumerate(toks):
+        if t in stop:
+            return toks[:i], toks[i:]
+    return toks, []
+
+
+def upgrade_value(line: Line, toks: list[str]) -> tuple:
+    if toks == ["ask"]:
+        return ("ask",)
+    node, rest = loose_expression(line, toks)
+    if rest:
+        raise line.error(f"unexpected {' '.join(rest)!r}")
+    return node
+
+
+def loose_expression(line: Line, toks: list[str], stop: set[str] = frozenset()) -> tuple[tuple, list[str]]:
+    """An expression whose words are checked later, against another version."""
+    if not toks or toks[0] in stop:
+        raise line.error("expected a value")
+    try:
+        return parse_expr(fold_phrases(toks), stop)
+    except ExprError as e:
+        raise line.error(str(e))
+
+
+def parse_table(line: Line, product: Product) -> None:
+    """table "Name" [from "file.csv"] keyed on input, input; rows indented below when there is no file."""
+    toks = tokens(line)
+    if len(toks) < 5 or not toks[1].startswith('"'):
+        raise line.error('expected table "Name" [from "file.csv"] keyed on <input>, ...')
+    name, rest = unquote(toks[1]), toks[2:]
+    if name in product.tables:
+        raise line.error(f"table {name!r} is already declared")
+    path = None
+    if rest[:1] == ["from"] and rest[1:2] and rest[1].startswith('"'):
+        path, rest = os.path.join(product.base, unquote(rest[1])), rest[2:]
+    if rest[:2] != ["keyed", "on"]:
+        raise line.error("expected 'keyed on <input>, ...'")
+    keys = [t for t in fold_phrases(rest[2:]) if t != ","]
+    sources = [(inp, fields) for inp, fields in product.choice_inputs() if inp.source[0] == name]
+    for inp, fields in sources:
+        for k in inp.source[2]:
+            if k not in fields:
+                raise line.error(f"unknown input {k!r}; a choice's keys must be inputs")
+        for k in [inp.source[1]] + inp.source[2]:
+            if k not in keys:
+                raise line.error(f"{k!r} is not a key of {name}; keys are {', '.join(keys)}")
+    listed = {inp.source[1] for inp, _ in sources}  # key columns a choice lists: read as text, their choices filled below
+    kinds = {}
+    for k in keys:
+        inp = find_input(product, k)
+        if inp is None:
+            raise line.error(f"unknown input {k!r}; table keys must be inputs")
+        if inp.source and inp.source[0] not in product.tables and k not in listed:
+            raise line.error(f"{name} is keyed on {k}, which draws on table {inp.source[0]!r}; declare {inp.source[0]} first")
+        if k not in listed:
+            kinds[k] = inp.choices if inp.kind == "choice" else inp.kind
+    if path is not None and line.children:
+        raise line.error("a table comes from a file or from the rows below it, not both")
+    if path is not None:
+        try:
+            with open(path, encoding="utf-8") as f:
+                rows = f.read().splitlines()
+        except OSError:
+            raise line.error(f"cannot read {os.path.relpath(path, product.base)!r}")
+    else:
+        rows = [c.text for c in line.children]
+    try:
+        product.tables[name] = load_table(name, keys, rows, line.number, kinds, text_columns=listed, allow_no_values=bool(sources))
+    except TableError as e:
+        raise line.error(str(e))
+    for inp, _ in sources:
+        inp.choices = product.tables[name].values_for(inp.source[1], [], {})
+        if inp.default is not None and inp.default not in inp.choices:
+            raise line.error(f"{inp.name} cannot default to {inp.default!r}")
+
+
+BLOCKS = {
+    "inputs": parse_inputs,
+    "enrichment": parse_enrichment,
+    "table": parse_table,
+    "eligibility": parse_eligibility,
+    "cover": parse_cover,
+    "rating": parse_rating,
+    "lifecycle": parse_lifecycle,
+    "claims": parse_claims,
+    "scenario": parse_scenario,
+    "upgrading": parse_upgrading,
+}
+
+
+def forbid_dates(lines: list[Line]) -> None:
+    """Only cover and claims lines can be dated: eligibility is moot once bound and the premium charged stands."""
+    for child in lines:
+        toks = tokens(child)
+        if toks[:1] in (["from"], ["until"]) and toks[1:2] and DATE_TOKEN.fullmatch(toks[1]):
+            raise child.error("only cover and claims lines can be dated")
+        forbid_dates(child.children)
+
+
+def check_cover_premiums(product: Product) -> None:
+    """Cover premiums must join the net exactly once, and `add cover premiums` needs a cover that has one."""
+    joins = [s for step in product.rating for s in [step] + step.steps if s.kind == "premiums"]
+    priced = any(c.premium for c in product.covers)
+    if priced and not joins:
+        message = "cover premiums never join the net; add 'add cover premiums'"
+        raise ParseError(f"line {product.rating_line}: {message}" if product.rating_line else message)
+    if priced and len(joins) > 1:
+        raise ParseError(f"line {joins[1].line}: cover premiums join twice")
+    if priced and joins[0].label:  # inside a loop, only that item's covers can join
+        for c in product.covers:
+            if c.premium and c.premium_item != joins[0].label:
+                raise ParseError(f"line {joins[0].line}: {c.name}'s premium never joins the net: 'add cover premiums' is inside "
+                                 f"'for each {joins[0].label}', but {c.name} is not priced per {joins[0].label}")
+    if joins and not priced:
+        raise ParseError(f"line {joins[0].line}: no cover has a premium")
+
+
+def parse(text: str, base: str = ".") -> Product:
+    """Parses a product. Table files named in it are read relative to base."""
+    product = None
+    for line in build_tree(text):
+        toks = tokens(line)
+        if toks[0] == "product":
+            if len(toks) != 2:
+                raise line.error('expected: product "Name"')
+            product = Product(unquote(toks[1]), base=base)
+            parse_product_header(line, product)
+            continue
+        if product is None:
+            raise line.error("file must start with product \"Name\"")
+        handler = BLOCKS.get(toks[0])
+        if handler is None:
+            raise line.error(f"unknown block {toks[0]!r}")
+        if toks[0] not in ("cover", "claims"):
+            forbid_dates(line.children)
+        handler(line, product)
+    if product is None:
+        raise ParseError("empty file: expected product \"Name\"")
+    for work in product.deferred:
+        work()
+    for inp, _ in product.choice_inputs():
+        if inp.source[0] not in product.tables:
+            raise ParseError(f"line {inp.line}: {inp.name} draws on table {inp.source[0]!r}, which is not declared")
+    product.parsing = False
+    check_cover_premiums(product)
+    unknown = names(product.term[0]) - set(product.inputs)
+    if unknown:
+        raise ParseError(f"term refers to {sorted(unknown)[0]!r}, which is not an input")
+    return product

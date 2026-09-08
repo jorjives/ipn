@@ -6,7 +6,7 @@ nav_order: 7
 
 # rating
 
-```idl
+```ipn
 rating
   base 3.5% of bike_value
   factor "Rider age"
@@ -28,7 +28,7 @@ To rate repeatable items, put the per-item steps under `for each bike`. Each ite
 rated on its own running net using its fields, the results are added together, and the
 steps after the block continue on that total:
 
-```idl
+```ipn
 rating
   for each bike
     base 3% of value
@@ -52,7 +52,7 @@ that still tie keep the order they were given. Inside the block `position` is th
 place in that order, starting at 1, so the first bike can take the full rate and the rest a
 share of theirs:
 
-```idl
+```ipn
 rating
   for each bike, ordered by ebike descending, value descending
     base 4% of value
@@ -69,7 +69,7 @@ order on that. A calculated field is declared with the other fields and worked o
 same steps a `for each` block uses (`base`, `add`, `factor`, `discount`, `load`, `minimum`,
 `maximum`), with the item's other fields in scope. It is never given in a scenario:
 
-```idl
+```ipn
 inputs
   bikes: collection of bike
     make: text
@@ -88,7 +88,7 @@ Calculated fields are filled in before anything else runs, so eligibility, cover
 claims can use them too. A top-level input can be calculated in the same way; the customer
 is never asked for it:
 
-```idl
+```ipn
 inputs
   height_cm: number
   weight_kg: number
@@ -122,7 +122,7 @@ any cover's name (its share of the net, see below). A bare rate, `12%` or `ipt f
 the amount, so a levy charged on another tax, on the running total, on a deemed proportion,
 only above a threshold or only when a cover is taken, reads as the law does:
 
-```idl
+```ipn
   tax "Government levy" 3%
   tax "Fire brigade levy" 2% when Fire selected
   tax "Surcharge" 10% of IPT
@@ -144,7 +144,7 @@ A regulator, a reinsurer or a bordereau may want each policy's premium split by 
 or by the class each cover reports under. The product says which steps belong to which
 cover, and the engine keeps every cover's share of the net through each step:
 
-```idl
+```ipn
 cover Theft
   class 9
 cover "Accidental Damage"
@@ -195,7 +195,7 @@ A section of cover may carry its own price (see [cover](cover.md)), and `add cov
 premiums` is the step where those prices join the running net, each credited to its
 cover. Buildings and contents sold together, each priced on its own sum insured:
 
-```idl
+```ipn
 cover Buildings optional
   class 8
   premium 0.15% of rebuild_cost

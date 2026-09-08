@@ -11,16 +11,16 @@ Single Trip Travel: people rather than things. The term runs until the return da
 {: .proof }
 > 19 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/travel.idl
+> python3 -m ipngine check examples/travel.ipn
 > ```
 
-The file: [`examples/travel.idl`](https://github.com/jorjives/open-idl/blob/main/examples/travel.idl).
+The file: [`examples/travel.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/travel.ipn).
 
-```idl
+```ipn
 # Single Trip Travel: people rather than things. The term runs until the return
 # date, cancellation cover starts the day the policy is bought and stops at
 # departure, and the other sections only start once the trip does.
-# Run it with:  python3 -m ideclare check examples/travel.idl
+# Run it with:  python3 -m ipngine check examples/travel.ipn
 
 product "Single Trip Travel"
   territory UK

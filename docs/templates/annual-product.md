@@ -11,15 +11,15 @@ Annual product: a single-term personal-lines product with every block in place. 
 {: .proof }
 > 8 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/annual-product.idl`](https://github.com/jorjives/open-idl/blob/main/templates/annual-product.idl), rename the product, and replace each
+Copy [`templates/annual-product.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/annual-product.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
-```idl
+```ipn
 # Annual product: a single-term personal-lines product with every block in place. Copy this
 # file, rename the product, and work down the blocks; each comment says what the block is for
 # and what to change. Keep `check` passing as you go: the scenarios at the end are yours to
 # rewrite around your own questions and numbers.
-# Run it with:  python3 -m ideclare check templates/annual-product.idl
+# Run it with:  python3 -m ipngine check templates/annual-product.ipn
 
 product "Annual Product"
   territory UK              # where it is sold; the currency follows (GBP)

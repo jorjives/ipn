@@ -11,17 +11,17 @@ Level Term Life: a fixed benefit rather than an indemnity. The customer chooses 
 {: .proof }
 > 19 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/life.idl
+> python3 -m ipngine check examples/life.ipn
 > ```
 
-The file: [`examples/life.idl`](https://github.com/jorjives/open-idl/blob/main/examples/life.idl).
+The file: [`examples/life.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/life.ipn).
 
-```idl
+```ipn
 # Level Term Life: a fixed benefit rather than an indemnity. The customer chooses
 # how many years the cover runs, the premium is guaranteed for that term (no
 # adjustment, no renewal), BMI is worked out from height and weight, and the
 # cause of death matters in the first year.
-# Run it with:  python3 -m ideclare check examples/life.idl
+# Run it with:  python3 -m ipngine check examples/life.ipn
 
 product "Level Term Life"
   territory UK

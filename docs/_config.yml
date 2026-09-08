@@ -1,5 +1,5 @@
-title: Open IDL
-description: An open, declarative language for defining insurance products end to end, proven by scenarios in the same file.
+title: IPN
+description: Insurance Product Notation: an open spec for declaring insurance product behaviour end to end, proven by scenarios in the same file.
 url: "https://jorjives.github.io"
 baseurl: "/open-idl"
 repository: jorjives/open-idl
@@ -36,10 +36,10 @@ back_to_top: true
 back_to_top_text: "Back to top"
 
 aux_links:
-  "Open IDL on GitHub":
+  "IPN on GitHub":
     - "https://github.com/jorjives/open-idl"
 nav_external_links:
-  - title: Open IDL on GitHub
+  - title: IPN on GitHub
     url: https://github.com/jorjives/open-idl
 nav_error_report: true
 
@@ -50,7 +50,7 @@ gh_edit_branch: "main"
 gh_edit_source: docs
 gh_edit_view_mode: "tree"
 
-footer_content: "Open IDL is licensed under Apache 2.0; the examples and templates are CC0. The reference engine is written in Python with no dependencies; every page of examples on this site is generated from files that pass their own scenarios."
+footer_content: "IPN is licensed under Apache 2.0; the examples and templates are CC0. The reference engine is written in Python with no dependencies; every page of examples on this site is generated from files that pass their own scenarios."
 
 callouts:
   note:

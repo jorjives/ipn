@@ -13,18 +13,18 @@ Reads [`occupations.csv`](https://github.com/jorjives/open-idl/blob/main/example
 {: .proof }
 > 14 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/income.idl
+> python3 -m ipngine check examples/income.ipn
 > ```
 
-The file: [`examples/income.idl`](https://github.com/jorjives/open-idl/blob/main/examples/income.idl).
+The file: [`examples/income.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/income.ipn).
 
-```idl
+```ipn
 # Short Term Income Protection: a benefit paid over time rather than a loss made
 # good. The claim says how long the customer was off work; a month's benefit is
 # paid at the end of each month after the deferred period, the term's limit is a
 # number of months of benefit in total, and a claim that starts late in the year
 # keeps paying into the next.
-# Run it with:  python3 -m ideclare check examples/income.idl
+# Run it with:  python3 -m ipngine check examples/income.ipn
 
 product "Short Term Income Protection"
   territory UK

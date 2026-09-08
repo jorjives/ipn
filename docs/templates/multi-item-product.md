@@ -11,14 +11,14 @@ Several items on one policy: a collection of items, each rated on its own fields
 {: .proof }
 > 5 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/multi-item-product.idl`](https://github.com/jorjives/open-idl/blob/main/templates/multi-item-product.idl), rename the product, and replace each
+Copy [`templates/multi-item-product.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/multi-item-product.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
-```idl
+```ipn
 # Several items on one policy: a collection of items, each rated on its own fields with
 # `for each`, a cover resolved per item, and claims that name the item. Copy this file,
 # rename the product and the item, and give the item the fields your product asks about.
-# Run it with:  python3 -m ideclare check templates/multi-item-product.idl
+# Run it with:  python3 -m ipngine check templates/multi-item-product.ipn
 
 product "Multi Item Product"
   territory UK

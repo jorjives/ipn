@@ -11,17 +11,17 @@ Private Motor: named drivers, a no claims discount that grows a year at a time a
 {: .proof }
 > 21 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/motor.idl
+> python3 -m ipngine check examples/motor.ipn
 > ```
 
-The file: [`examples/motor.idl`](https://github.com/jorjives/open-idl/blob/main/examples/motor.idl).
+The file: [`examples/motor.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/motor.ipn).
 
-```idl
+```ipn
 # Private Motor: named drivers, a no claims discount that grows a year at a time
 # and steps back two years after a fault claim (but not for glass or a non-fault
 # claim), and an excess that depends on who was driving, which is only known
 # when the claim comes in.
-# Run it with:  python3 -m ideclare check examples/motor.idl
+# Run it with:  python3 -m ipngine check examples/motor.ipn
 
 product "Private Motor"
   territory UK

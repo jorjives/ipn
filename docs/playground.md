@@ -6,39 +6,39 @@ nav_order: 6
 # Playground
 
 Write a product here and check it. The engine runs in your browser: this page loads
-CPython through [Pyodide](https://pyodide.org) (about 10 MB, fetched once) and the Open IDL
-engine straight from the repository, so nothing you type leaves your machine.
+CPython through [Pyodide](https://pyodide.org) (about 10 MB, fetched once) and `ipngine`
+straight from the repository, so nothing you type leaves your machine.
 
 <div class="oidl-play">
 <div class="bar">
 <label for="pg-example">Start from</label>
 <select id="pg-example">
 <optgroup label="Examples">
-<option value="examples/cycle.idl">Cycle</option>
-<option value="examples/family.idl">Cycle, several bikes</option>
-<option value="examples/multibike.idl">Cycle, ranked bikes</option>
-<option value="examples/gadget.idl">Gadget, four countries</option>
-<option value="examples/irish-cycle.idl">Cycle in Ireland</option>
-<option value="examples/home.idl">Home contents</option>
-<option value="examples/household.idl">Buildings and contents</option>
-<option value="examples/ebike-fleet.idl">E-bike fleet</option>
-<option value="examples/travel.idl">Single-trip travel</option>
-<option value="examples/pet.idl">Lifetime pet</option>
-<option value="examples/motor.idl">Private motor</option>
-<option value="examples/van.idl">Light commercial vehicle</option>
-<option value="examples/life.idl">Level term life</option>
-<option value="examples/mortality.idl">Term life from a curve</option>
-<option value="examples/income.idl">Income protection</option>
-<option value="examples/pi.idl">Professional indemnity</option>
-<option value="examples/runoff.idl">Professional indemnity run-off</option>
-<option value="examples/leasing.idl">Cycle leasing scheme</option>
+<option value="examples/cycle.ipn">Cycle</option>
+<option value="examples/family.ipn">Cycle, several bikes</option>
+<option value="examples/multibike.ipn">Cycle, ranked bikes</option>
+<option value="examples/gadget.ipn">Gadget, four countries</option>
+<option value="examples/irish-cycle.ipn">Cycle in Ireland</option>
+<option value="examples/home.ipn">Home contents</option>
+<option value="examples/household.ipn">Buildings and contents</option>
+<option value="examples/ebike-fleet.ipn">E-bike fleet</option>
+<option value="examples/travel.ipn">Single-trip travel</option>
+<option value="examples/pet.ipn">Lifetime pet</option>
+<option value="examples/motor.ipn">Private motor</option>
+<option value="examples/van.ipn">Light commercial vehicle</option>
+<option value="examples/life.ipn">Level term life</option>
+<option value="examples/mortality.ipn">Term life from a curve</option>
+<option value="examples/income.ipn">Income protection</option>
+<option value="examples/pi.ipn">Professional indemnity</option>
+<option value="examples/runoff.ipn">Professional indemnity run-off</option>
+<option value="examples/leasing.ipn">Cycle leasing scheme</option>
 </optgroup>
 <optgroup label="Templates">
-<option value="templates/annual-product.idl">Annual product</option>
-<option value="templates/multi-item-product.idl">Several items on one policy</option>
-<option value="templates/fixed-term-benefit.idl">Fixed-term benefit</option>
-<option value="templates/commercial-claims-made.idl">Commercial claims-made</option>
-<option value="templates/rated-from-a-table.idl">Rated from a table</option>
+<option value="templates/annual-product.ipn">Annual product</option>
+<option value="templates/multi-item-product.ipn">Several items on one policy</option>
+<option value="templates/fixed-term-benefit.ipn">Fixed-term benefit</option>
+<option value="templates/commercial-claims-made.ipn">Commercial claims-made</option>
+<option value="templates/rated-from-a-table.ipn">Rated from a table</option>
 </optgroup>
 </select>
 <button id="pg-run" class="btn btn-primary" disabled>Check</button>

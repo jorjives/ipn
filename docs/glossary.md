@@ -63,9 +63,9 @@ words, for readers who write products.
 | **Cover premium** | A price written on the cover itself (`premium 0.5% of value`), joined to the net where `rating` says `add cover premiums`. |
 | **Factor** | A rating step with rows of `condition: x N`; the first matching row applies. |
 | **Line** | A `tax`, `fee` or `commission` step: an amount on top of, or reported against, the net as it stands where the line is written. |
-| **History** | A product's versions: the `.idl` files in one directory that declare the same product name. |
+| **History** | A product's versions: the `.ipn` files in one directory that declare the same product name. |
 | **Published** | The date a version went on sale, and its only identity. |
 | **Scenario** | A proof: `given` answers, `select`ed covers, `when` events in order, and `expect`ations after each. |
 | **Trail** | The list of rating steps applied to a risk and the running net after each, as `quote` prints it. |
 | **Upgrading** | The block that says how the previous version's answers become this version's, including `ask`. |
-| **Version** | One `.idl` file of a product with a `published` date. A policy stays on its version until it renews. |
+| **Version** | One `.ipn` file of a product with a `published` date. A policy stays on its version until it renews. |

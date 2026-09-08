@@ -11,16 +11,16 @@ Rated from a table: the pricing team keeps the rates as a spreadsheet, exported 
 {: .proof }
 > 5 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/rated-from-a-table.idl`](https://github.com/jorjives/open-idl/blob/main/templates/rated-from-a-table.idl), rename the product, and replace each
+Copy [`templates/rated-from-a-table.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/rated-from-a-table.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
-```idl
+```ipn
 # Rated from a table: the pricing team keeps the rates as a spreadsheet, exported in its
 # long form (one row per cell) to rates.csv beside this file, and the product reads a
 # factor from it. A small table is written inline instead. Copy this file and rates.csv,
 # rename the keys to your own questions, and reissue the CSV whenever the rates change:
 # the scenarios are how you check a reissued table.
-# Run it with:  python3 -m ideclare check templates/rated-from-a-table.idl
+# Run it with:  python3 -m ipngine check templates/rated-from-a-table.ipn
 
 product "Rated From A Table"
   territory UK

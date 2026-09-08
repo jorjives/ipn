@@ -11,16 +11,16 @@ Multi Bike Cover: several bikes, each rated on its make and value. Every bike ge
 {: .proof }
 > 11 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/multibike.idl
+> python3 -m ipngine check examples/multibike.ipn
 > ```
 
-The file: [`examples/multibike.idl`](https://github.com/jorjives/open-idl/blob/main/examples/multibike.idl).
+The file: [`examples/multibike.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/multibike.ipn).
 
-```idl
+```ipn
 # Multi Bike Cover: several bikes, each rated on its make and value. Every bike
 # gets a calculated rank score, the fleet is ordered on it, and the first bike
 # takes the full rate while the rest take half.
-# Run it with:  python3 -m ideclare check examples/multibike.idl
+# Run it with:  python3 -m ipngine check examples/multibike.ipn
 
 product "Multi Bike Cover"
   territory UK

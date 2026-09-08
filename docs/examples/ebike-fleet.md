@@ -11,18 +11,18 @@ E-bike Fleet: pedal and electric bikes on one policy. Every bike carries theft a
 {: .proof }
 > 5 scenarios, all passing. Run them yourself:
 > ```sh
-> python3 -m ideclare check examples/ebike-fleet.idl
+> python3 -m ipngine check examples/ebike-fleet.ipn
 > ```
 
-The file: [`examples/ebike-fleet.idl`](https://github.com/jorjives/open-idl/blob/main/examples/ebike-fleet.idl).
+The file: [`examples/ebike-fleet.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/ebike-fleet.ipn).
 
-```idl
+```ipn
 # E-bike Fleet: pedal and electric bikes on one policy. Every bike carries theft
 # and accidental damage. Fire cover prices itself on each e-bike (the battery is
 # the fire risk) and is excluded on pedal bikes, so its premium is exactly the
 # e-bikes' share. Each cover carries the class it reports under, a fire levy is
 # charged on the fire premium alone, and the tax on the rest is split by cover.
-# Run it with:  python3 -m ideclare check examples/ebike-fleet.idl
+# Run it with:  python3 -m ipngine check examples/ebike-fleet.ipn
 
 product "E-bike Fleet"
   territory UK
