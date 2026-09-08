@@ -1,4 +1,4 @@
-# IPN
+# IPN - Insurance Product Notation
 
 Insurance Product Notation: an open spec for declaring an insurance product end to end, from the
 questions asked at quote through eligibility, cover, rating, the policy lifecycle (cooling
