@@ -7,6 +7,7 @@
 
 ## Slice 1: Price a book whose risks carry items
 
+**Status:** ✅ Complete — 2026-09-08 — `d311529`
 **Delivers:** An underwriter can price a whole book with specified items, drivers, or members from one second CSV joined on `risk`, instead of one file per policy.
 
 **Operational note:** Verification stays the existing unit tests. A small home sample book and jewellery file make the later documented command real. Standard-library CSV only.
