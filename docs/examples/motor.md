@@ -14,7 +14,7 @@ Private Motor: named drivers, a no claims discount that grows a year at a time a
 > python3 -m ipngine check examples/motor.ipn
 > ```
 
-The file: [`examples/motor.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/motor.ipn).
+The file: [`examples/motor.ipn`](https://github.com/jorjives/ipn/blob/main/examples/motor.ipn).
 
 ```ipn
 # Private Motor: named drivers, a no claims discount that grows a year at a time

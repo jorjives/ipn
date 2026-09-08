@@ -14,7 +14,7 @@ Level Term Life: a fixed benefit rather than an indemnity. The customer chooses 
 > python3 -m ipngine check examples/life.ipn
 > ```
 
-The file: [`examples/life.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/life.ipn).
+The file: [`examples/life.ipn`](https://github.com/jorjives/ipn/blob/main/examples/life.ipn).
 
 ```ipn
 # Level Term Life: a fixed benefit rather than an indemnity. The customer chooses

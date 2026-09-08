@@ -14,7 +14,7 @@ Household: buildings and contents sold as one policy. Each section is optional, 
 > python3 -m ipngine check examples/household.ipn
 > ```
 
-The file: [`examples/household.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/household.ipn).
+The file: [`examples/household.ipn`](https://github.com/jorjives/ipn/blob/main/examples/household.ipn).
 
 ```ipn
 # Household: buildings and contents sold as one policy. Each section is optional,

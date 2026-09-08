@@ -5,7 +5,7 @@ questions asked at quote through eligibility, cover, rating, the policy lifecycl
 off, cancellation, mid-term adjustment, lapse, renewal, versions) and claims. Written for
 insurance professionals, not developers, and proven by scenarios written in the same file.
 
-**Site and full reference: <https://jorjives.github.io/open-idl/>**
+**Site and full reference: <https://jorjives.github.io/ipn/>**
 
 ```
 python3 -m ipngine check examples/cycle.ipn

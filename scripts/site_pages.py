@@ -93,7 +93,7 @@ def example_page(stem: str, line: str, shows: str, order: int) -> str:
     n = check(path)
     history = History.for_file(str(path))
     name = history.versions[-1].name
-    files = ", ".join(f"[`{f}`](https://github.com/jorjives/open-idl/blob/main/examples/{f})" for f in sidecars(path))
+    files = ", ".join(f"[`{f}`](https://github.com/jorjives/ipn/blob/main/examples/{f})" for f in sidecars(path))
     beside = f"\n\nReads {files} from beside the file." if files else ""
     return f"""---
 title: {name}
@@ -111,7 +111,7 @@ nav_order: {order}
 > {command or f'python3 -m ipngine check examples/{stem}.ipn'}
 > ```
 
-The file: [`examples/{stem}.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/{stem}.ipn).
+The file: [`examples/{stem}.ipn`](https://github.com/jorjives/ipn/blob/main/examples/{stem}.ipn).
 
 {source_block(path, f'examples/{stem}.ipn')}"""
 
@@ -139,7 +139,7 @@ nav_order: {order}
 
 # {title}
 
-{shows}. The files sit together in [`{where}/`](https://github.com/jorjives/open-idl/tree/main/{where}); each
+{shows}. The files sit together in [`{where}/`](https://github.com/jorjives/ipn/tree/main/{where}); each
 declares the same product name and says when it was published, and `check` finds the others by itself.
 
 {{: .proof }}
@@ -166,7 +166,7 @@ nav_order: {order}
 {{: .proof }}
 > {n} scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/{stem}.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/{stem}.ipn), rename the product, and replace each
+Copy [`templates/{stem}.ipn`](https://github.com/jorjives/ipn/blob/main/templates/{stem}.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
 {source_block(path, f'templates/{stem}.ipn')}"""
@@ -187,9 +187,9 @@ has_toc: false
 
 Sixteen products and one product in three versions, each a complete `.ipn` file with the
 scenarios that prove it. These pages are generated from the files in
-[`examples/`](https://github.com/jorjives/open-idl/tree/main/examples) and every scenario
+[`examples/`](https://github.com/jorjives/ipn/tree/main/examples) and every scenario
 passes; a file whose proof fails cannot be published here. The files are dedicated to the
-public domain under [CC0](https://github.com/jorjives/open-idl/blob/main/examples/LICENSE):
+public domain under [CC0](https://github.com/jorjives/ipn/blob/main/examples/LICENSE):
 copy them into your own products without attribution.
 
 Start with [Cycle](cycle.md): it uses every part of the language and its scenarios are
@@ -217,9 +217,9 @@ has_toc: false
 Starting points, one per shape of product. Each is a small working product with comments
 that say what to change, and each passes its own scenarios, so you begin from something
 proven and keep it that way. Copy the file from
-[`templates/`](https://github.com/jorjives/open-idl/tree/main/templates), rename the product,
+[`templates/`](https://github.com/jorjives/ipn/tree/main/templates), rename the product,
 and run `check` after every change. The templates are dedicated to the public domain under
-[CC0](https://github.com/jorjives/open-idl/blob/main/templates/LICENSE), so what you build
+[CC0](https://github.com/jorjives/ipn/blob/main/templates/LICENSE), so what you build
 from one is yours without attribution.
 
 | Template | For |

@@ -13,8 +13,8 @@ and prove it.
 You need Python 3.12 or later and nothing else. Clone the repository and run the tests:
 
 ```sh
-git clone https://github.com/jorjives/open-idl.git
-cd open-idl
+git clone https://github.com/jorjives/ipn.git
+cd ipn
 python3 -m unittest
 ```
 

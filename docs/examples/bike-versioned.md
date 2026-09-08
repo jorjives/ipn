@@ -6,7 +6,7 @@ nav_order: 19
 
 # Bike Cover across three versions
 
-Published versions, upgrading answers at renewal, a dated amendment. The files sit together in [`examples/versioned/`](https://github.com/jorjives/open-idl/tree/main/examples/versioned); each
+Published versions, upgrading answers at renewal, a dated amendment. The files sit together in [`examples/versioned/`](https://github.com/jorjives/ipn/tree/main/examples/versioned); each
 declares the same product name and says when it was published, and `check` finds the others by itself.
 
 {: .proof }

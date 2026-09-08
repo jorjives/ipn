@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-IPN (Insurance Product Notation) is a declarative language (`.ipn` files) for defining insurance products end to end. The reference engine is the Python 3.12 package `ipngine`. Standard library only; no dependencies. Public site: https://jorjives.github.io/open-idl/ (repo `jorjives/open-idl`).
+IPN (Insurance Product Notation) is a declarative language (`.ipn` files) for defining insurance products end to end. The reference engine is the Python 3.12 package `ipngine`. Standard library only; no dependencies. Public site: https://jorjives.github.io/ipn/ (repo `jorjives/ipn`).
 
 The audience is insurance professionals, not developers. The DSL reads like English on purpose.
 

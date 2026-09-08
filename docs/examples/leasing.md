@@ -8,7 +8,7 @@ nav_order: 18
 
 Cycle Leasing Scheme: a group policy. The policyholder is the leasing supplier, which owns the bikes; the members are employees who hold them under a lease. Members join and leave all year, each member's cover runs for their own lease dates inside a rolling annual master policy, and claims are settled per member.
 
-Reads [`leasing_members.csv`](https://github.com/jorjives/open-idl/blob/main/examples/leasing_members.csv) from beside the file.
+Reads [`leasing_members.csv`](https://github.com/jorjives/ipn/blob/main/examples/leasing_members.csv) from beside the file.
 
 {: .proof }
 > 13 scenarios, all passing. Run them yourself:
@@ -16,7 +16,7 @@ Reads [`leasing_members.csv`](https://github.com/jorjives/open-idl/blob/main/exa
 > python3 -m ipngine check examples/leasing.ipn
 > ```
 
-The file: [`examples/leasing.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/leasing.ipn).
+The file: [`examples/leasing.ipn`](https://github.com/jorjives/ipn/blob/main/examples/leasing.ipn).
 
 ```ipn
 # Cycle Leasing Scheme: a group policy. The policyholder is the leasing supplier,

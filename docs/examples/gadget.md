@@ -14,7 +14,7 @@ Gadget Cover sold across continental Europe: one product, several territories. T
 > python3 -m ipngine check examples/gadget.ipn
 > ```
 
-The file: [`examples/gadget.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/gadget.ipn).
+The file: [`examples/gadget.ipn`](https://github.com/jorjives/ipn/blob/main/examples/gadget.ipn).
 
 ```ipn
 # Gadget Cover sold across continental Europe: one product, several territories.

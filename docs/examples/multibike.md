@@ -14,7 +14,7 @@ Multi Bike Cover: several bikes, each rated on its make and value. Every bike ge
 > python3 -m ipngine check examples/multibike.ipn
 > ```
 
-The file: [`examples/multibike.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/multibike.ipn).
+The file: [`examples/multibike.ipn`](https://github.com/jorjives/ipn/blob/main/examples/multibike.ipn).
 
 ```ipn
 # Multi Bike Cover: several bikes, each rated on its make and value. Every bike

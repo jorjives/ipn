@@ -14,7 +14,7 @@ Lifetime Pet Cover: an annual vet fee limit that every paid claim eats into and 
 > python3 -m ipngine check examples/pet.ipn
 > ```
 
-The file: [`examples/pet.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/pet.ipn).
+The file: [`examples/pet.ipn`](https://github.com/jorjives/ipn/blob/main/examples/pet.ipn).
 
 ```ipn
 # Lifetime Pet Cover: an annual vet fee limit that every paid claim eats into and

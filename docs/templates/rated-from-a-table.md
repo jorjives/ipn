@@ -11,7 +11,7 @@ Rated from a table: the pricing team keeps the rates as a spreadsheet, exported 
 {: .proof }
 > 5 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/rated-from-a-table.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/rated-from-a-table.ipn), rename the product, and replace each
+Copy [`templates/rated-from-a-table.ipn`](https://github.com/jorjives/ipn/blob/main/templates/rated-from-a-table.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
 ```ipn

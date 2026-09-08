@@ -14,7 +14,7 @@ Cycle Cover: a worked example exercising every part of IPN.
 > python3 -m ipngine check examples/cycle.ipn
 > ```
 
-The file: [`examples/cycle.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/cycle.ipn).
+The file: [`examples/cycle.ipn`](https://github.com/jorjives/ipn/blob/main/examples/cycle.ipn).
 
 ```ipn
 # Cycle Cover: a worked example exercising every part of IPN.

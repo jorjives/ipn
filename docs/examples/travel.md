@@ -14,7 +14,7 @@ Single Trip Travel: people rather than things. The term runs until the return da
 > python3 -m ipngine check examples/travel.ipn
 > ```
 
-The file: [`examples/travel.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/travel.ipn).
+The file: [`examples/travel.ipn`](https://github.com/jorjives/ipn/blob/main/examples/travel.ipn).
 
 ```ipn
 # Single Trip Travel: people rather than things. The term runs until the return

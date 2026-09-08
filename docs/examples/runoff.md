@@ -14,7 +14,7 @@ Professional Indemnity Run-off: the cover a practice buys when it closes. No new
 > python3 -m ipngine check examples/runoff.ipn
 > ```
 
-The file: [`examples/runoff.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/runoff.ipn).
+The file: [`examples/runoff.ipn`](https://github.com/jorjives/ipn/blob/main/examples/runoff.ipn).
 
 ```ipn
 # Professional Indemnity Run-off: the cover a practice buys when it closes. No new

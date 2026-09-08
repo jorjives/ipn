@@ -14,8 +14,8 @@ Python 3.12 or later and nothing else. Clone the repository and run the tests an
 example:
 
 ```sh
-git clone https://github.com/jorjives/open-idl.git
-cd open-idl
+git clone https://github.com/jorjives/ipn.git
+cd ipn
 python3 -m unittest
 for f in examples/*.ipn examples/versioned/*.ipn templates/*.ipn templates/versioned/*.ipn; do python3 -m ipngine check "$f" | tail -1; done
 ```
@@ -74,13 +74,13 @@ happened.
 ## Licence
 
 The language, the reference engine and this site are licensed under the
-[Apache License 2.0](https://github.com/jorjives/open-idl/blob/main/LICENSE). It is permissive,
+[Apache License 2.0](https://github.com/jorjives/ipn/blob/main/LICENSE). It is permissive,
 carries an explicit patent grant, and gives no rights to the name, so anyone can implement
 or embed IPN while "IPN" itself stays the name of the specification.
 
 The [examples](examples/index.md) and [templates](templates/index.md) are meant to be copied
 into your own products, so they are dedicated to the public domain under
-[CC0 1.0](https://github.com/jorjives/open-idl/blob/main/templates/LICENSE): take them without
+[CC0 1.0](https://github.com/jorjives/ipn/blob/main/templates/LICENSE): take them without
 attribution.
 
 By contributing you agree that your contribution is licensed the same way (Apache 2.0, or

@@ -14,7 +14,7 @@ Term Life rated from a mortality curve. The actuary supplies the annual death ra
 > python3 -m ipngine check examples/mortality.ipn
 > ```
 
-The file: [`examples/mortality.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/mortality.ipn).
+The file: [`examples/mortality.ipn`](https://github.com/jorjives/ipn/blob/main/examples/mortality.ipn).
 
 ```ipn
 # Term Life rated from a mortality curve. The actuary supplies the annual death rate

@@ -14,7 +14,7 @@ Family Cycle Cover: one policy, several bikes. Shows repeatable items.
 > python3 -m ipngine check examples/family.ipn
 > ```
 
-The file: [`examples/family.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/family.ipn).
+The file: [`examples/family.ipn`](https://github.com/jorjives/ipn/blob/main/examples/family.ipn).
 
 ```ipn
 # Family Cycle Cover: one policy, several bikes. Shows repeatable items.

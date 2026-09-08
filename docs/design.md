@@ -68,7 +68,7 @@ These are the decisions most likely to differ from another system's.
 ## Versions
 
 A product changes. The decisions here were agreed in discussion and are recorded in
-full in the [versions design spec](https://github.com/jorjives/open-idl/blob/main/docs/superpowers/specs/2026-09-07-product-versions-design.md).
+full in the [versions design spec](https://github.com/jorjives/ipn/blob/main/docs/superpowers/specs/2026-09-07-product-versions-design.md).
 
 - **No version numbers.** A version is the date it went on sale. Which version a policy is
   on is the one live when it incepted or last renewed, which is how insurers already

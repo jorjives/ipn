@@ -8,7 +8,7 @@ nav_order: 12
 
 Light Commercial Vehicle: rated from a three-dimensional table the pricing team owns as a spreadsheet. Driver age band by postcode area by vehicle group, 300 cells, exported as one row per cell to van_rates.csv beside this file. A small two-dimensional table (theft excess by area and use) is written inline instead.
 
-Reads [`van_rates.csv`](https://github.com/jorjives/open-idl/blob/main/examples/van_rates.csv) from beside the file.
+Reads [`van_rates.csv`](https://github.com/jorjives/ipn/blob/main/examples/van_rates.csv) from beside the file.
 
 {: .proof }
 > 14 scenarios, all passing. Run them yourself:
@@ -16,7 +16,7 @@ Reads [`van_rates.csv`](https://github.com/jorjives/open-idl/blob/main/examples/
 > python3 -m ipngine check examples/van.ipn
 > ```
 
-The file: [`examples/van.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/van.ipn).
+The file: [`examples/van.ipn`](https://github.com/jorjives/ipn/blob/main/examples/van.ipn).
 
 ```ipn
 # Light Commercial Vehicle: rated from a three-dimensional table the pricing team

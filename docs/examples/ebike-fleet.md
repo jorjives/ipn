@@ -14,7 +14,7 @@ E-bike Fleet: pedal and electric bikes on one policy. Every bike carries theft a
 > python3 -m ipngine check examples/ebike-fleet.ipn
 > ```
 
-The file: [`examples/ebike-fleet.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/ebike-fleet.ipn).
+The file: [`examples/ebike-fleet.ipn`](https://github.com/jorjives/ipn/blob/main/examples/ebike-fleet.ipn).
 
 ```ipn
 # E-bike Fleet: pedal and electric bikes on one policy. Every bike carries theft

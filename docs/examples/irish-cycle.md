@@ -14,7 +14,7 @@ Irish Cycle: the three Irish charges on a non-life premium. The Government levy 
 > python3 -m ipngine check examples/irish-cycle.ipn
 > ```
 
-The file: [`examples/irish-cycle.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/irish-cycle.ipn).
+The file: [`examples/irish-cycle.ipn`](https://github.com/jorjives/ipn/blob/main/examples/irish-cycle.ipn).
 
 ```ipn
 # Irish Cycle: the three Irish charges on a non-life premium. The Government levy

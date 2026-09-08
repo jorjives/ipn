@@ -9,7 +9,7 @@ import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { tags } from "@lezer/highlight";
 import { completionSource, indentation } from "./ipn-complete.js";
 
-const REPO = "https://raw.githubusercontent.com/jorjives/open-idl/main/";
+const REPO = "https://raw.githubusercontent.com/jorjives/ipn/main/";
 const ENGINE = ["__init__.py", "__main__.py", "cli.py", "engine.py", "expr.py", "model.py",
                 "parser.py", "scenarios.py", "tables.py", "versions.py"];
 const CHECK = "import io, contextlib\nfrom ipngine import cli\nbuf = io.StringIO()\n" +

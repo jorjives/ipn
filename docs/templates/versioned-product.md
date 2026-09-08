@@ -6,7 +6,7 @@ nav_order: 6
 
 # A second version
 
-A product that changes its questions, with upgrading. The files sit together in [`templates/versioned/`](https://github.com/jorjives/open-idl/tree/main/templates/versioned); each
+A product that changes its questions, with upgrading. The files sit together in [`templates/versioned/`](https://github.com/jorjives/ipn/tree/main/templates/versioned); each
 declares the same product name and says when it was published, and `check` finds the others by itself.
 
 {: .proof }

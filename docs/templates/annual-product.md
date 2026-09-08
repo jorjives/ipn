@@ -11,7 +11,7 @@ Annual product: a single-term personal-lines product with every block in place. 
 {: .proof }
 > 8 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/annual-product.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/annual-product.ipn), rename the product, and replace each
+Copy [`templates/annual-product.ipn`](https://github.com/jorjives/ipn/blob/main/templates/annual-product.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
 ```ipn

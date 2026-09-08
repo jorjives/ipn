@@ -1,8 +1,8 @@
 title: IPN
 description: Insurance Product Notation: an open spec for declaring insurance product behaviour end to end, proven by scenarios in the same file.
 url: "https://jorjives.github.io"
-baseurl: "/open-idl"
-repository: jorjives/open-idl
+baseurl: "/ipn"
+repository: jorjives/ipn
 
 remote_theme: just-the-docs/just-the-docs@v0.12.0
 plugins:
@@ -37,15 +37,15 @@ back_to_top_text: "Back to top"
 
 aux_links:
   "IPN on GitHub":
-    - "https://github.com/jorjives/open-idl"
+    - "https://github.com/jorjives/ipn"
 nav_external_links:
   - title: IPN on GitHub
-    url: https://github.com/jorjives/open-idl
+    url: https://github.com/jorjives/ipn
 nav_error_report: true
 
 gh_edit_link: true
 gh_edit_link_text: "Edit this page on GitHub"
-gh_edit_repository: "https://github.com/jorjives/open-idl"
+gh_edit_repository: "https://github.com/jorjives/ipn"
 gh_edit_branch: "main"
 gh_edit_source: docs
 gh_edit_view_mode: "tree"

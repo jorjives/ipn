@@ -11,7 +11,7 @@ Several items on one policy: a collection of items, each rated on its own fields
 {: .proof }
 > 5 scenarios, all passing, so the template is a working product before you change a line.
 
-Copy [`templates/multi-item-product.ipn`](https://github.com/jorjives/open-idl/blob/main/templates/multi-item-product.ipn), rename the product, and replace each
+Copy [`templates/multi-item-product.ipn`](https://github.com/jorjives/ipn/blob/main/templates/multi-item-product.ipn), rename the product, and replace each
 block as the comments direct. Keep `check` passing as you go.
 
 ```ipn

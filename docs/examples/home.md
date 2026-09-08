@@ -14,7 +14,7 @@ Home Contents: a flat sum insured plus specified high value items, an excess tha
 > python3 -m ipngine check examples/home.ipn
 > ```
 
-The file: [`examples/home.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/home.ipn).
+The file: [`examples/home.ipn`](https://github.com/jorjives/ipn/blob/main/examples/home.ipn).
 
 ```ipn
 # Home Contents: a flat sum insured plus specified high value items, an excess that

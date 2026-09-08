@@ -14,7 +14,7 @@ Professional Indemnity: a commercial line, rated on turnover, written on a claim
 > python3 -m ipngine check examples/pi.ipn
 > ```
 
-The file: [`examples/pi.ipn`](https://github.com/jorjives/open-idl/blob/main/examples/pi.ipn).
+The file: [`examples/pi.ipn`](https://github.com/jorjives/ipn/blob/main/examples/pi.ipn).
 
 ```ipn
 # Professional Indemnity: a commercial line, rated on turnover, written on a
