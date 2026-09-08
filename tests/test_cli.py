@@ -269,6 +269,28 @@ rating
         self.assertEqual(code, 0, out)
         self.assertEqual(rows[1][3], "40.00")  # bikes.csv found beside the book, not beside the product
 
+    def test_an_unknown_item_field_is_that_risks_error_and_the_others_price(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\nH-2,30\n",
+            "risk,value,age,security,colour\nH-1,1000,0,gold,red\nH-2,1000,0,gold,\n",
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual(rows[1][0], "H-1")
+        self.assertEqual(rows[1][-1], "unknown bike field 'colour'")
+        self.assertEqual(rows[1][3], "")
+        self.assertEqual(rows[2][0], "H-2")
+        self.assertEqual(rows[2][3], "40.00")
+        self.assertEqual(rows[2][-1], "")
+
+    def test_a_missing_item_field_is_that_risks_error(self):
+        code, rows = self.run_batch(
+            "risk,rider_age\nH-1,30\nH-2,30\n",
+            "risk,value,age,security\nH-1,,0,gold\nH-2,1000,0,gold\n",
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual(rows[1][-1], "bike is missing value")
+        self.assertEqual(rows[2][3], "40.00")
+
 
 class CheckVersions(unittest.TestCase):
     V1 = 'product "Bike"\n  published 2026-01-01\n  term 12 months\ninputs\n  bike_value: money\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\n'
