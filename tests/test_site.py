@@ -3,7 +3,7 @@ import re
 import unittest
 from pathlib import Path
 
-from scripts.site_pages import EXAMPLES, ROOT, TEMPLATES, render
+from scripts.site_pages import EXAMPLES, ROOT, TEMPLATES, render, sidecars
 
 DOCS = ROOT / "docs"
 
@@ -41,6 +41,18 @@ class GeneratedPages(unittest.TestCase):
                 path = ROOT / rel
                 self.assertTrue(path.exists(), f"{rel} is missing; run python3 scripts/site_pages.py")
                 self.assertEqual(path.read_text(encoding="utf-8"), content, f"{rel} is stale; run python3 scripts/site_pages.py")
+
+    def test_the_home_page_names_the_sample_book(self):
+        md = (ROOT / "docs/examples/home.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "python3 -m ipngine batch examples/home.ipn examples/home-risks.csv "
+            "specified_items=examples/home-specified-items.csv",
+            md,
+        )
+        self.assertIn("python3 -m ipngine check examples/home.ipn", md)
+
+    def test_a_csv_named_only_in_a_comment_is_not_a_file_the_product_reads(self):
+        self.assertEqual(sidecars(ROOT / "examples" / "home.ipn"), [])
 
 
 class Links(unittest.TestCase):

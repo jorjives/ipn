@@ -76,9 +76,12 @@ def check(path: Path) -> int:
 
 
 def sidecars(path: Path) -> list[str]:
-    """Data files the product reads from beside it, found by their mention in the source."""
-    text = path.read_text(encoding="utf-8")
-    return sorted(f.name for f in path.parent.glob("*.csv") if f.name in text)
+    """Data files the product reads from beside it, found by their mention in the source.
+
+    Comments are skipped: a comment may name a sample book, which the product does not read.
+    """
+    body = "\n".join(l for l in path.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("#"))
+    return sorted(f.name for f in path.parent.glob("*.csv") if f.name in body)
 
 
 def source_block(path: Path, rel: str) -> str:

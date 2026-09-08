@@ -6,7 +6,7 @@ nav_order: 1
 
 # Home Contents
 
-Home Contents: a flat sum insured plus specified high value items, an excess that depends on the cause of loss, and the average clause: when the contents turn out to be worth more than the sum insured, the claim is scaled down in proportion.
+Home Contents: a flat sum insured plus specified high value items, an excess that depends on the cause of loss, and the average clause: when the contents turn out to be worth more than the sum insured, the claim is scaled down in proportion. A sample book of three risks sits beside it, with the jewellery on a second file joined on risk: python3 -m ipngine batch examples/home.ipn examples/home-risks.csv specified_items=examples/home-specified-items.csv
 
 {: .proof }
 > 19 scenarios, all passing. Run them yourself:
@@ -20,6 +20,9 @@ The file: [`examples/home.ipn`](https://github.com/jorjives/ipn/blob/main/exampl
 # Home Contents: a flat sum insured plus specified high value items, an excess that
 # depends on the cause of loss, and the average clause: when the contents turn out
 # to be worth more than the sum insured, the claim is scaled down in proportion.
+# A sample book of three risks sits beside it, with the jewellery on a second file
+# joined on risk: python3 -m ipngine batch examples/home.ipn examples/home-risks.csv
+# specified_items=examples/home-specified-items.csv
 # Run it with:  python3 -m ipngine check examples/home.ipn
 
 product "Home Contents"
