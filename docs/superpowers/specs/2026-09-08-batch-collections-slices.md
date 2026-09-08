@@ -48,6 +48,7 @@
 ## Slice 2: The site tells the two-file shape
 
 **Status:** ✅ Complete — 2026-09-08 — `6d2090a`
+**Tests:** ✅ Recorded — 2026-09-08 — `7bbd6cf` — cli — 1 UAT + 5 AC, 0 skipped
 **Delivers:** An underwriter looking at Price a book, the command line, or the language reference sees how a book with items is two CSVs joined on `risk`, and no public page still says a repeatable item cannot be batched.
 
 **Operational note:** Generated example pages are still written only by the site generator. The live Price a book comparison stays the twelve-risk contents sample with no items file in the browser.
