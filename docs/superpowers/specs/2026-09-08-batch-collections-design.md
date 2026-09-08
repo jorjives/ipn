@@ -131,8 +131,12 @@ in the file is item order on the risk.
 
 The load groups rows into `dict[str, list[dict]]` keyed by stripped `risk`. A
 sibling of `items_from_file` in `parser.py` owns this: it reuses `given_item` and
-does not treat `risk` as a field. `cli.batch` opens the path as given and passes
-each risk its list, or `[]`.
+does not treat `risk` as a field. `cli.batch` opens the path as given. Join keys
+are checked first: a blank or unknown `risk` is a run-level error. Then
+`given_item` runs on the rows that joined; a field problem is that risk's
+`error` column. Each risk is passed its list, or `[]`. The join finishes before
+any output row is written. A file that cannot be read is the same run-level
+error as an unknown column, not a product parse error.
 
 ### Errors
 
