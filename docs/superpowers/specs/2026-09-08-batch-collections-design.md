@@ -1,6 +1,6 @@
 # Batch collections: a book whose risks carry items
 
-> **Status:** Approved — 2026-09-08
+> **Status:** ✅ Complete — 2026-09-08 — all 2 slices delivered
 
 Date: 2026-09-08. An underwriter simulating a rate change needs the book to include
 the schedules that actually move premium: specified items, named drivers, travellers,
