@@ -6,8 +6,11 @@ nav_order: 1
 
 # product
 
+The `product` block names the product, where it is sold, how long a term lasts,
+and, when the product has versions, when this one went on sale.
+
 ```ipn
-product "Cycle Cover"
+product "Home Contents"
   territory UK
   term 12 months
 ```

@@ -6,24 +6,25 @@ nav_order: 3
 
 # enrichment
 
-Products depend on lookups they do not perform themselves: postcode risk, a bike or
-vehicle catalogue, claims history. An `enrichment` block declares the shape of such a lookup
-and nothing about how it is done:
+Products depend on lookups they do not perform themselves: postcode risk, a
+vehicle catalogue, claims history. An `enrichment` block declares the shape of
+such a lookup and nothing about how it is done.
 
 ```ipn
 enrichment "Postcode risk" from postcode
   provides
+    flood_risk: choice of low, medium, high
     theft_area: choice of low, medium, high
   when unavailable: refer because "Postcode not recognised"
   held for the term
 
-enrichment "Bike catalogue" for each bike from make, model
+enrichment "Item catalogue" for each item from make, model
   provides
-    category: choice of road, mountain, folding, other
+    category: choice of jewellery, art, other
   when unavailable: category is other
 ```
 
-- `from` names the inputs the lookup is keyed on. `for each bike` makes it a lookup per
+- `from` names the inputs the lookup is keyed on. `for each item` makes it a lookup per
   item, keyed on that item's fields.
 - `provides` lists the fields it returns, typed like inputs. They are used exactly like
   inputs everywhere else, but the customer is never asked for them.
@@ -34,4 +35,5 @@ enrichment "Bike catalogue" for each bike from make, model
 
 Scenarios stand in for the lookup by giving the provided fields directly, for example
 `given postcode "M1 1AA", theft_area high`. Leaving them out is how a scenario says the
-lookup could not answer.
+lookup could not answer. [Home contents](../examples/home.md) uses a postcode lookup
+this way.

@@ -1,36 +1,37 @@
 ---
 title: Playground
-nav_order: 6
+nav_order: 2
 ---
 
 # Playground
 
-Write a product here and check it. The engine runs in your browser: this page loads
-CPython through [Pyodide](https://pyodide.org) (about 10 MB, fetched once) and `ipngine`
-straight from the repository, so nothing you type leaves your machine.
+Write a product here and check it. Checks run in the browser. The playground
+does not submit your product text to a server. On first load it fetches
+[Pyodide](https://pyodide.org) (CPython, about 10 MB, once), the editor
+modules, the engine, and the selected example.
 
 <div class="oidl-play">
 <div class="bar">
 <label for="pg-example">Start from</label>
 <select id="pg-example">
 <optgroup label="Examples">
-<option value="examples/cycle.ipn">Cycle</option>
-<option value="examples/family.ipn">Cycle, several bikes</option>
-<option value="examples/multibike.ipn">Cycle, ranked bikes</option>
-<option value="examples/gadget.ipn">Gadget, four countries</option>
-<option value="examples/irish-cycle.ipn">Cycle in Ireland</option>
 <option value="examples/home.ipn">Home contents</option>
 <option value="examples/household.ipn">Buildings and contents</option>
-<option value="examples/ebike-fleet.ipn">E-bike fleet</option>
+<option value="examples/gadget.ipn">Gadget, four countries</option>
+<option value="examples/motor.ipn">Private motor</option>
 <option value="examples/travel.ipn">Single-trip travel</option>
 <option value="examples/pet.ipn">Lifetime pet</option>
-<option value="examples/motor.ipn">Private motor</option>
-<option value="examples/van.ipn">Light commercial vehicle</option>
 <option value="examples/life.ipn">Level term life</option>
 <option value="examples/mortality.ipn">Term life from a curve</option>
 <option value="examples/income.ipn">Income protection</option>
 <option value="examples/pi.ipn">Professional indemnity</option>
 <option value="examples/runoff.ipn">Professional indemnity run-off</option>
+<option value="examples/van.ipn">Light commercial vehicle</option>
+<option value="examples/cycle.ipn">Cycle</option>
+<option value="examples/family.ipn">Cycle, several bikes</option>
+<option value="examples/multibike.ipn">Cycle, ranked bikes</option>
+<option value="examples/irish-cycle.ipn">Cycle in Ireland</option>
+<option value="examples/ebike-fleet.ipn">E-bike fleet</option>
 <option value="examples/leasing.ipn">Cycle leasing scheme</option>
 </optgroup>
 <optgroup label="Templates">
@@ -50,8 +51,9 @@ straight from the repository, so nothing you type leaves your machine.
 </div>
 
 Change an `expect` line and check again to see a failure; change a rate and watch the
-scenarios that pin it fail. The [command line](cli.md) page shows the same `check` run
-locally, where it belongs in a pipeline.
+scenarios that pin it fail. [Getting started](getting-started.md) builds a small
+contents product this way. The same `check` on your machine is under
+[For engineers](engineers.md).
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
 <script type="importmap">

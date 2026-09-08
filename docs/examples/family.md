@@ -1,7 +1,7 @@
 ---
 title: Family Cycle Cover
 parent: Examples
-nav_order: 2
+nav_order: 14
 ---
 
 # Family Cycle Cover

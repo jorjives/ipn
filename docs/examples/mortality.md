@@ -1,7 +1,7 @@
 ---
 title: Mortality Rated Term Life
 parent: Examples
-nav_order: 14
+nav_order: 8
 ---
 
 # Mortality Rated Term Life

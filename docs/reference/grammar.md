@@ -1,16 +1,16 @@
 ---
 title: Grammar
-parent: Language reference
-nav_order: 12
+parent: For engineers
+nav_order: 3
 ---
 
 # Grammar
 
-The language, formally. The pages before this one say what each line means; this one says
-exactly what may be written, for anyone implementing another engine or tool. It is
-transcribed from the reference parser (`ipngine/parser.py`, `expr.py` and
-`scenarios.py`); where they disagree, the parser is the specification and the disagreement
-is a bug to report.
+The language, formally. The [reference](index.md) says what each line means; this page
+says exactly what may be written, for anyone implementing another engine or tool. The
+grammar is the syntax. The reference engine is one implementation. A parser change may
+be a bug fix or a language change; say which in the commit. If this page and the parser
+disagree, open an issue with the file.
 
 Notation: `[ x ]` optional, `{ x }` zero or more, `a | b` alternatives, `'word'` a literal
 word, and lower-case names are rules. Indented rules are lines nested under the line above:

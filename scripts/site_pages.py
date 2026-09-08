@@ -21,23 +21,23 @@ from ipngine.versions import History  # noqa: E402
 
 # Curated order and the line of business each example stands for. The description is the file's own.
 EXAMPLES = [
-    ("cycle", "Cycle", "Every part of the language in one personal-lines product"),
-    ("family", "Cycle, several bikes", "Repeatable items on one policy"),
-    ("multibike", "Cycle, ranked bikes", "Items rated in a chosen order; postcode and catalogue enrichment"),
-    ("gadget", "Gadget, four countries", "One product, several territories, each with its own tax and currency"),
-    ("irish-cycle", "Cycle in Ireland", "Several taxes on one premium and a fixed duty above a threshold"),
     ("home", "Home contents", "Specified items, an excess by cause of loss, the average clause"),
     ("household", "Buildings and contents", "Two optional sections sold as one policy with a bundle discount"),
-    ("ebike-fleet", "E-bike fleet", "Fire cover priced on the e-bikes only; the premium and taxes split by cover class"),
+    ("gadget", "Gadget, four countries", "One product, several territories, each with its own tax and currency"),
+    ("motor", "Private motor", "Named drivers, a no claims discount that steps back, an excess by driver, instalments"),
     ("travel", "Single-trip travel", "Insuring people; a term ending on a date; sections in force on different days"),
     ("pet", "Lifetime pet", "An annual limit per condition eroded by claims, a waiting period, a co-payment with age"),
-    ("motor", "Private motor", "Named drivers, a no claims discount that steps back, an excess by driver, instalments"),
-    ("van", "Light commercial vehicle", "A three-dimensional rating table owned as a spreadsheet"),
     ("life", "Level term life", "A fixed benefit over a term of years, BMI calculated, no renewal"),
     ("mortality", "Term life from a curve", "Geometric and linear interpolation, power laws and exponentials"),
     ("income", "Income protection", "A benefit paid month by month that carries on past the term"),
     ("pi", "Professional indemnity", "Commercial, turnover-rated, claims-made with a retroactive date, an aggregate limit"),
     ("runoff", "Professional indemnity run-off", "Six years of claims-made cover bought with one premium"),
+    ("van", "Light commercial vehicle", "A three-dimensional rating table owned as a spreadsheet"),
+    ("cycle", "Cycle", "Every part of the language in one personal-lines product"),
+    ("family", "Cycle, several bikes", "Repeatable items on one policy"),
+    ("multibike", "Cycle, ranked bikes", "Items rated in a chosen order; postcode and catalogue enrichment"),
+    ("irish-cycle", "Cycle in Ireland", "Several taxes on one premium and a fixed duty above a threshold"),
+    ("ebike-fleet", "E-bike fleet", "Fire cover priced on the e-bikes only; the premium and taxes split by cover class"),
     ("leasing", "Cycle leasing scheme", "A group policy whose members join and leave all year"),
 ]
 VERSIONED = ("bike-versioned", "Bike Cover across three versions", "Published versions, upgrading answers at renewal, a dated amendment")
@@ -185,15 +185,15 @@ has_toc: false
 
 # Examples
 
-Sixteen products and one product in three versions, each a complete `.ipn` file with the
-scenarios that prove it. These pages are generated from the files in
-[`examples/`](https://github.com/jorjives/ipn/tree/main/examples) and every scenario
-passes; a file whose proof fails cannot be published here. The files are dedicated to the
-public domain under [CC0](https://github.com/jorjives/ipn/blob/main/examples/LICENSE):
-copy them into your own products without attribution.
+Sixteen products and one product in three versions, each a complete `.ipn` file whose
+scenarios pass. These pages are generated from the files in
+[`examples/`](https://github.com/jorjives/ipn/tree/main/examples); a file whose scenarios
+fail cannot be published here. The files are dedicated to the public domain under
+[CC0](https://github.com/jorjives/ipn/blob/main/examples/LICENSE): copy them into your
+own products without attribution.
 
-Start with [Cycle](cycle.md): it uses every part of the language and its scenarios are
-commented with the arithmetic. The rest take the same language across the industry.
+A familiar place to begin is [Home contents](home.md). The rest take the same language
+across the industry.
 
 | Product | What it shows |
 |---|---|
@@ -214,9 +214,10 @@ has_toc: false
 
 # Templates
 
-Starting points, one per shape of product. Each is a small working product with comments
-that say what to change, and each passes its own scenarios, so you begin from something
-proven and keep it that way. Copy the file from
+Starting points: an annual personal-lines product, several items on one policy, a
+fixed-term benefit, commercial claims-made, a table, a second version. Each is a small
+working product with comments that say what to change, and each passes its own
+scenarios. Copy the file from
 [`templates/`](https://github.com/jorjives/ipn/tree/main/templates), rename the product,
 and run `check` after every change. The templates are dedicated to the public domain under
 [CC0](https://github.com/jorjives/ipn/blob/main/templates/LICENSE), so what you build
@@ -227,7 +228,7 @@ from one is yours without attribution.
 {rows}
 
 Not sure which? [Annual product](annual-product.md) fits most personal lines; the
-[examples](../examples/index.md) show each shape grown into a real product.
+[examples](../examples/index.md) show each of those kinds grown into a real product.
 """
 
 

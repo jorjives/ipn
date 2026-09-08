@@ -1,17 +1,23 @@
 ---
 title: Contributing
-nav_order: 10
+parent: For engineers
+nav_order: 4
 ---
 
 # Contributing
 
-IPN (Insurance Product Notation) is an open spec with a small reference engine, `ipngine`.
-Both grow by the same route: write a real product against them and add what its wording needs.
+IPN (Insurance Product Notation) is an open spec with a small reference engine,
+`ipngine`. Both grow by the same route: write a real product against them and
+add what its wording needs.
+
+To embed the engine in a platform, see [Embedding the engine](embedding.md).
+To implement another engine, the [grammar](reference/grammar.md) is the syntax
+and the examples' scenarios are the conformance set.
 
 ## Running the engine
 
-Python 3.12 or later and nothing else. Clone the repository and run the tests and every
-example:
+Python 3.12 or later and nothing else. Clone the repository and run the tests
+and every example:
 
 ```sh
 git clone https://github.com/jorjives/ipn.git
@@ -32,8 +38,8 @@ for f in examples/*.ipn examples/versioned/*.ipn templates/*.ipn templates/versi
 | `ipngine/versions.py` | A product's history of published versions and moving a policy between them. |
 | `ipngine/scenarios.py` | Runs `scenario` blocks: events into the engine, expectations against its state. |
 | `ipngine/cli.py` | `check`, `quote` and `batch`. |
-| `examples/` | Sixteen products and a versioned one, each proven by its scenarios. |
-| `templates/` | Starter products, one per shape, each proven likewise. |
+| `examples/` | Sixteen products and a versioned one, each with scenarios that pass. |
+| `templates/` | Starter products, one per kind, each with scenarios that pass. |
 | `docs/` | This site. `docs/reference/` is the language reference; `docs/examples/` and `docs/templates/` are generated. |
 | `docs/superpowers/specs/` | The design records: why each part of the language is the way it is. |
 
@@ -69,7 +75,7 @@ The rest of the site is Markdown under `docs/`, built by GitHub Pages with the
 
 If the [grammar](reference/grammar.md) and the parser disagree, or a scenario you believe
 is right fails, open an issue with the `.ipn` file and the scenario: it says what was expected and what
-happened.
+happened. A parser change may be a bug fix or a language change; say which.
 
 ## Licence
 

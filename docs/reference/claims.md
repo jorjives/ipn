@@ -6,16 +6,18 @@ nav_order: 9
 
 # claims
 
+What each claim needs, how it is settled, and what a paid claim changes.
+
 ```ipn
 claims
-  claim Theft
-    requires police_report, crime_reference
+  claim Contents
+    requires police_report
     pays claimed amount up to limit, less excess
     decline when reported after 30 days because "Theft must be reported within 30 days"
-    decline when claimed > bike_value because "Claim exceeds the insured value"
+    decline when claimed > contents_sum because "Claim exceeds the insured value"
     depreciation
-      bike_age < 1: x 1.00
-      bike_age < 3: x 0.85
+      item_age < 1: x 1.00
+      item_age < 3: x 0.85
       otherwise: x 0.70
   claim Death
     asks
@@ -66,26 +68,42 @@ claims
   are the usual case. Every paid claim still erodes an aggregate limit.
 
 A cover whose `limit`, `excess` or `excludes` uses item fields is resolved per item, so
-claims on it name the item: `when claim Theft on bike 2 for 900 on 2026-03-01`.
+claims on it name the item: `when claim Contents on item 2 for 900 on 2026-03-01`.
 
-A claim on a cover is declined, with the reason, when the policy is not live on the loss
-date, the cover is not included for that risk or item, the cover is not in force on that
-date or is within its waiting period, a required item or asked fact is missing, an
-aggregate limit is used up, or a `decline when` rule fires. Otherwise the amount (claimed,
-or the fixed benefit) is first scaled by the `depreciation` or `settlement` table (same
-shape as a rating factor: the first matching row applies), then the `pays` clauses apply in
-the order written. A percentage excess is of the amount claimed, before depreciation. Only
-paid claims that count go towards `claims in term`. A claim that comes to nothing after
-the excess is declined as "nothing is payable after the excess" and does not count.
-`after N claims in term: renewal load x M` multiplies the renewal net when the paid claim
-count reaches N; the highest matching line wins.
+## How a claim is settled
 
-A paid claim can also change the terms of the policy for the rest of the term. Write
-`after N claims in term` (or `after 1 claim in term`) with lifecycle lines indented below;
-they replace the product's own settings from the point the Nth claim is paid, and anything
-not restated carries over. Either form takes `unless <condition>`, so a protected no
-claims discount is `after 1 claim in term: renewal load x 1.30 unless "Protected NCD"
-selected`. The `lifecycle` block must come first in the file:
+The engine reports every unpaid claim as *declined*, with a reason. That includes
+missing evidence, a covered loss that comes to nothing after the excess, and a
+loss the wording does not cover. There is no separate pending or "paid 0"
+outcome.
+
+1. The claim is declined, with the reason, when the policy is not live on the
+   loss date, the cover is not included for that risk or item, the cover is not
+   in force on that date or is within its waiting period, a required item or
+   asked fact is missing, an aggregate limit is used up, or a `decline when`
+   rule fires.
+2. Otherwise the amount (claimed, or the fixed benefit) is scaled by the
+   `depreciation` or `settlement` table (same shape as a rating factor: the
+   first matching row applies).
+3. Then the `pays` clauses apply in the order written. A percentage excess is
+   of the amount claimed, before depreciation.
+4. A claim that comes to nothing after the excess is declined as "nothing is
+   payable after the excess" and does not count. Only paid claims that count
+   go towards `claims in term`. Every paid claim erodes an aggregate limit.
+5. `after N claims in term: renewal load x M` multiplies the renewal net when
+   the paid claim count reaches N; the highest matching line wins.
+
+## Terms after claims
+
+A paid claim can also change the terms of the policy for the rest of the term.
+Write `after N claims in term` (or `after 1 claim in term`) with lifecycle lines
+indented below; they replace the product's own settings from the point the Nth
+claim is paid, and anything not restated carries over. Either form takes
+`unless <condition>`, so a protected no claims discount is
+`after 1 claim in term: renewal load x 1.30 unless "Protected NCD" selected`.
+
+The `product` block comes first in the file. If these restated lines name
+cancellation or adjustment, a `lifecycle` block must already exist above:
 
 ```ipn
 claims

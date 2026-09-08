@@ -89,4 +89,4 @@ column of the table, at least one value column exists, every cell reads, and no 
 repeat the same keys. When a risk is priced, exactly one row must match: none is reported
 as `no row in Van rates for driver_age 16, area 3, vehicle_group 5`, and two equally
 specific rows (overlapping bands) as ambiguous. A value between bands is an error, so the
-scenarios that prove the product are how the pricing team checks a reissued table. [`examples/van.ipn`](../examples/van.md) rates from a three-dimensional table of 300 cells.
+scenarios that check the product are how the pricing team checks a reissued table. [`examples/van.ipn`](../examples/van.md) rates from a three-dimensional table of 300 cells.

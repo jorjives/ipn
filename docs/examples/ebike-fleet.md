@@ -1,7 +1,7 @@
 ---
 title: E-bike Fleet
 parent: Examples
-nav_order: 8
+nav_order: 17
 ---
 
 # E-bike Fleet

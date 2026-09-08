@@ -6,7 +6,7 @@ nav_order: 2
 
 # inputs
 
-What you ask at quote. Each line is `name: type`.
+The questions asked at quote. Each line is `name: type`.
 
 | Type | Values |
 |---|---|
@@ -15,9 +15,9 @@ What you ask at quote. Each line is `name: type`.
 | `yes/no` | `yes` or `no` |
 | `choice of a, b, c` | exactly one of the listed values; a value that is not one word is quoted, `choice of construction, "Health & Social Care"` |
 | `choice of <column> from "Table" [for key, ...]` | one of the values in that key column of a [table](table.md); see [choices from a table](#choices-from-a-table) |
-| `text` | free text; compare it to a quoted value, `make is "Brompton"`; scenarios may leave it out |
+| `text` | free text; compare it to a quoted value, `make is "Acme"`; scenarios may leave it out |
 | `date` | a calendar date, `2026-07-10` |
-| `collection of bike[, 1 to 5]` | repeatable items, each with the fields indented below it |
+| `collection of item[, 1 to 5]` | repeatable items, each with the fields indented below it |
 | `calculated` | an input or item field worked out from the others by the steps indented below it |
 
 Any of these but a collection may end `, default <value>`: `voluntary_excess: money,
@@ -29,27 +29,56 @@ one without a default must be given.
 
 ```ipn
 inputs
-  rider_age: integer
-  bikes: collection of bike, 1 to 4
+  contents_sum: money
+  specified_items: collection of item, 1 to 10
+    description: text
     value: money
-    age: integer
-    security: choice of bronze, silver, gold
 ```
 
-The plural (`bikes`) names the collection, the singular (`bike`) names one item. Bounds
-are optional: `, 1 to 4`, `, at least 1` or `, at most 4`. A quote outside the bounds is
-declined with the reason `bikes: at least 1 required` or `bikes: at most 4 allowed`. A
+The plural (`specified_items`) names the collection, the singular (`item`) names one item. Bounds
+are optional: `, 1 to 10`, `, at least 1` or `, at most 10`. A quote outside the bounds is
+declined with the reason `specified_items: at least 1 required` or `specified_items: at most 10 allowed`. A
 field may not share its name with an input.
 
 Items appear in conditions and amounts like this:
 
 | Write | Meaning |
 |---|---|
-| `count of bikes` | how many items |
-| `total value of bikes`, `highest value of bikes`, `lowest value of bikes` | aggregate of one field |
-| `any bike where value > 5000` | true if one item matches |
-| `every bike where security is gold` | true if all items match |
-| `value`, `age` on their own | the current item's field, inside `for each`, a cover, a claim or a `where` |
+| `count of specified_items` | how many items |
+| `total value of specified_items`, `highest value of specified_items`, `lowest value of specified_items` | aggregate of one field |
+| `any item where value > 5000` | true if one item matches |
+| `every item where value <= 15000` | true if all items match |
+| `value`, `description` on their own | the current item's field, inside `for each`, a cover, a claim or a `where` |
+
+## Calculated fields
+
+A `calculated` input or item field is worked out from the others by the same
+steps a `for each` block uses (`base`, `add`, `factor`, `discount`, `load`,
+`minimum`, `maximum`). It is never asked. Calculated fields are filled in
+before anything else runs, so eligibility, covers and claims can use them too.
+
+A top-level formula, such as BMI on a life product:
+
+```ipn
+inputs
+  height_cm: number
+  weight_kg: number
+  bmi: calculated
+    base weight_kg / ( height_cm / 100 * height_cm / 100 )
+```
+
+An item field used to rank a collection (see [rating](rating.md)):
+
+```ipn
+inputs
+  specified_items: collection of item
+    description: text
+    value: money
+    rank: calculated
+      base value
+```
+
+[Level term life](../examples/life.md) calculates BMI this way.
 
 ## Choices from a table
 
@@ -93,6 +122,5 @@ Amounts and conditions are expressions: `+ - * /`, `N% of x`, `a ^ b` (power, so
 | `min ( a, b, ... )`, `max ( a, b, ... )` | the smallest or largest |
 | `round ( x, 0.0001 )` | x to that unit, half up; use it so a curve's value reads sensibly in the trail and can be expected in a scenario |
 
-All arithmetic is in decimal, not floating point, so a curve prices the same on every
-machine. A long formula is better given a name as a `calculated` input (see [repeatable
-items](#repeatable-items)) than written in one line.
+Give a long formula a name as a `calculated` input rather than writing it in one line.
+See [rating](rating.md) for how a calculated field is used in the premium.

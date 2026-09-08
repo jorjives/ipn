@@ -7,9 +7,10 @@ has_toc: false
 
 # Templates
 
-Starting points, one per shape of product. Each is a small working product with comments
-that say what to change, and each passes its own scenarios, so you begin from something
-proven and keep it that way. Copy the file from
+Starting points: an annual personal-lines product, several items on one policy, a
+fixed-term benefit, commercial claims-made, a table, a second version. Each is a small
+working product with comments that say what to change, and each passes its own
+scenarios. Copy the file from
 [`templates/`](https://github.com/jorjives/ipn/tree/main/templates), rename the product,
 and run `check` after every change. The templates are dedicated to the public domain under
 [CC0](https://github.com/jorjives/ipn/blob/main/templates/LICENSE), so what you build
@@ -25,4 +26,4 @@ from one is yours without attribution.
 | [A second version](versioned-product.md) | A product that changes its questions, with upgrading |
 
 Not sure which? [Annual product](annual-product.md) fits most personal lines; the
-[examples](../examples/index.md) show each shape grown into a real product.
+[examples](../examples/index.md) show each of those kinds grown into a real product.

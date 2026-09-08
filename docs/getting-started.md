@@ -1,228 +1,177 @@
 ---
 title: Getting started
-nav_order: 2
+nav_order: 3
 ---
 
 # Getting started
 
-Twenty minutes: install nothing, run the examples, then write a small product of your own
-and prove it.
+The fastest way to see a product check itself is the [playground](playground.md):
+Home contents is already loaded. Change an `expect` line, press Check. Nothing
+to install.
 
-## Install
+Then write a small contents product of your own, in the same playground.
 
-You need Python 3.12 or later and nothing else. Clone the repository and run the tests:
+## Write a product
 
-```sh
-git clone https://github.com/jorjives/ipn.git
-cd ipn
-python3 -m unittest
-```
-
-The reference engine is the `ipngine` package in the repository. Every command below is
-`python3 -m ipngine ...` run from that directory.
-
-## Run an example
-
-```sh
-python3 -m ipngine check examples/cycle.ipn
-```
-
-```check
-PASS Standard rider is eligible
-PASS Under 16 is declined
-PASS Heavy claims history is referred
-...
-PASS Depreciation: an older bike is settled at 85% before the excess
-Cycle Cover: 35 passed, 0 failed
-```
-
-Open [`examples/cycle.ipn`](examples/cycle.md) beside the output. Each `scenario` at the
-bottom of the file is one of those lines, and the scenarios above the lifecycle ones are
-commented with the arithmetic. Every example on this site runs the same way.
-
-## Write your first product
-
-Make a file called `camera.ipn` with a product, its questions, one cover, a price, and a
-scenario that says what the price should be:
+Make a file called `contents.ipn` (or paste it into the playground) with a
+product, its questions, one cover, a price, and a scenario that says what the
+price should be:
 
 ```ipn
-product "Camera Cover"
+product "Home Contents"
   territory UK
   term 12 months
 
 inputs
-  camera_value: money
-  owner_age: integer
+  contents_sum: money
+  property_type: choice of detached, semi, terrace, flat
 
-cover Theft
-  limit camera_value
-  excess 75
+cover Contents
+  limit contents_sum
+  excess 100
 
 rating
-  base 5% of camera_value
+  base 0.5% of contents_sum
   tax IPT 12%
 
-scenario "A camera worth 1,000"
-  given camera_value 1000, owner_age 30
-  expect net 50.00
-  expect premium 56.00
+scenario "A terrace of 20,000"
+  given contents_sum 20000, property_type terrace
+  expect net 100.00
+  expect premium 112.00
 ```
 
-```sh
-python3 -m ipngine check camera.ipn
-```
+Press Check.
 
 ```check
-PASS A camera worth 1,000
-Camera Cover: 1 passed, 0 failed
+PASS A terrace of 20,000
+Home Contents: 1 passed, 0 failed
 ```
-
-That is a complete, proven product: a question, a cover, a price with tax, and a scenario
-that holds it to the number you meant.
 
 ### Add eligibility and a rating factor
 
-Add an `eligibility` block, a `factor` on the owner's age, and two scenarios for them.
-The factor's rows are tried in order and the first that holds applies.
+Add an `eligibility` block, a `factor` on the property type, and two scenarios
+for them. The factor's rows are tried in order and the first that holds applies.
 
 ```ipn
 eligibility
-  decline when owner_age < 18 because "Owners must be 18 or over"
-  refer when camera_value > 10000 because "Cameras over 10,000 need an underwriter"
+  decline when contents_sum < 5000 because "The minimum sum insured is 5,000"
+  refer when contents_sum > 150000 because "Sums over 150,000 need a high net worth policy"
 
 rating
-  base 5% of camera_value
-  factor "Owner age"
-    owner_age < 25: x 1.30
+  base 0.5% of contents_sum
+  factor "Property type"
+    property_type is detached: x 1.10
     otherwise: x 1.00
   tax IPT 12%
 
-scenario "A young owner pays more"
-  given camera_value 1000, owner_age 22
-  expect factor "Owner age" x 1.30
-  expect premium 72.80
+scenario "A detached house pays more"
+  given contents_sum 20000, property_type detached
+  expect factor "Property type" x 1.10
+  expect premium 123.20
 
-scenario "Under 18 is declined"
-  given camera_value 1000, owner_age 17
-  expect declined "Owners must be 18 or over"
+scenario "Under the minimum is declined"
+  given contents_sum 4000, property_type terrace
+  expect declined "The minimum sum insured is 5,000"
 ```
 
 ```check
-PASS A camera worth 1,000
-PASS A young owner pays more
-PASS Under 18 is declined
-Camera Cover: 3 passed, 0 failed
+PASS A terrace of 20,000
+PASS A detached house pays more
+PASS Under the minimum is declined
+Home Contents: 3 passed, 0 failed
 ```
 
 ### See a failure
 
-Change the young owner's expected premium to `65.00` and run `check` again:
+Change the detached house's expected premium to `100.00` and check again:
 
 ```check
-PASS A camera worth 1,000
-FAIL A young owner pays more
-     line 33: expected premium 65.00, got 72.80
-PASS Under 18 is declined
-Camera Cover: 2 passed, 1 failed
+PASS A terrace of 20,000
+FAIL A detached house pays more
+     line 33: expected premium 100.00, got 123.20
+PASS Under the minimum is declined
+Home Contents: 2 passed, 1 failed
 ```
 
-A failure names the line and says what the engine produced. The exit status is 1, so a
-failing product cannot get through a pipeline. Put the number back before going on.
+A failure names the line and says what the engine produced. Put the number back
+before going on.
 
 ### Add the lifecycle and claims
 
-The `lifecycle` block says how the policy behaves after it is bought; the `claims` block
-says what a claim needs and how it is paid. Scenarios can now play events in order with
-`when`, and check the state after each.
+The `lifecycle` block says how the policy behaves after it is bought; the
+`claims` block says what a claim needs and how it is paid. Scenarios can now
+play events in order with `when`, and check the state after each.
 
 ```ipn
 lifecycle
   cooling off 14 days, full refund
-  cancellation by customer: refund pro rata, fee 10
+  cancellation by customer: refund pro rata, fee 20
   cancellation by insurer: refund pro rata
   adjustment: reprice, charge pro rata difference
   renewal
     invite 21 days before expiry
     increase capped at 20%
-    index owner_age by 1
+    index contents_sum by 5%
 
 claims
-  claim Theft
+  claim Contents
     requires police_report
     pays claimed amount up to limit, less excess
     decline when reported after 30 days because "Theft must be reported within 30 days"
 
 scenario "Cancelling half way through refunds half, less the fee"
-  given camera_value 1000, owner_age 30
+  given contents_sum 20000, property_type terrace
   when bound on 2026-01-01
   when cancelled by customer on 2026-07-02
-  # 183 of 365 days unused: 56.00 x 183/365 = 28.08, less the 10 fee
-  expect refund 18.08
+  # 183 of 365 days unused: 112.00 x 183/365 = 56.15, less the 20 fee
+  expect refund 36.15
   expect status cancelled
 
-scenario "A young owner's renewal at 25 loses the loading"
-  given camera_value 1000, owner_age 24
+scenario "Renewal indexes the sum insured"
+  given contents_sum 20000, property_type terrace
   when bound on 2026-01-01
-  expect premium 72.80
-  expect renewal premium 56.00
+  expect premium 112.00
+  expect renewal premium 117.60
 
 scenario "Theft pays the claim less the excess"
-  given camera_value 1000, owner_age 30
+  given contents_sum 20000, property_type terrace
   when bound on 2026-01-01
-  when claim Theft for 800 on 2026-05-01 with police_report
+  when claim Contents for 800 on 2026-05-01 with police_report
   expect claim paid
-  expect payout 725.00
+  expect payout 700.00
 
 scenario "A theft reported late is declined"
-  given camera_value 1000, owner_age 30
+  given contents_sum 20000, property_type terrace
   when bound on 2026-01-01
-  when claim Theft for 800 on 2026-05-01 reported 2026-06-15 with police_report
+  when claim Contents for 800 on 2026-05-01 reported 2026-06-15 with police_report
   expect claim declined "Theft must be reported within 30 days"
 ```
 
 ```check
-PASS A camera worth 1,000
-PASS A young owner pays more
-PASS Under 18 is declined
+PASS A terrace of 20,000
+PASS A detached house pays more
+PASS Under the minimum is declined
 PASS Cancelling half way through refunds half, less the fee
-PASS A young owner's renewal at 25 loses the loading
+PASS Renewal indexes the sum insured
 PASS Theft pays the claim less the excess
 PASS A theft reported late is declined
-Camera Cover: 7 passed, 0 failed
+Home Contents: 7 passed, 0 failed
 ```
 
-Notice what the renewal scenario proves: `index owner_age by 1` moves the owner to 25, the
-factor's first row no longer holds, and the loading falls away by itself.
-
-## Price a risk
-
-`quote` prices one risk and prints the trail, step by step:
-
-```sh
-python3 -m ipngine quote camera.ipn camera_value=1000 owner_age=22
-```
-
-```
-Eligibility: eligible
-  Theft: included, limit 1000.00
-Premium:
-  base                      50.00  = 50.00
-  Owner age                x 1.30  = 65.00
-  net                              = 65.00
-  IPT                              + 7.80
-  total                            = 72.80 GBP
-```
-
-`batch` does the same for a CSV of risks, one row each. See the
-[command line](cli.md) page.
+The renewal scenario holds because `index contents_sum by 5%` moves the sum to
+21,000, the base becomes 105, and IPT follows.
 
 ## Where next
 
-- No install at all: the [playground](playground.md) runs `check` in your browser on any of the
-  examples, or on what you type.
-- Start a real product from a [template](templates/index.md): each is a working file with
-  comments that say what to change.
-- Read the [reference](reference/index.md) block by block, or find the construct you need
-  in a product like yours among the [examples](examples/index.md).
-- When the product changes, put the new version beside the old with a `published` date;
-  see [Versions](reference/versions.md).
+- Start a real product from a [template](templates/index.md): each is a working
+  file with comments that say what to change.
+- Read the [reference](reference/index.md) block by block, or find the construct
+  you need in a product like yours among the [examples](examples/index.md).
+- When the product changes, put the new version beside the old with a
+  `published` date; see [Versions](reference/versions.md).
+
+## On your machine
+
+To run the same checks locally, clone the repository and use the reference
+engine. That path, and how to embed the engine in a platform, is under
+[For engineers](engineers.md).

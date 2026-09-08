@@ -1,7 +1,7 @@
 ---
 title: Irish Cycle
 parent: Examples
-nav_order: 5
+nav_order: 16
 ---
 
 # Irish Cycle

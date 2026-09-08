@@ -1,5 +1,5 @@
 title: IPN
-description: Insurance Product Notation: an open spec for declaring insurance product behaviour end to end, proven by scenarios in the same file.
+description: Insurance Product Notation: an open proposal for declaring insurance product behaviour end to end, with scenarios in the same file.
 url: "https://jorjives.github.io"
 baseurl: "/ipn"
 repository: jorjives/ipn
@@ -50,7 +50,7 @@ gh_edit_branch: "main"
 gh_edit_source: docs
 gh_edit_view_mode: "tree"
 
-footer_content: "IPN is licensed under Apache 2.0; the examples and templates are CC0. The reference engine is written in Python with no dependencies; every page of examples on this site is generated from files that pass their own scenarios."
+footer_content: "IPN is licensed under Apache 2.0; the examples and templates are CC0. Every example and template page on this site is generated from a file whose scenarios pass."
 
 callouts:
   note:
@@ -60,7 +60,7 @@ callouts:
     title: Take care
     color: red
   proof:
-    title: Proof
+    title: Scenarios
     color: green
 
 kramdown:

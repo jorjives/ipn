@@ -10,8 +10,8 @@ A customer stays on the version of a product they bought until it renews. A vers
 identified by the date it went on sale, `published 2026-07-01` in the `product` block; there
 are no version numbers. The other versions of a product are the `.ipn` files in the same
 directory that declare the same product name. `check` finds them itself, and a file sees
-only the versions published on or before its own date, so a proof written in an old version
-stays true when new ones are published. See [`examples/versioned/`](../examples/bike-versioned.md).
+only the versions published on or before its own date, so a scenario written in an old
+version still holds when new ones are published. See [`examples/versioned/`](../examples/bike-versioned.md).
 
 - The version **live** on a date is the one with the latest `published` on or before it.
   `when bound on DATE` binds under that version; binding before the first version is
@@ -41,14 +41,13 @@ right-hand side always reads the old answers, even when the name is kept.
 
 ```ipn
 upgrading
-  lock_rating
-    security is gold: gold
-    security is silver: silver
+  alarm_rating
+    alarm is yes: high
     otherwise: ask
-  total_value: bike_value + accessories_value
-  racing: no
-  bikes: for each bike
-    lock: high when security is gold, otherwise low
+  total_value: contents_sum + valuables_sum
+  accidental_damage: no
+  specified_items: for each item
+    band: high when value > 5000, otherwise low
 ```
 
 - `input: <expression>` gives one value; `input: <value> when <condition>, <value> when
@@ -60,11 +59,11 @@ upgrading
   that reach that row, so most of a book rolls over unattended and a few are asked.
 - `collection: for each <old item>` upgrades every item; the lines below use the old
   item's fields and the old answers, fields not mentioned carry by name, and the
-  collection may be renamed. An asked item field is reported as `bike.lock`.
+  collection may be renamed. An asked item field is reported as `item.band`.
 - A word the previous version does not know, a row block without `otherwise`, or a bare
   word that is neither an old input nor a choice of the target is an error when the
-  history loads, with the line. A value the target cannot hold (`lock_rating` given
-  `gold` when its choices are `low, high`) fails the renewal with "lock_rating cannot be
+  history loads, with the line. A value the target cannot hold (`alarm_rating` given
+  `gold` when its choices are `low, high`) fails the renewal with "alarm_rating cannot be
   'gold'; it is a choice of low, high".
 - Across several versions the blocks chain in publication order. An `ask` at one step
   leaves that answer unknown, and any later expression that reads it is unknown too; what
@@ -72,21 +71,24 @@ upgrading
 
 ## Dated lines: mid-term amendments
 
-A change that must reach policies already in force is an amendment with an effective
-date, written inside the current version rather than as a new one. Any line inside a `cover` block or a `claim` block may
-begin with `from DATE`, `until DATE`, or both:
+A policy bought on the January version is settled with a `from` line written in
+July. Write the amendment once, in the latest file. Every affected version must
+already have the names it uses.
+
+Any line inside a `cover` block or a `claim` block may begin with `from DATE`,
+`until DATE`, or both:
 
 ```ipn
-cover Theft
-  limit bike_value
-  from 2027-03-01 limit 2 * bike_value
-  until 2027-03-01 excludes when racing is yes because "Racing was excluded until March 2027"
+cover Contents
+  limit contents_sum
+  from 2027-03-01 limit 2 * contents_sum
+  until 2027-03-01 excludes when alarm is no because "Unalarmed risks were excluded until March 2027"
 
 claims
-  claim Theft
+  claim Contents
     pays claimed amount up to limit, less excess
-    requires crime_reference
-    from 2027-03-01 requires crime_reference, lock_photo
+    requires police_report
+    from 2027-03-01 requires police_report, purchase_receipt
 ```
 
 - A dated line is in effect for an event on or after its `from` date and before its
@@ -103,11 +105,6 @@ claims
   premium charged for the term already stands and eligibility is settled at purchase.
 - The words a dated line may use are the words its block may use: a cover line reads the
   answers, a claim line also reads the facts the claim asks for.
-- **An amendment reaches every version in force.** A dated line written in one version also
-  amends the same cover or claim in every earlier version (a policy bought on the January
-  version is settled with a `from` line written in July), because the customers on the old
-  version are the ones it must reach. Write it once, in the latest version. It must
-  therefore read in the words of every version it reaches: a dated line naming an input or
-  fact an earlier version never asked for is refused at load with "'word' is not known to
-  the version published DATE, which this amendment reaches". A version's own undated lines
-  are its own; only dated lines travel.
+- Only dated lines travel to earlier versions. A version's own undated lines are its own.
+  A dated line naming an input or fact an earlier version never asked for is refused at
+  load with "'word' is not known to the version published DATE, which this amendment reaches".

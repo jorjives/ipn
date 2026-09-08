@@ -6,38 +6,27 @@ nav_order: 6
 
 # cover
 
-One block per section of cover.
+One block per section of cover: what it pays, what it does not, and when it
+is offered.
 
 ```ipn
-cover Theft
-  limit bike_value
-  excess 10% of claim, minimum 50
-  excludes when security is bronze and bike_value > 2000 because "Gold or silver rated lock required"
+cover Contents
+  limit contents_sum
+  excess 100
+  excludes when alarm is no and contents_sum > 80000 because "Sums over 80,000 need an alarm"
 
-cover Racing optional
-  class 3
-  limit 5000
-  excess 250
-  available when racing is yes
+cover "Accidental Damage" optional
+  class 9
+  limit contents_sum
+  excess 100
+  available when occupied_during_day is yes
 ```
 
 - `optional` covers are only included when the customer selects them.
-- `class 3` names the class the cover reports under (a regulator's cover class, say). It is
+- `class 9` names the class the cover reports under (a regulator's cover class, say). It is
   a word the engine does not interpret, so `class 8`, `class 9a` and `class Kasko` all
   work, and several covers may share one. A product whose covers have classes attributes
   its premium to them; see [rating](rating.md#shares-by-cover).
-- `premium 0.5% of value` prices the cover on its own, with the full expression language
-  (`N% of x`, arithmetic, `rate from "Table"`, calculated inputs) and an optional `when`:
-  no premium when the condition fails. `premium` on its own line, with rating steps
-  indented below it (`base`, `factor`, `add`, `discount`, `load`, `minimum`, `maximum`,
-  each with its usual `when`), prices it the way a `calculated` input is worked out. Lines
-  (`tax`, `fee`, `commission`, `round`) and `for each` are not allowed there, nor are the
-  rating words `net`, `premium` and cover names: a cover premium reads inputs only.
-  An optional cover that is not selected, or a cover excluded for the risk, has no premium.
-  A premium that reads an item's fields (`value` of a `bike`) is priced once per item and
-  the cover's premium is the sum; it may read the fields of one collection only. The
-  `rating` block says where cover premiums join the net with `add cover premiums`; see
-  [rating](rating.md#covers-that-price-themselves).
 - `available when` says when an optional cover may be offered at all.
 - `excludes when` removes the cover for this risk and records the reason.
 - `limit` and `excess` are amounts; `claim` inside an excess means the amount claimed.
@@ -56,8 +45,8 @@ cover Racing optional
   the days left. The scenario event is `when reinstated Cover on DATE` and the charge is
   available to `expect additional premium`.
 - `limit 4000 per term per condition` keeps one such limit for each value of a fact the
-  claim asks for (`condition` here), and `limit 1500 per term per traveller` one for each
-  item, which makes the cover per item so claims say `on traveller 2`. A claim erodes only
+  claim asks for (`condition` here), and `limit 1500 per term per item` one for each
+  item, which makes the cover per item so claims say `on item 2`. A claim erodes only
   the limit it belongs to.
 - An excess may be a table instead of one amount, in the shape of a rating factor without
   the `x`, ending with an `otherwise` row so every claim has an excess. Its rows may use
@@ -66,8 +55,8 @@ cover Racing optional
 
   ```
   excess
-    driver_age < 25: 550 + voluntary_excess
-    otherwise: 250 + voluntary_excess
+    cause is escape_of_water: 350
+    otherwise: 100
   ```
 - `in force from departure_date` and `in force until departure_date` make a section of
   cover start or stop on a date of its own rather than with the policy. A loss outside the
@@ -77,3 +66,44 @@ cover Racing optional
   Renewing does not restart it.
 
 The engine reports each cover as *included*, *excluded*, *not selected* or *not available*.
+
+## Cover premium: one-line price
+
+A section may carry its own price. `premium 0.5% of contents_sum` uses the full
+expression language (`N% of x`, arithmetic, `rate from "Table"`, calculated
+inputs) and an optional `when`: no premium when the condition fails.
+
+```ipn
+cover Contents optional
+  premium 0.5% of contents_sum
+  limit contents_sum
+  excess 100
+```
+
+[Buildings and contents](../examples/household.md) prices each section this way.
+
+## When a cover premium does not apply
+
+An optional cover that is not selected, or a cover excluded for the risk, has
+no premium.
+
+## Per-item cover premiums
+
+A premium that reads an item's fields (`value` of an `item`) is priced once per
+item and the cover's premium is the sum. It may read the fields of one
+collection only.
+
+## Where cover premiums join the net
+
+The `rating` block says where cover premiums join the net with
+`add cover premiums`. See [rating](rating.md#covers-that-price-themselves).
+
+## Cover premium: indented steps
+
+`premium` on its own line, with rating steps indented below it (`base`,
+`factor`, `add`, `discount`, `load`, `minimum`, `maximum`, each with its usual
+`when`), prices the cover the way a `calculated` input is worked out.
+
+Tax, fee, commission, `round` and `for each` are not allowed there, nor are the
+rating words `net`, `premium` and cover names: a cover premium reads inputs
+only.

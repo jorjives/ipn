@@ -1,12 +1,12 @@
 ---
 title: Glossary
-nav_order: 9
+nav_order: 7
 ---
 
 # Glossary
 
-The insurance words the language uses, for readers who write code, and the language's own
-words, for readers who write products.
+The insurance words the language uses, for people who write products, and the
+language's own words.
 
 ## Insurance terms
 
@@ -57,15 +57,16 @@ words, for readers who write products.
 | **Block** | A keyword on a line of its own with lines indented beneath it: `product`, `inputs`, `cover`, `rating` and so on. |
 | **Allocate** | The key in `rating` that shares the premium no step credited to a cover, by percentages summing to 100. |
 | **Calculated** | An input or item field worked out from the others by steps, never asked. |
-| **Collection, item** | A repeatable input (`bikes`) and one of its members (`bike`), each with fields. |
+| **Collection, item** | A repeatable input (`specified_items`) and one of its members (`item`), each with fields. |
 | **Dated line** | A cover or claim line beginning `from DATE` or `until DATE`: a mid-term amendment reaching every policy in force. |
 | **Fact** | Something a claim `asks` for that is only known when the claim is made: the cause, who was driving. |
-| **Cover premium** | A price written on the cover itself (`premium 0.5% of value`), joined to the net where `rating` says `add cover premiums`. |
+| **Cover premium** | A price written on the cover itself (`premium 0.5% of contents_sum`), joined to the net where `rating` says `add cover premiums`. |
 | **Factor** | A rating step with rows of `condition: x N`; the first matching row applies. |
-| **Line** | A `tax`, `fee` or `commission` step: an amount on top of, or reported against, the net as it stands where the line is written. |
 | **History** | A product's versions: the `.ipn` files in one directory that declare the same product name. |
+| **Line** | A source location (`line 8: unknown word`), or, in the rating table, a tax, fee or commission step. In running prose prefer tax, fee or commission. |
 | **Published** | The date a version went on sale, and its only identity. |
-| **Scenario** | A proof: `given` answers, `select`ed covers, `when` events in order, and `expect`ations after each. |
+| **Scenario** | An executable example: `given` answers, `select`ed covers, `when` events in order, and `expect`ations after each. |
 | **Trail** | The list of rating steps applied to a risk and the running net after each, as `quote` prints it. |
 | **Upgrading** | The block that says how the previous version's answers become this version's, including `ask`. |
 | **Version** | One `.ipn` file of a product with a `published` date. A policy stays on its version until it renews. |
+| **Word** | An identifier the product must recognise: an input, a cover name, a fact, a choice. A dated amendment may only use words every affected version already has. |

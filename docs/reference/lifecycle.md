@@ -6,6 +6,9 @@ nav_order: 8
 
 # lifecycle
 
+How the policy behaves after it is bought: cooling off, cancellation,
+adjustment, lapse, instalments and renewal.
+
 ```ipn
 lifecycle
   cooling off 14 days, full refund
@@ -18,13 +21,13 @@ lifecycle
     invite 21 days before expiry
     increase capped at 20%
     decrease collared at 10%
-    index bike_value by 5%
-    index rider_age by 1
+    index contents_sum by 5%
+    index previous_claims by claims in term
     decline when claims in term >= 3 because "Three or more claims in the year"
 ```
 
-A product that simply ends, such as single-trip travel or term life, says `renewal: none`
-instead of a `renewal` block; the offer is then declined with "The policy is not renewable".
+A product that simply ends, such as single-trip travel or term life, says
+`renewal: none` instead of a `renewal` block. No invitation is made.
 
 Policy status on any date is one of *quoted*, *bound* (before inception), *live*,
 *lapsed*, *cancelled*, *expired* or *renewed* (a past policy year).
@@ -58,9 +61,9 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
 - **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
   insured, `by N` to add a fixed amount, such as a year of age, `by -N` to take one away.
   `, at least 0` and `, at most 9` keep the result within bounds, so a no claims discount
-  grows to nine years and never falls below none. The amount may be any expression over
+  grows to nine years and never falls below zero. The amount may be any expression over
   the expiring answers and `claims in term`, so `index previous_claims by claims in term`
-  rolls the year's claims into the record the rating reads. `index bike value by 5%`
+  rolls the year's claims into the record the rating reads. `index item value by 5%`
   moves a field on every item. The offer is the product repriced on those answers, with
   any claims loading (see [claims](claims.md)) applied to the net before tax, then held within the
   cap and collar: no more than the premium charged for the current term plus the cap

@@ -1,7 +1,7 @@
 ---
 title: Lifetime Pet Cover
 parent: Examples
-nav_order: 10
+nav_order: 6
 ---
 
 # Lifetime Pet Cover

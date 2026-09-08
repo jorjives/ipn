@@ -1,7 +1,7 @@
 ---
 title: Cycle Cover
 parent: Examples
-nav_order: 1
+nav_order: 13
 ---
 
 # Cycle Cover
