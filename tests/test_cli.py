@@ -213,10 +213,6 @@ rating
         self.assertIn("command line and as a column", rows[0][0])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CheckVersions(unittest.TestCase):
     V1 = 'product "Bike"\n  published 2026-01-01\n  term 12 months\ninputs\n  bike_value: money\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\n'
 
@@ -346,3 +342,7 @@ class KeyedChoices(unittest.TestCase):
         rows = list(csv.reader(io.StringIO(out)))
         self.assertEqual(rows[1][-1], 'occupation "Nurse" is not an occupation for industry "construction"')
         self.assertEqual(rows[2][-1], "")
+
+
+if __name__ == "__main__":
+    unittest.main()
