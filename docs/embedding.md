@@ -10,6 +10,10 @@ The supported interface is the [command line](cli.md): `check`, `quote` and
 `batch`. Text in, text or CSV out, a non-zero exit on failure, errors as
 `line N: …`. There is no HTTP or JSON quote API.
 
+`batch` may take one collection file per repeatable input
+(`specified_items=file.csv`), joined to the book on `risk`, as the command
+line describes. The interface is the same: text in, CSV out.
+
 The Python package is the reference implementation, not a versioned SDK.
 `ipngine/__init__.py` exports nothing. An integrator who imports modules does
 so against the source.

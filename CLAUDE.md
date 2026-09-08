@@ -50,7 +50,7 @@ The pipeline is: **parser → model → engine**, with scenarios driving the eng
 | `tables.py` | Lookup tables in long CSV format. Cells are exact values, inclusive bands (`17-20`, `65+`), or `*` wildcard. Most-specific-row wins. Supports linear and geometric interpolation on one key. A key column can also be the list a `choice of <column> from "Table" [for key]` input draws on (`Table.values_for`); `engine.check_inputs` validates keyed choices. |
 | `versions.py` | A product's published versions (`History`): which is live on a date, moving answers between versions. Built by the CLI from the `.ipn` files beside the product with the same name; a lone file is a history of one. |
 | `scenarios.py` | Runs `scenario` blocks: feeds events (`bound`, `cancelled`, `adjusted`, `claim`, `renewed`) into the engine in order, then checks `expect` lines against the resulting state. |
-| `cli.py` | Two commands: `check` (run scenarios) and `quote` (price one risk). |
+| `cli.py` | Three commands: `check` (run scenarios), `quote` (price one risk) and `batch` (price a book, with optional `collection=file.csv` bindings joined on `risk`). |
 
 ### Key flow: how a scenario runs
 

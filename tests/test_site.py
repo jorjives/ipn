@@ -65,6 +65,13 @@ class Truthful(unittest.TestCase):
             with self.subTest(page.relative_to(ROOT)):
                 self.assertNotIn("cannot be given in a batch row", page.read_text(encoding="utf-8"))
 
+    def test_the_engineering_pages_name_the_collection_files(self):
+        embedding = (DOCS / "embedding.md").read_text(encoding="utf-8")
+        self.assertIn("collection", embedding)
+        self.assertIn("`risk`", embedding)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("specified_items=examples/home-specified-items.csv", readme)
+
     def test_the_command_line_page_documents_the_collection_bindings(self):
         md = (DOCS / "cli.md").read_text(encoding="utf-8")
         self.assertIn("python3 -m ipngine batch FILE.ipn RISKS.csv [collection=file.csv ...]", md)
