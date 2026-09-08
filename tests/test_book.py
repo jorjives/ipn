@@ -2,6 +2,7 @@
 import csv
 import io
 import unittest
+from decimal import Decimal
 from pathlib import Path
 
 from tests.test_cli import run
@@ -45,3 +46,28 @@ class HouseholdBook(unittest.TestCase):
         self.assertTrue(all(r["error"] == "" for r in rows))
         self.assertIn("declined", {r["eligibility"] for r in rows})
         self.assertIn("eligible", {r["eligibility"] for r in rows})
+
+
+class HomeBookWithItems(unittest.TestCase):
+    def test_the_documented_command_prices_three_risks_with_their_jewellery(self):
+        code, out = run(
+            "batch", str(ROOT / "examples" / "home.ipn"), str(ROOT / "examples" / "home-risks.csv"),
+            f"specified_items={ROOT / 'examples' / 'home-specified-items.csv'}",
+        )
+        self.assertEqual(code, 0, out)
+        rows = list(csv.DictReader(io.StringIO(out)))
+        self.assertEqual([r["risk"] for r in rows], ["A", "B", "C"])
+        self.assertTrue(all(r["error"] == "" for r in rows))
+        self.assertTrue(all(r["eligibility"] == "eligible" for r in rows))
+        a, b, c = (Decimal(r["net"]) for r in rows)
+        self.assertGreater(a, b)  # A carries a watch, B carries nothing
+        self.assertGreater(c, a)
+
+    def test_specified_items_is_not_a_column_on_the_book(self):
+        with (ROOT / "examples" / "home-risks.csv").open(encoding="utf-8", newline="") as f:
+            book = csv.DictReader(f)
+            self.assertNotIn("specified_items", book.fieldnames)
+            self.assertEqual(book.fieldnames[0], "risk")
+        with (ROOT / "examples" / "home-specified-items.csv").open(encoding="utf-8", newline="") as f:
+            items = list(csv.DictReader(f))
+        self.assertEqual([r["risk"] for r in items], ["A", "C", "C"])

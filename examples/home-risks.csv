@@ -1,0 +1,4 @@
+risk,postcode,contents_sum,property_type,alarm,occupied_during_day,previous_claims,flood_risk,theft_area
+A,SW1A 1AA,20000,terrace,no,yes,0,low,low
+B,E1 6AN,20000,terrace,no,yes,0,low,low
+C,M1 1AE,80000,detached,yes,no,1,low,high
