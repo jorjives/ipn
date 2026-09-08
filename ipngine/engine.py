@@ -68,6 +68,10 @@ def check_inputs(product: Product, inputs: dict) -> list[str]:
     problems += keyed_choice_problems(product, product.inputs, inputs, inputs)
     for coll in product.collections:
         for n, item in enumerate(inputs.get(coll.name, []), start=1):
+            item_missing = [f for f, i in coll.fields.items()
+                             if f not in item and i.kind not in ("text", "calculated", "collection") and not i.provided and i.default is None]
+            if item_missing:
+                problems.append(f"{coll.name} item {n}: missing {', '.join(item_missing)}")
             problems += [f"{coll.name} item {n}: {why}" for why in keyed_choice_problems(product, coll.fields, item, {**inputs, **item})]
     return problems
 

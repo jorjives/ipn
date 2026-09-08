@@ -1534,6 +1534,11 @@ class CheckInputs(unittest.TestCase):
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})),
                          ['people item 2: occupation "Nurse" is not an occupation for industry "construction"'])
 
+    def test_a_missing_field_in_a_collection_item_is_reported(self):
+        p = parse(occupations('inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n    age: integer\n'))
+        items = [{"industry": "construction", "occupation": "Labourer"}]
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})), ["people item 1: missing age"])
+
     def test_a_number_key_reads_plainly(self):
         p = parse('product "X"\n  territory UK\n\ninputs\n  band: integer\n  plan: choice of plan from "Plans" for band\n\ntable "Plans" keyed on band, plan\n  band, plan\n  1, basic\n  2, basic\n  2, plus\n')
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(1), "plan": "plus"})), ['plan "plus" is not a plan for band 1'])
