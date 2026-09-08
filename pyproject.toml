@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ipngine"
+version = "0.1.0"
+description = "Insurance Product Notation: an open proposal for declaring an insurance product end to end"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+
+[tool.hatch.build.targets.wheel]
+packages = ["ipngine"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "ipngine/",
+    "README.md",
+    "LICENSE",
+]
