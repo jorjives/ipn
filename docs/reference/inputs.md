@@ -40,6 +40,11 @@ are optional: `, 1 to 10`, `, at least 1` or `, at most 10`. A quote outside the
 declined with the reason `specified_items: at least 1 required` or `specified_items: at most 10 allowed`. A
 field may not share its name with an input.
 
+A quote gives the items as a CSV whose columns are the fields. A book gives one
+such CSV per collection, with a `risk` column joining its rows to the book's
+rows, so a whole book of policies with items is priced in one run. See
+[Command line](../cli.md).
+
 Items appear in conditions and amounts like this:
 
 | Write | Meaning |

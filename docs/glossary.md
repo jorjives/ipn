@@ -57,7 +57,7 @@ language's own words.
 | **Block** | A keyword on a line of its own with lines indented beneath it: `product`, `inputs`, `cover`, `rating` and so on. |
 | **Allocate** | The key in `rating` that shares the premium no step credited to a cover, by percentages summing to 100. |
 | **Calculated** | An input or item field worked out from the others by steps, never asked. |
-| **Collection, item** | A repeatable input (`specified_items`) and one of its members (`item`), each with fields. |
+| **Collection, item** | A repeatable input (`specified_items`) and one of its members (`item`), each with fields; a book prices them from a second CSV joined on `risk`, see [Command line](cli.md). |
 | **Dated line** | A cover or claim line beginning `from DATE` or `until DATE`: a mid-term amendment reaching every policy in force. |
 | **Fact** | Something a claim `asks` for that is only known when the claim is made: the cause, who was driving. |
 | **Cover premium** | A price written on the cover itself (`premium 0.5% of contents_sum`), joined to the net where `rating` says `add cover premiums`. |

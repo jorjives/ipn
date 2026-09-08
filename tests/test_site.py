@@ -75,6 +75,15 @@ class Truthful(unittest.TestCase):
         )
         self.assertIn("`risk`", md)
 
+    def test_the_language_pages_point_at_the_join(self):
+        inputs = (DOCS / "reference/inputs.md").read_text(encoding="utf-8")
+        self.assertIn("`risk`", inputs)
+        self.assertIn("(../cli.md)", inputs)
+        started = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+        self.assertIn("second CSV", started)
+        glossary = (DOCS / "glossary.md").read_text(encoding="utf-8")
+        self.assertIn("cli.md", glossary)
+
 
 class Playground(unittest.TestCase):
     """The browser playground fetches the engine and the products by name, so the names must not drift."""

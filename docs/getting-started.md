@@ -164,7 +164,8 @@ The renewal scenario holds because `index contents_sum by 5%` moves the sum to
 ## Where next
 
 - Price a sample book, change a rate, and see who moves, on
-  [Price a book](book.md).
+  [Price a book](book.md). A book whose risks carry specified items, drivers or
+  members is a second CSV joined on `risk`, shown on the same page.
 - Start a real product from a [template](templates/index.md): each is a working
   file with comments that say what to change.
 - Read the [reference](reference/index.md) block by block, or find the construct
