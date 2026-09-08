@@ -8,7 +8,7 @@ import sys
 
 from .engine import check_eligibility, check_inputs, cover_state, instalments, rate
 from .expr import ExprError
-from .parser import Line, ParseError, given_value, items_from_file, parse, with_defaults
+from .parser import Line, ParseError, given_item, given_value, group_item_rows, items_from_file, parse, with_defaults
 from .scenarios import run_all
 from .tables import TableError
 from .versions import History
@@ -102,46 +102,103 @@ def share_line(name: str, s) -> str:
     return f"  {name:<29}net {s.net:f}" + "".join(f"  {label} {amount:f}" for label, amount in s.lines + s.commission)
 
 
-def batch(path: str, risks: str, out=None) -> int:
-    """batch FILE RISKS.csv: one risk per row in, one row per risk out with eligibility and the premium lines.
+def batch(path: str, risks: str, *bindings: str, out=None) -> int:
+    """batch FILE RISKS.csv [collection=file.csv ...]: one risk per row in, one row per risk out.
 
     A risk that cannot be priced (an answer missing, a cell off the table) is reported in its own row's
-    error column; the others still price. Columns are the input names plus an optional `select`, cover
-    names separated by ';'.
+    error column; the others still price. Columns are the input names plus optional `select` and `risk`.
+    Collection files are joined on `risk` (the 1-based row number when the book omits it).
     """
     product = load(path)
     writer = csv.writer(out or sys.stdout, lineterminator="\n")
+
+    def fail(message: str) -> int:
+        writer.writerow([message])
+        return 2
+
+    files = {}
+    for arg in bindings:
+        name, eq, value = arg.partition("=")
+        if not eq or name not in product.inputs or product.inputs[name].kind != "collection":
+            return fail(f"{name} is not a collection")
+        files[name] = value
+
     with open(risks, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         columns = [c.strip() for c in reader.fieldnames or []]
-        unknown = [c for c in columns if c != "select" and c not in product.inputs]
+        unknown = [c for c in columns if c not in ("select", "risk") and c not in product.inputs]
         if unknown:
-            writer.writerow([f"unknown column {unknown[0]!r}; expected input names and select"])
-            return 2
-        steps = [s for step in product.rating for s in ([step] + step.steps)]  # a tax may sit inside 'for each'
-        lines = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "fee")))
-        commission = [s.label for s in steps if s.kind == "commission"]
-        attributed = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "commission")))
-        covers = [c.name for c in product.covers] if product.attributed else []
-        shares = [f"{figure}:{cover}" for cover in covers for figure in ["net", *attributed]]  # a cover's part of each attributed figure
-        writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "currency", *commission, *shares, "error"])
-        for n, record in enumerate(reader, start=1):
-            blank = [""] * (len(lines) + len(commission) + len(shares) + 5)
-            try:
-                inputs, selected = risk_inputs(product, [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip()], Line(n, 0, f"row {n}"))
-                problems = check_inputs(product, inputs)
-                if problems:
-                    raise ParseError(problems[0])
-                e = check_eligibility(product, inputs, selected)
-                q = rate(product, inputs, selected)
-            except (ParseError, TableError, ExprError) as err:
-                writer.writerow([n, *blank, str(err).removeprefix(f"line {n}: ")])
-                continue
-            by_label, split, none = dict(q.lines), dict(q.commission), Decimal(0).quantize(q.net)
-            by_cover = {s.name: {"net": s.net, **dict(s.lines), **dict(s.commission)} for s in q.shares}
-            writer.writerow([n, e.outcome, "; ".join(e.reasons), f"{q.net:f}", *(f"{by_label.get(l, none):f}" for l in lines), f"{q.total:f}", q.currency,
-                             *(f"{split.get(l, none):f}" for l in commission),
-                             *(f"{by_cover.get(cover, {}).get(figure, none):f}" for cover in covers for figure in ["net", *attributed]), ""])
+            return fail(f"unknown column {unknown[0]!r}; expected input names and select")
+        clash = [name for name in files if name in columns]
+        if clash:
+            return fail(f"{clash[0]} given on the command line and as a column")
+        book_rows = list(reader)
+
+    ids = []
+    seen = set()
+    named = "risk" in columns
+    for n, record in enumerate(book_rows, start=1):
+        if named:
+            rid = next((v.strip() for k, v in record.items() if k and k.strip() == "risk" and v), "")
+            if not rid:
+                return fail("blank risk")
+            if rid in seen:
+                return fail(f"duplicate risk {rid!r}")
+            seen.add(rid)
+            ids.append(rid)
+        else:
+            ids.append(str(n))
+    known = set(ids)
+
+    grouped = {}
+    for name, item_path in files.items():
+        try:
+            with open(item_path, encoding="utf-8", newline="") as items:
+                item_reader = csv.DictReader(items)
+                fields = [c.strip() for c in item_reader.fieldnames or []]
+                if "risk" not in fields:
+                    return fail(f"{item_path} is missing column 'risk'")
+                records = list(item_reader)
+        except OSError:
+            return fail(f"cannot read {item_path!r}")
+        try:
+            groups = group_item_rows(Line(0, 0, ""), records)
+        except ParseError as err:
+            return fail(str(err).removeprefix("line 0: "))
+        stray = next((rid for rid in groups if rid not in known), None)
+        if stray is not None:
+            return fail(f"unknown risk {stray!r}")
+        grouped[name] = groups
+
+    steps = [s for step in product.rating for s in ([step] + step.steps)]  # a tax may sit inside 'for each'
+    lines = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "fee")))
+    commission = [s.label for s in steps if s.kind == "commission"]
+    attributed = list(dict.fromkeys(s.label for s in steps if s.kind in ("tax", "commission")))
+    covers = [c.name for c in product.covers] if product.attributed else []
+    shares = [f"{figure}:{cover}" for cover in covers for figure in ["net", *attributed]]  # a cover's part of each attributed figure
+    writer.writerow(["risk", "eligibility", "reasons", "net", *lines, "total", "currency", *commission, *shares, "error"])
+    skip = {"risk", *files}
+    for n, (rid, record) in enumerate(zip(ids, book_rows), start=1):
+        blank = [""] * (len(lines) + len(commission) + len(shares) + 5)
+        line = Line(n, 0, f"row {n}")
+        try:
+            pairs = [(k.strip(), v.strip()) for k, v in record.items() if k and v and v.strip() and k.strip() not in skip]
+            inputs, selected = risk_inputs(product, pairs, line)
+            for name, groups in grouped.items():
+                inputs[name] = [given_item(line, product.inputs[name], fields) for fields in groups.get(rid, [])]
+            problems = check_inputs(product, inputs)
+            if problems:
+                raise ParseError(problems[0])
+            e = check_eligibility(product, inputs, selected)
+            q = rate(product, inputs, selected)
+        except (ParseError, TableError, ExprError) as err:
+            writer.writerow([rid, *blank, str(err).removeprefix(f"line {n}: ")])
+            continue
+        by_label, split, none = dict(q.lines), dict(q.commission), Decimal(0).quantize(q.net)
+        by_cover = {s.name: {"net": s.net, **dict(s.lines), **dict(s.commission)} for s in q.shares}
+        writer.writerow([rid, e.outcome, "; ".join(e.reasons), f"{q.net:f}", *(f"{by_label.get(l, none):f}" for l in lines), f"{q.total:f}", q.currency,
+                         *(f"{split.get(l, none):f}" for l in commission),
+                         *(f"{by_cover.get(cover, {}).get(figure, none):f}" for cover in covers for figure in ["net", *attributed]), ""])
     return 0
 
 
@@ -151,14 +208,14 @@ def main(argv: list[str]) -> int:
             return check(argv[1])
         if len(argv) >= 2 and argv[0] == "quote":
             return quote(argv[1], argv[2:])
-        if len(argv) == 3 and argv[0] == "batch":
-            return batch(argv[1], argv[2])
+        if len(argv) >= 3 and argv[0] == "batch":
+            return batch(argv[1], argv[2], *argv[3:])
     except ParseError as e:
         print(f"{argv[1]}: {e}")
         return 1
     print("usage: python -m ipngine check FILE.ipn\n"
           "       python -m ipngine quote FILE.ipn input=value ... [select=Cover] [items=file.csv]\n"
-          "       python -m ipngine batch FILE.ipn RISKS.csv")
+          "       python -m ipngine batch FILE.ipn RISKS.csv [collection=file.csv ...]")
     return 2
 
 

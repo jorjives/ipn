@@ -102,6 +102,61 @@ class BatchCommand(unittest.TestCase):
         self.assertIn("colour", rows[0][0])
 
 
+class BatchCollections(unittest.TestCase):
+    SRC = '''product "X"
+  term 12 months
+inputs
+  rider_age: integer
+  bikes: collection of bike, at most 10
+    value: money
+    age: integer
+    security: choice of gold, silver, bronze
+rating
+  base 10
+  for each bike
+    add 3% of value
+  tax IPT 12%
+'''
+
+    def setUp(self):
+        self.d = tempfile.TemporaryDirectory()
+        self.product = os.path.join(self.d.name, "fleet.ipn")
+        with open(self.product, "w") as f:
+            f.write(self.SRC)
+
+    def tearDown(self):
+        self.d.cleanup()
+
+    def run_batch(self, book: str, items: str | None = None, extra: list[str] | None = None) -> tuple[int, list[list[str]]]:
+        risks = os.path.join(self.d.name, "risks.csv")
+        with open(risks, "w") as f:
+            f.write(book)
+        argv = ["batch", self.product, risks]
+        if items is not None:
+            path = os.path.join(self.d.name, "bikes.csv")
+            with open(path, "w") as f:
+                f.write(items)
+            argv.append(f"bikes={path}")
+        argv.extend(extra or [])
+        code, out = run(*argv)
+        return code, list(csv.reader(io.StringIO(out)))
+
+    def test_items_join_to_row_numbers_when_the_book_has_no_risk_column(self):
+        code, rows = self.run_batch(
+            "rider_age\n30\n30\n",
+            "risk,value,age,security\n1,1000,0,gold\n",
+        )
+        self.assertEqual(code, 0, rows)
+        self.assertEqual([r[0] for r in rows[1:]], ["1", "2"])
+        self.assertEqual(rows[1][3], "40.00")  # 10 + 30
+        self.assertEqual(rows[2][3], "10.00")  # empty collection
+
+    def test_usage_accepts_the_extra_binding(self):
+        code, out = run("batch", self.product)
+        self.assertEqual(code, 2)
+        self.assertIn("RISKS.csv", out)
+
+
 if __name__ == "__main__":
     unittest.main()
 
