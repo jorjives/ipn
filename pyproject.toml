@@ -1,14 +1,18 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "ipngine"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Insurance Product Notation: an open proposal for declaring an insurance product end to end"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
+
+[tool.hatch.version]
+source = "vcs"  # the release tag (vX.Y.Z) is the version
+raw-options = { fallback_version = "0.0.0" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["ipngine"]
