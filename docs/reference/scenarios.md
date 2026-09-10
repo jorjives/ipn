@@ -22,7 +22,8 @@ scenario "Customer cancels mid term"
 `given` supplies every input except calculated ones; `select` chooses optional covers.
 Repeatable items are given one per line using the singular name, with every field: `given
 item description "Watch", value 2000`, or all at once from a CSV beside the product with
-the field names as its header: `given specified_items from "items.csv"`. Dates are given as
+the field names as its header: `given specified_items from "items.csv"` (the same rule as
+a table's file: in the product's folder or below it). Dates are given as
 `given departure_date 2026-07-10`.
 Then `when` lines happen in order and `expect` lines check the state at that point.
 

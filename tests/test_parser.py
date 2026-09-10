@@ -883,6 +883,63 @@ class ItemsFromFile(unittest.TestCase):
                 parse(FLEET + 'scenario "file"\n  given rider_age 30\n  given bikes from "nowhere.csv"\n', base=d)
 
 
+class DocumentFilesStayBesideTheProduct(unittest.TestCase):
+    """A document is untrusted text: the files it names must lie within base, and no base means no files."""
+
+    SECRET = "value,age,security\n2000,0,SECRET\n"
+
+    def setUp(self):
+        import os, tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = os.path.join(self.tmp.name, "product")
+        os.mkdir(self.base)
+        self.secret = os.path.join(self.tmp.name, "secret.csv")
+        with open(self.secret, "w") as f:
+            f.write(self.SECRET)
+
+    def documents(self, path):
+        return [HEADER + f'\ntable "Rates" from "{path}" keyed on rider_age\n',
+                FLEET + f'scenario "file"\n  given rider_age 30\n  given bikes from "{path}"\n']
+
+    def assertRefused(self, path, base):
+        for doc in self.documents(path):
+            with self.assertRaises(ParseError) as e:
+                parse(doc, base=base)
+            self.assertIn(f"cannot read {path!r}", str(e.exception))
+            self.assertNotIn("SECRET", str(e.exception))
+
+    def test_absolute_path_is_refused(self):
+        self.assertRefused(self.secret, self.base)
+
+    def test_parent_path_is_refused(self):
+        self.assertRefused("../secret.csv", self.base)
+
+    def test_symlink_out_of_base_is_refused(self):
+        import os
+        os.symlink(self.secret, os.path.join(self.base, "link.csv"))
+        self.assertRefused("link.csv", self.base)
+
+    def test_no_base_reads_no_files(self):
+        import os
+        with open(os.path.join(self.base, "rates.csv"), "w") as f:
+            f.write("rider_age,rate\n17+,1\n")
+        cwd = os.getcwd()
+        os.chdir(self.base)
+        self.addCleanup(os.chdir, cwd)
+        self.assertRefused("rates.csv", None)
+        with self.assertRaisesRegex(ParseError, "cannot read 'rates.csv'"):
+            parse(HEADER + '\ntable "Rates" from "rates.csv" keyed on rider_age\n')
+
+    def test_subdirectory_of_base_is_allowed(self):
+        import os
+        os.mkdir(os.path.join(self.base, "tables"))
+        with open(os.path.join(self.base, "tables", "rates.csv"), "w") as f:
+            f.write("rider_age,rate\n17+,1\n")
+        p = parse(HEADER + '\ntable "Rates" from "tables/rates.csv" keyed on rider_age\n', base=self.base)
+        self.assertEqual(len(p.tables["Rates"].rows), 1)
+
+
 class PerItemCovers(unittest.TestCase):
     def test_cover_using_item_fields_is_per_item(self):
         p = parse(FLEET)
