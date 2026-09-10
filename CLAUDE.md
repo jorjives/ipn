@@ -8,6 +8,10 @@ IPN (Insurance Product Notation) is a declarative language (`.ipn` files) for de
 
 The audience is insurance professionals, not developers. The DSL reads like English on purpose.
 
+## Releases
+
+`main` is protected: every change goes through a PR, and `unittest` must pass. Merging a PR tags and releases it (`.github/workflows/auto-release.yml`); label the PR `release:major`, `release:minor` or `release:patch` (the default), or `release:skip` for no release. The package version comes from the tag (hatch-vcs), so never set it in `pyproject.toml`.
+
 ## Commands
 
 ```bash
