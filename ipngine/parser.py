@@ -919,6 +919,17 @@ def given_item(line: Line, coll: Input, pairs: list[tuple[str, str]]) -> dict:
     return item
 
 
+def document_file(line: Line, base: str | None, path: str) -> str:
+    """The file a document names, which must lie within base; with no base a document reads no files."""
+    if base is None:
+        raise line.error(f"cannot read {path!r}: this product may not read files")
+    root = os.path.realpath(base)
+    full = os.path.realpath(os.path.join(root, path))
+    if os.path.commonpath([root, full]) != root:
+        raise line.error(f"cannot read {path!r}: a product reads only files beside it")
+    return full
+
+
 def items_from_file(line: Line, coll: Input, path: str, base: str) -> list[dict]:
     """Items from a CSV whose columns are the fields; a blank cell is a field not given."""
     full = os.path.join(base, path)
@@ -994,7 +1005,9 @@ def resolve_given(product: Product, lines: list[Line]) -> dict:
         toks = tokens(child)
         if len(toks) == 4 and toks[2] == "from" and toks[3].startswith('"') and toks[1] in product.inputs and product.inputs[toks[1]].kind == "collection":
             coll = product.inputs[toks[1]]
-            given.setdefault(coll.name, []).extend(items_from_file(child, coll, unquote(toks[3]), product.base))
+            path = unquote(toks[3])
+            document_file(child, product.base, path)
+            given.setdefault(coll.name, []).extend(items_from_file(child, coll, path, product.base))
         elif len(toks) > 1 and product.collection_for(toks[1]) is not None:
             coll = product.collection_for(toks[1])
             pairs = [t for t in toks[2:] if t != ","]
@@ -1158,7 +1171,8 @@ def parse_table(line: Line, product: Product) -> None:
         raise line.error(f"table {name!r} is already declared")
     path = None
     if rest[:1] == ["from"] and rest[1:2] and rest[1].startswith('"'):
-        path, rest = os.path.join(product.base, unquote(rest[1])), rest[2:]
+        named = unquote(rest[1])
+        path, rest = document_file(line, product.base, named), rest[2:]
     if rest[:2] != ["keyed", "on"]:
         raise line.error("expected 'keyed on <input>, ...'")
     keys = [t for t in fold_phrases(rest[2:]) if t != ","]
@@ -1187,7 +1201,7 @@ def parse_table(line: Line, product: Product) -> None:
             with open(path, encoding="utf-8") as f:
                 rows = f.read().splitlines()
         except OSError:
-            raise line.error(f"cannot read {os.path.relpath(path, product.base)!r}")
+            raise line.error(f"cannot read {named!r}")
     else:
         rows = [c.text for c in line.children]
     try:
@@ -1241,8 +1255,8 @@ def check_cover_premiums(product: Product) -> None:
         raise ParseError(f"line {joins[0].line}: no cover has a premium")
 
 
-def parse(text: str, base: str = ".") -> Product:
-    """Parses a product. Table files named in it are read relative to base."""
+def parse(text: str, base: str | None = None) -> Product:
+    """Parses a product. Files it names are read from within base; with no base it may name none."""
     product = None
     for line in build_tree(text):
         toks = tokens(line)

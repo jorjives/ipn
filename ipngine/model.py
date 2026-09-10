@@ -56,7 +56,7 @@ class Product:
     tables: dict[str, "Table"] = field(default_factory=dict)
     allocation: list[tuple[str, Decimal]] = field(default_factory=list)  # (cover, proportion): how the unattributed premium is shared
     rating_line: int = field(default=0, repr=False)  # where the rating block starts, for errors about the block as a whole
-    base: str = field(default=".", repr=False)  # directory that table files are read from
+    base: str | None = field(default=None, repr=False)  # directory the files a product names are read from; None: none
     deferred: list = field(default_factory=list, repr=False)  # parser work that needs the whole file first
     parsing: bool = field(default=True, repr=False)  # False once the file is read: a wording built later runs its own deferred work
 

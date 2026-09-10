@@ -24,6 +24,9 @@ table "Theft excess" keyed on area, use
 
 - `from "file.csv"` reads the rows from a file beside the `.ipn`; without it the rows are
   written below, as plain CSV with the header first. The same text works in either place.
+  The file must lie in the product's folder or below it: an absolute path, a `../` path or a
+  link out of the folder cannot be read, and a product handed to the engine as text rather
+  than as a file can read no files at all.
 - `keyed on` names the columns matched against the product's inputs, item fields,
   calculated inputs or enrichment-provided fields. The column headers are the input names.
   Every other column is a value column.
