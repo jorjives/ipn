@@ -20,7 +20,7 @@ python3 -m ipngine batch examples/home.ipn examples/home-risks.csv specified_ite
 - `docs/`: the site, built by GitHub Pages. Start at the playground; engineers
   have their own section.
 - `docs/reference/`: the language, block by block.
-- `examples/`: sixteen complete products and one across three versions, each
+- `examples/`: eighteen complete products and one across three versions, each
   with scenarios that pass. `home.ipn` is a familiar place to begin.
 - `templates/`: starter products, one per kind, each with scenarios that pass.
 - `docs/examples/` and `docs/templates/` are generated from the files above by

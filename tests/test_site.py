@@ -167,3 +167,20 @@ class Book(unittest.TestCase):
         js = (DOCS / "assets/js/book.js").read_text(encoding="utf-8")
         self.assertNotIn("home-specified-items.csv", js)
         self.assertNotIn("specified_items", js)
+
+
+class Readme(unittest.TestCase):
+    WORDS = ("zero one two three four five six seven eight nine ten eleven twelve "
+             "thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty "
+             "twenty-one twenty-two twenty-three twenty-four twenty-five").split()
+
+    def test_the_product_count_matches_the_examples_directory(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        said = re.search(r"`examples/`: (\S+) complete products", readme)
+        self.assertIsNotNone(said, "README should say how many complete products `examples/` holds")
+        count = len(list((ROOT / "examples").glob("*.ipn")))
+        self.assertEqual(
+            self.WORDS[count],
+            said.group(1),
+            f"README says {said.group(1)} complete products; examples/ holds {count}",
+        )
