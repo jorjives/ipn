@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import copy
 import csv
+import errno
+import io
 import os
 import re
 from datetime import date
@@ -942,6 +944,15 @@ def given_item(line: Line, coll: Input, pairs: list[tuple[str, str]]) -> dict:
     return item
 
 
+def read_text(path: str, newline: str | None = None) -> str:
+    """A file's text. Text that is not UTF-8 is an OSError naming the file, as one that cannot be opened is."""
+    try:
+        with open(path, encoding="utf-8", newline=newline) as f:
+            return f.read()
+    except UnicodeDecodeError:
+        raise OSError(errno.EILSEQ, "not UTF-8 text", path) from None
+
+
 def document_file(line: Line, base: str | None, path: str) -> str:
     """The file a document names, which must lie within base; with no base a document reads no files."""
     if base is None:
@@ -957,10 +968,9 @@ def items_from_file(line: Line, coll: Input, path: str, base: str) -> list[dict]
     """Items from a CSV whose columns are the fields; a blank cell is a field not given."""
     full = os.path.join(base, path)
     try:
-        with open(full, encoding="utf-8", newline="") as f:
-            records = list(csv.DictReader(f))
-    except OSError:
-        raise line.error(f"cannot read {path!r}")
+        records = list(csv.DictReader(io.StringIO(read_text(full, newline=""))))
+    except OSError as e:
+        raise line.error(f"cannot read {path!r}: {e.strerror}")
     items = []
     for n, record in enumerate(records, start=2):
         try:
@@ -1224,10 +1234,9 @@ def parse_table(line: Line, product: Product) -> None:
         raise line.error("a table comes from a file or from the rows below it, not both")
     if path is not None:
         try:
-            with open(path, encoding="utf-8") as f:
-                rows = f.read().splitlines()
-        except OSError:
-            raise line.error(f"cannot read {named!r}")
+            rows = read_text(path).splitlines()
+        except OSError as e:
+            raise line.error(f"cannot read {named!r}: {e.strerror}")
     else:
         rows = [c.text for c in line.children]
     try:

@@ -372,6 +372,49 @@ class CheckErrors(unittest.TestCase):
         self.assertEqual(out, f"{path}: line 8: unknown word 'agee'\n")
 
 
+class UnreadableFiles(unittest.TestCase):
+    """A path that cannot be read is one line naming it, never a traceback."""
+
+    def test_a_missing_product_is_named(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "missing.ipn")
+            for command in (["check", path], ["quote", path, "bike_value=1"], ["batch", path, path]):
+                code, out = run(*command)
+                self.assertEqual((code, out), (1, f"cannot read {path!r}: No such file or directory\n"), command)
+
+    def test_a_directory_is_named(self):
+        with tempfile.TemporaryDirectory() as d:
+            code, out = run("check", d)
+        self.assertEqual((code, out), (1, f"cannot read {d!r}: Is a directory\n"))
+
+    def test_a_product_that_is_not_utf8_is_named(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "latin1.ipn")
+            with open(path, "wb") as f:
+                f.write(b'product "Caf\xe9"\n')
+            code, out = run("check", path)
+        self.assertEqual((code, out), (1, f"cannot read {path!r}: not UTF-8 text\n"))
+
+    def test_a_missing_book_is_named_rather_than_the_product(self):
+        with tempfile.TemporaryDirectory() as d:
+            product = os.path.join(d, "x.ipn")
+            with open(product, "w") as f:
+                f.write('product "X"\n  territory UK\ninputs\n  value: money\nrating\n  base 10\n')
+            book = os.path.join(d, "book.csv")
+            code, out = run("batch", product, book)
+        self.assertEqual((code, out), (1, f"cannot read {book!r}: No such file or directory\n"))
+
+    def test_an_unreadable_neighbour_is_not_a_version(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "other.ipn"), "wb") as f:
+                f.write(b'product "Caf\xe9"\n')
+            path = os.path.join(d, "bike.ipn")
+            with open(path, "w") as f:
+                f.write(CheckVersions.V1 + 'scenario "prices"\n  given bike_value 2000\n  when bound on 2026-03-01\n  expect premium 100.00\n')
+            code, out = run("check", path)
+        self.assertEqual((code, out), (0, "PASS prices\nBike: 1 passed, 0 failed\n"))
+
+
 class BatchColumnsForPerItemLines(unittest.TestCase):
     def test_a_tax_inside_for_each_has_its_own_column(self):
         import csv
