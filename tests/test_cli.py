@@ -372,6 +372,16 @@ class CheckErrors(unittest.TestCase):
         self.assertEqual(out, f"{path}: line 8: unknown word 'agee'\n")
 
 
+class CheckNothing(unittest.TestCase):
+    def test_a_product_with_no_scenarios_fails_rather_than_passing_vacuously(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "x.ipn")
+            with open(path, "w") as f:
+                f.write('product "X"\n  territory UK\ninputs\n  value: money\nrating\n  base 10\n')
+            code, out = run("check", path)
+        self.assertEqual((code, out), (1, "X: no scenarios to check\n"))
+
+
 class UnreadableFiles(unittest.TestCase):
     """A path that cannot be read is one line naming it, never a traceback."""
 

@@ -34,7 +34,8 @@ FAIL Flood in a high-risk postcode is referred
 Home Contents: 12 passed, 1 failed
 ```
 
-The exit status is 0 when every scenario passes and 1 otherwise, so `check`
+The exit status is 0 when every scenario passes and 1 otherwise. A file with no
+scenarios exits 1 with `X: no scenarios to check`, since nothing was checked. So `check`
 sits in a pipeline or a pre-commit hook as it is. A file that cannot be read
 stops before any scenario runs, with the line:
 
