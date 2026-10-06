@@ -3,19 +3,20 @@ from __future__ import annotations
 
 import csv
 from decimal import Decimal
+import io
 import os
 import sys
 
 from .engine import check_eligibility, check_inputs, cover_state, instalments, rate
 from .expr import ExprError
-from .parser import Line, ParseError, given_item, given_value, group_item_rows, items_from_file, parse, with_defaults
+from .parser import Line, ParseError, given_item, given_value, group_item_rows, items_from_file, parse, read_text, with_defaults
 from .scenarios import run_all
 from .tables import TableError
 from .versions import History
 
 
 def load(path: str):
-    return parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
+    return parse(read_text(path), os.path.dirname(path))
 
 
 def check(path: str) -> int:
@@ -126,16 +127,15 @@ def batch(path: str, risks: str, *bindings: str, out=None) -> int:
             return fail(f"{name} is not a collection")
         files[name] = value
 
-    with open(risks, encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        columns = [c.strip() for c in reader.fieldnames or []]
-        unknown = [c for c in columns if c not in ("select", "risk") and c not in product.inputs]
-        if unknown:
-            return fail(f"unknown column {unknown[0]!r}; expected input names and select")
-        clash = [name for name in files if name in columns]
-        if clash:
-            return fail(f"{clash[0]} given on the command line and as a column")
-        book_rows = list(reader)
+    reader = csv.DictReader(io.StringIO(read_text(risks, newline="")))
+    columns = [c.strip() for c in reader.fieldnames or []]
+    unknown = [c for c in columns if c not in ("select", "risk") and c not in product.inputs]
+    if unknown:
+        return fail(f"unknown column {unknown[0]!r}; expected input names and select")
+    clash = [name for name in files if name in columns]
+    if clash:
+        return fail(f"{clash[0]} given on the command line and as a column")
+    book_rows = list(reader)
 
     ids = []
     seen = set()
@@ -156,14 +156,12 @@ def batch(path: str, risks: str, *bindings: str, out=None) -> int:
     grouped = {}
     for name, item_path in files.items():
         try:
-            with open(item_path, encoding="utf-8", newline="") as items:
-                item_reader = csv.DictReader(items)
-                fields = [c.strip() for c in item_reader.fieldnames or []]
-                if "risk" not in fields:
-                    return fail(f"{item_path} is missing column 'risk'")
-                records = list(item_reader)
-        except OSError:
-            return fail(f"cannot read {item_path!r}")
+            item_reader = csv.DictReader(io.StringIO(read_text(item_path, newline="")))
+        except OSError as err:
+            return fail(f"cannot read {item_path!r}: {err.strerror}")
+        if "risk" not in [c.strip() for c in item_reader.fieldnames or []]:
+            return fail(f"{item_path} is missing column 'risk'")
+        records = list(item_reader)
         try:
             groups = group_item_rows(Line(0, 0, ""), records)
         except ParseError as err:
@@ -215,6 +213,9 @@ def main(argv: list[str]) -> int:
             return batch(argv[1], argv[2], *argv[3:])
     except ParseError as e:
         print(f"{argv[1]}: {e}")
+        return 1
+    except OSError as e:  # a file given that cannot be read, whichever it is
+        print(f"cannot read {e.filename!r}: {e.strerror}")
         return 1
     print("usage: python -m ipngine check FILE.ipn\n"
           "       python -m ipngine quote FILE.ipn input=value ... [select=Cover] [items=file.csv]\n"

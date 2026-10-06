@@ -922,6 +922,26 @@ class UnderwriterTerms(unittest.TestCase):
         self.assertEqual(pol.premium, Decimal("112.00"))
 
 
+class TermPastTheLastDate(unittest.TestCase):
+    PRODUCT = 'product "Bike"\n  territory UK\n  term 12 months\ninputs\n  value: money\nrating\n  base 100\nlifecycle\n  renewal\n    invite 21 days before expiry\n'
+    REFUSAL = "a term starting {} would end after 9999-12-31, the last date there is"
+
+    def test_a_bind_whose_term_cannot_end_is_refused_and_leaves_the_policy_unbound(self):
+        pol = Policy(parse(self.PRODUCT), {"value": Decimal(1)}, set())
+        with self.assertRaises(ValueError) as cm:
+            pol.bind(date(9999, 6, 1))
+        self.assertEqual(str(cm.exception), self.REFUSAL.format("9999-06-01"))
+        self.assertIsNone(pol.inception)
+
+    def test_a_renewal_whose_term_cannot_end_is_refused_and_leaves_the_term_alone(self):
+        pol = Policy(parse(self.PRODUCT), {"value": Decimal(1)}, set())
+        pol.bind(date(9998, 6, 1))
+        with self.assertRaises(ValueError) as cm:
+            pol.accept_renewal()
+        self.assertEqual(str(cm.exception), self.REFUSAL.format("9999-06-01"))
+        self.assertEqual((pol.inception, pol.expiry), (date(9998, 6, 1), date(9999, 6, 1)))
+
+
 class BenefitOverTime(unittest.TestCase):
     def setUp(self):
         from tests.test_parser import BENEFIT
@@ -1538,6 +1558,20 @@ class CheckInputs(unittest.TestCase):
         p = parse(occupations('inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n    age: integer\n'))
         items = [{"industry": "construction", "occupation": "Labourer"}]
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})), ["people item 1: missing age"])
+
+    def test_none_is_not_an_answer(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  industry: choice of retail, trade\n  age: integer\n  indoors: yes/no\n  plan: choice of basic, plus, default basic\n')
+        answers = with_defaults(p.inputs, {"industry": None, "age": None, "indoors": None, "plan": None})
+        self.assertEqual(answers["plan"], "basic")  # a None leaves the default in place
+        self.assertEqual(check_inputs(p, answers), ["missing industry, age, indoors"])
+
+    def test_none_is_not_an_answer_in_an_item(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  people: collection of person\n    age: integer\n    smoker: yes/no, default no\n')
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": [{"age": None, "smoker": None}]})), ["people item 1: missing age, smoker"])
+
+    def test_none_for_a_collection_is_no_items(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  people: collection of person\n    age: integer\n')
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": None})), [])
 
     def test_a_number_key_reads_plainly(self):
         p = parse('product "X"\n  territory UK\n\ninputs\n  band: integer\n  plan: choice of plan from "Plans" for band\n\ntable "Plans" keyed on band, plan\n  band, plan\n  1, basic\n  2, basic\n  2, plus\n')

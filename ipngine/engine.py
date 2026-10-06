@@ -62,14 +62,15 @@ class Eligibility:
 
 
 def check_inputs(product: Product, inputs: dict) -> list[str]:
-    """Why a risk's answers cannot be priced: inputs left out, and keyed choices not listed under their keys."""
-    missing = [n for n, i in product.inputs.items() if n not in inputs and i.kind not in ("text", "calculated", "collection") and not i.provided]
+    """Why a risk's answers cannot be priced: inputs left out, and keyed choices not listed under their keys.
+    None is not an answer: it is missing, even where the field has a default."""
+    missing = [n for n, i in product.inputs.items() if inputs.get(n) is None and i.kind not in ("text", "calculated", "collection") and not i.provided]
     problems = [f"missing {', '.join(missing)}"] if missing else []
     problems += keyed_choice_problems(product, product.inputs, inputs, inputs)
     for coll in product.collections:
-        for n, item in enumerate(inputs.get(coll.name, []), start=1):
-            item_missing = [f for f, i in coll.fields.items()
-                             if f not in item and i.kind not in ("text", "calculated", "collection") and not i.provided and i.default is None]
+        for n, item in enumerate(inputs.get(coll.name) or [], start=1):
+            item_missing = [f for f, i in coll.fields.items() if i.kind not in ("text", "calculated", "collection") and not i.provided
+                            and (item.get(f, i.default) is None)]
             if item_missing:
                 problems.append(f"{coll.name} item {n}: missing {', '.join(item_missing)}")
             problems += [f"{coll.name} item {n}: {why}" for why in keyed_choice_problems(product, coll.fields, item, {**inputs, **item})]
@@ -80,7 +81,7 @@ def keyed_choice_problems(product: Product, fields: dict[str, Input], record: di
     """Each keyed choice in the record whose value the table does not list under the record's keys."""
     out = []
     for f in fields.values():
-        if f.source and f.source[2] and f.name in record:
+        if f.source and f.source[2] and record.get(f.name) is not None:
             table, column, keys = f.source
             if record[f.name] not in product.tables[table].values_for(column, keys, ctx):
                 where = ", ".join(f"{k} {show(ctx.get(k))}" for k in keys)
@@ -412,6 +413,20 @@ def add_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
 
 
+def term_end(product: Product, inputs: dict, selected: set[str], start: date) -> date:
+    """When a term starting that day ends; one that would end past the last date there is cannot be bound or renewed."""
+    amount, unit = product.term
+    value = evaluate(amount, context(product, inputs, selected))
+    if unit == "until":
+        return value
+    try:
+        if unit == "days":
+            return start + timedelta(days=int(value))
+        return add_months(start, int(value) * (12 if unit == "years" else 1))
+    except (OverflowError, ValueError):
+        raise ValueError(f"a term starting {start} would end after {date.max}, the last date there is") from None
+
+
 def months_between(start: date, on: date) -> int:
     """Whole months from start to on."""
     return (on.year - start.year) * 12 + on.month - start.month - (on.day < start.day)
@@ -557,13 +572,7 @@ class Policy:
 
     @property
     def expiry(self) -> date:
-        amount, unit = self.product.term
-        value = evaluate(amount, context(self.product, self.inputs, self.selected))
-        if unit == "until":
-            return value
-        if unit == "days":
-            return self.inception + timedelta(days=int(value))
-        return add_months(self.inception, int(value) * (12 if unit == "years" else 1))
+        return term_end(self.product, self.inputs, self.selected, self.inception)
 
     def term_days(self) -> int:
         return (self.expiry - self.inception).days
@@ -609,6 +618,7 @@ class Policy:
             raise ValueError(f"declined: {'; '.join(e.reasons)}")
         if e.outcome == "referred" and self.underwriting is None:
             raise ValueError(f"referred: {'; '.join(e.reasons)}; the underwriter must accept it first")
+        term_end(self.product, self.inputs, self.selected, on)
         self.inception = self.first_inception = on
         self.paid_on = on if paid else None
         self.charged = self.quote.total
@@ -853,6 +863,7 @@ class Policy:
             raise ValueError(f"renewal needs {', '.join(offer.needs)}")
         if offer.declined:
             raise ValueError(f"renewal declined: {offer.declined}")
+        term_end(offer.version, offer.inputs, self.selected, self.expiry)
         self.previous_terms.append((self.inception, self.expiry))
         self.inputs, self.product = offer.inputs, offer.version
         self.inception = self.paid_on = self.expiry

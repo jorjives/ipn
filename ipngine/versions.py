@@ -14,11 +14,14 @@ from decimal import Decimal
 
 from .expr import evaluate, names
 from .model import ClaimRule, Cover, Input, Product, Upgrade
-from .parser import ParseError, known_words, parse, unquote
+from .parser import ParseError, known_words, parse, read_text, unquote
 
 
 class History:
     def __init__(self, products: list[Product]):
+        if len(products) > 1 and any(p.published is None for p in products):
+            raise ParseError(f"a version of {products[0].name} has no published date; "
+                             "a product with more than one version must say when each went on sale")
         self.versions = sorted(products, key=lambda p: p.published or date.min)
         self._wordings: dict = {}  # (version index, kind, name) -> a Cover or ClaimRule carrying every version's dated lines
         for earlier, later in zip(self.versions, self.versions[1:]):
@@ -121,7 +124,7 @@ def check_amendments(version: Product, later_versions: list[Product]) -> None:
 
 def load(path: str) -> Product:
     try:
-        return parse(open(path, encoding="utf-8").read(), os.path.dirname(path))
+        return parse(read_text(path), os.path.dirname(path))
     except ParseError as e:
         raise ParseError(f"{path}: {e}")
 
@@ -130,23 +133,26 @@ def header(path: str) -> tuple[str | None, date | None]:
     """The product name and published date from the file's first block, read without parsing the rest,
     so a neighbour that is not a version of this product, or is a later one, need not even parse."""
     name, published = None, None
-    with open(path, encoding="utf-8") as f:
-        for raw in f:
-            line = raw.split("#")[0].rstrip()
-            if not line.strip():
-                continue
-            words = line.split()
-            if name is None:
-                if words[0] != "product" or len(words) < 2:
-                    return None, None
-                name = unquote(line.split(None, 1)[1].strip())
-            elif not line.startswith(" "):
-                break  # the header block has ended
-            elif words[:1] == ["published"] and len(words) == 2:
-                try:
-                    published = date.fromisoformat(words[1])
-                except ValueError:
-                    return name, None
+    try:
+        text = read_text(path)
+    except OSError:
+        return None, None  # a neighbour that cannot be read is not a version
+    for raw in text.splitlines():
+        line = raw.split("#")[0].rstrip()
+        if not line.strip():
+            continue
+        words = line.split()
+        if name is None:
+            if words[0] != "product" or len(words) < 2:
+                return None, None
+            name = unquote(line.split(None, 1)[1].strip())
+        elif not line.startswith(" "):
+            break  # the header block has ended
+        elif words[:1] == ["published"] and len(words) == 2:
+            try:
+                published = date.fromisoformat(words[1])
+            except ValueError:
+                return name, None
     return name, published
 
 
