@@ -12,6 +12,16 @@ def outcomes(extra):
 
 
 class ScenarioRunner(unittest.TestCase):
+    def test_selecting_a_cover_that_is_always_included_fails_the_scenario(self):
+        res = outcomes('''
+scenario "theft chosen"
+  given bike_value 3000, rider_age 22, security gold, racing no
+  select Theft
+  expect eligible
+''')
+        self.assertEqual(len(res["theft chosen"]), 1)
+        self.assertIn("Theft is always included; only optional covers are chosen", res["theft chosen"][0])
+
     def test_passing_eligibility_and_cover_expectations(self):
         res = outcomes('''
 scenario "ok"

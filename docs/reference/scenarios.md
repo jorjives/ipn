@@ -19,7 +19,7 @@ scenario "Customer cancels mid term"
   expect status cancelled
 ```
 
-`given` supplies every input except calculated ones; `select` chooses optional covers.
+`given` supplies every input except calculated ones; `select` chooses optional covers; naming a cover that is always included fails the scenario.
 Repeatable items are given one per line using the singular name, with every field: `given
 item description "Watch", value 2000`, or all at once from a CSV beside the product with
 the field names as its header: `given specified_items from "items.csv"` (the same rule as

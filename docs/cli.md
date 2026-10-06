@@ -58,7 +58,9 @@ python3 -m ipngine check examples/home.ipn
 `quote` takes the answers as `name=value` pairs, optional covers as
 `select=Name` (several separated by `;`), and repeatable items as a CSV file
 whose columns are the item's fields. It prints the eligibility outcome, the
-state of every cover, and the rating trail step by step.
+state of every cover, and the rating trail step by step. A name in `select` that is
+not one of the product's optional covers, `select=racing` for `Racing`, is refused
+before anything is priced; in `batch` it is that risk's error.
 
 A product whose enrichment cannot answer follows `when unavailable`. The
 [home contents](examples/home.md) example refers an unrecognised postcode;
