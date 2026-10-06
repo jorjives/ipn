@@ -27,6 +27,9 @@ def check(path: str) -> int:
         print(e)  # the history names the file, which may be a sibling version
         return 1
     results = run_all(product, history)
+    if not results:  # nothing checked is not a pass
+        print(f"{product.name}: no scenarios to check")
+        return 1
     for r in results:
         print(("PASS " if r.passed else "FAIL ") + r.scenario.name)
         for f in r.failures:
