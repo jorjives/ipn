@@ -37,6 +37,14 @@ class LiveOn(unittest.TestCase):
             History([parse(V1), parse(V1)])
         self.assertIn("published 2026-01-01", str(cm.exception))
 
+    def test_an_unpublished_version_cannot_sit_beside_another(self):
+        undated = 'product "Bike"\n  term 12 months\n'
+        for other in (V1, undated):
+            with self.subTest(other=other[:40]), self.assertRaises(ParseError) as cm:
+                History([parse(undated), parse(other)])
+            self.assertEqual(str(cm.exception), "a version of Bike has no published date; "
+                                                "a product with more than one version must say when each went on sale")
+
     def test_a_lone_unpublished_product_is_a_history_of_one_live_always(self):
         p = parse('product "X"\n  term 12 months\n')
         h = History([p])
