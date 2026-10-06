@@ -62,14 +62,15 @@ class Eligibility:
 
 
 def check_inputs(product: Product, inputs: dict) -> list[str]:
-    """Why a risk's answers cannot be priced: inputs left out, and keyed choices not listed under their keys."""
-    missing = [n for n, i in product.inputs.items() if n not in inputs and i.kind not in ("text", "calculated", "collection") and not i.provided]
+    """Why a risk's answers cannot be priced: inputs left out, and keyed choices not listed under their keys.
+    None is not an answer: it is missing, even where the field has a default."""
+    missing = [n for n, i in product.inputs.items() if inputs.get(n) is None and i.kind not in ("text", "calculated", "collection") and not i.provided]
     problems = [f"missing {', '.join(missing)}"] if missing else []
     problems += keyed_choice_problems(product, product.inputs, inputs, inputs)
     for coll in product.collections:
-        for n, item in enumerate(inputs.get(coll.name, []), start=1):
-            item_missing = [f for f, i in coll.fields.items()
-                             if f not in item and i.kind not in ("text", "calculated", "collection") and not i.provided and i.default is None]
+        for n, item in enumerate(inputs.get(coll.name) or [], start=1):
+            item_missing = [f for f, i in coll.fields.items() if i.kind not in ("text", "calculated", "collection") and not i.provided
+                            and (item.get(f, i.default) is None)]
             if item_missing:
                 problems.append(f"{coll.name} item {n}: missing {', '.join(item_missing)}")
             problems += [f"{coll.name} item {n}: {why}" for why in keyed_choice_problems(product, coll.fields, item, {**inputs, **item})]
@@ -80,7 +81,7 @@ def keyed_choice_problems(product: Product, fields: dict[str, Input], record: di
     """Each keyed choice in the record whose value the table does not list under the record's keys."""
     out = []
     for f in fields.values():
-        if f.source and f.source[2] and f.name in record:
+        if f.source and f.source[2] and record.get(f.name) is not None:
             table, column, keys = f.source
             if record[f.name] not in product.tables[table].values_for(column, keys, ctx):
                 where = ", ".join(f"{k} {show(ctx.get(k))}" for k in keys)
