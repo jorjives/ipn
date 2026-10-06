@@ -70,6 +70,16 @@ class Expressions(unittest.TestCase):
         with self.assertRaises(ExprError):
             parse_expr("1 +".split())
 
+    def test_an_impossible_date_is_an_error(self):
+        with self.assertRaisesRegex(ExprError, "'2024-13-40' is not a date"):
+            parse_expr(["2024-13-40"])
+
+    def test_nesting_has_a_limit(self):
+        self.assertEqual(ev("( " * 30 + "1" + " )" * 30), Decimal(1))
+        for deep in ("( " * 500 + "1" + " )" * 500, "not " * 2000 + "yes", "- " * 2000 + "1", "2 ^ " * 2000 + "1",
+                     "1 % of " * 2000 + "1", "1 + " * 2000 + "1", "max ( " * 500 + "1 , 1" + " )" * 500):
+            with self.subTest(deep=deep[:8]), self.assertRaisesRegex(ExprError, "nested more than 32 deep"):
+                parse_expr(deep.split())
 
 if __name__ == "__main__":
     unittest.main()

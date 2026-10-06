@@ -17,16 +17,43 @@ CMP = {"<", "<=", ">", ">=", "is"}
 
 FUNCTIONS = {"exp": 1, "ln": 1, "sqrt": 1, "round": 2, "min": -2, "max": -2}  # arity; negative = at least
 
+MAX_DEPTH = 32  # far deeper than any product needs; shallow enough that parsing and walking the tree never exhaust the stack
+
 
 def parse_expr(toks: list[str], stop: set[str] = frozenset()) -> tuple[tuple, list[str]]:
     p = _Parser(toks, stop)
     node = p.or_()
+    if depth(node) > MAX_DEPTH:
+        raise ExprError(f"expression nested more than {MAX_DEPTH} deep")
     return node, toks[p.i:]
+
+
+def depth(node: tuple) -> int:
+    """How deep the tree goes, counted without recursion: `a + b + c` chains deepen it as brackets do."""
+    deepest, todo = 0, [(node, 1)]
+    while todo:
+        node, d = todo.pop()
+        deepest = max(deepest, d)
+        for part in node[1:]:
+            for child in part if isinstance(part, list) else [part]:
+                if isinstance(child, tuple):
+                    todo.append((child, d + 1))
+    return deepest
 
 
 class _Parser:
     def __init__(self, toks, stop):
-        self.toks, self.stop, self.i = toks, stop, 0
+        self.toks, self.stop, self.i, self.depth = toks, stop, 0, 0
+
+    def nested(self, parse):
+        """Parses one level further in, so `((((...` fails as an ExprError before it can exhaust the stack."""
+        if self.depth == MAX_DEPTH:
+            raise ExprError(f"expression nested more than {MAX_DEPTH} deep")
+        self.depth += 1
+        try:
+            return parse()
+        finally:
+            self.depth -= 1
 
     def peek(self):
         t = self.toks[self.i] if self.i < len(self.toks) else None
@@ -56,7 +83,7 @@ class _Parser:
     def not_(self):
         if self.peek() == "not":
             self.take()
-            return ("not", self.not_())
+            return ("not", self.nested(self.not_))
         return self.cmp()
 
     def cmp(self):
@@ -86,14 +113,14 @@ class _Parser:
     def unary(self):
         if self.peek() == "-":
             self.take()
-            return ("neg", self.unary())
+            return ("neg", self.nested(self.unary))
         return self.power()
 
     def power(self):
         node = self.postfix()
         if self.peek() == "^":
             self.take()
-            node = ("^", node, self.unary())  # right-associative: 2 ^ 3 ^ 2 is 2 ^ 9
+            node = ("^", node, self.nested(self.unary))  # right-associative: 2 ^ 3 ^ 2 is 2 ^ 9
         return node
 
     def postfix(self):
@@ -103,7 +130,7 @@ class _Parser:
             node = ("pct", node)
             if self.peek() == "of":
                 self.take()
-                node = ("*", node, self.sum())  # `12% of net less Fire` is 12% of the difference, as it reads
+                node = ("*", node, self.nested(self.sum))  # `12% of net less Fire` is 12% of the difference, as it reads
         if self.peek() == "selected":
             self.take()
             node = ("selected", node)
@@ -132,16 +159,19 @@ class _Parser:
             return ("agg", t, field_, coll)
         if t in ("any", "every") and self.toks[self.i + 1:self.i + 2] == ["where"]:
             name, _ = self.take(), self.take()
-            return (t, name, self.or_())
+            return (t, name, self.nested(self.or_))
         if t == "(":
-            node = self.or_()
+            node = self.nested(self.or_)
             if self.take() != ")":
                 raise ExprError("expected )")
             return node
         if t[0].isalpha() and self.toks[self.i:self.i + 1] == ["("]:
             return self.call(t)
         if len(t) == 10 and t[4] == "-" and t[7] == "-":
-            return ("date", date.fromisoformat(t))
+            try:
+                return ("date", date.fromisoformat(t))
+            except ValueError:
+                raise ExprError(f"{t!r} is not a date") from None
         if t[0].isdigit():
             return ("num", Decimal(t))
         if t.startswith('"'):
@@ -160,10 +190,10 @@ class _Parser:
         if name not in FUNCTIONS:
             raise ExprError(f"unknown function {name!r}")
         self.i += 1
-        args = [self.or_()]
+        args = [self.nested(self.or_)]
         while self.i < len(self.toks) and self.toks[self.i] == ",":
             self.i += 1
-            args.append(self.or_())
+            args.append(self.nested(self.or_))
         if self.i >= len(self.toks) or self.toks[self.i] != ")":
             raise ExprError(f"expected ) after the arguments of {name}")
         self.i += 1

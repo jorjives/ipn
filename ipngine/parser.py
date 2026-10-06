@@ -77,6 +77,29 @@ def tokens(line: Line) -> list[str]:
     return out
 
 
+def whole(line: Line, tok: str) -> int:
+    if not tok.isdecimal():
+        raise line.error(f"expected a whole number, not {tok!r}")
+    return int(tok)
+
+
+def number(line: Line, tok: str) -> Decimal:
+    try:
+        n = Decimal(tok)
+    except ArithmeticError:
+        n = None
+    if n is None or not n.is_finite():
+        raise line.error(f"expected a number, not {tok!r}")
+    return n
+
+
+def iso_date(line: Line, tok: str) -> date:
+    try:
+        return date.fromisoformat(tok)
+    except ValueError:
+        raise line.error(f"{tok!r} is not a date") from None
+
+
 def unquote(tok: str) -> str:
     return tok[1:-1] if tok.startswith('"') else tok
 
@@ -97,11 +120,11 @@ def parse_product_header(line: Line, product: Product) -> None:
         elif key == "currency" and len(toks) == 2:
             product.currency = toks[1]
         elif key == "term" and len(toks) == 3 and toks[2] in ("days", "months", "years"):
-            product.term = (parse_expr([toks[1]])[0], toks[2])
+            product.term = (loose_expression(child, toks[1:2])[0], toks[2])
         elif key == "term" and toks[1:2] == ["until"] and len(toks) == 3:
-            product.term = (parse_expr([toks[2]])[0], "until")
+            product.term = (loose_expression(child, toks[2:3])[0], "until")
         elif key == "published" and len(toks) == 2 and DATE_TOKEN.fullmatch(toks[1]):
-            product.published = date.fromisoformat(toks[1])
+            product.published = iso_date(child, toks[1])
         else:
             raise child.error(f"unknown product setting {child.text!r}")
     unknown = [t for t in product.territories if not product.currency_for(t)]
@@ -183,11 +206,11 @@ def parse_collection(line: Line, name: str, toks: list[str], product: Product) -
     if not bounds:
         pass
     elif len(bounds) == 3 and bounds[1] == "to":
-        coll.min_items, coll.max_items = int(bounds[0]), int(bounds[2])
+        coll.min_items, coll.max_items = whole(line, bounds[0]), whole(line, bounds[2])
     elif len(bounds) == 3 and bounds[:2] == ["at", "least"]:
-        coll.min_items = int(bounds[2])
+        coll.min_items = whole(line, bounds[2])
     elif len(bounds) == 3 and bounds[:2] == ["at", "most"]:
-        coll.max_items = int(bounds[2])
+        coll.max_items = whole(line, bounds[2])
     else:
         raise line.error("expected ', 1 to 5', ', at least 1' or ', at most 5'")
     if not coll.fields:
@@ -305,9 +328,9 @@ def dated(child: Line, keys: dict[str, str], lists: set[str]) -> Dated:
     toks, from_, until = tokens(child), None, None
     while toks[:1] in (["from"], ["until"]) and toks[1:2] and DATE_TOKEN.fullmatch(toks[1]):
         if toks[0] == "from":
-            from_ = date.fromisoformat(toks[1])
+            from_ = iso_date(child, toks[1])
         else:
-            until = date.fromisoformat(toks[1])
+            until = iso_date(child, toks[1])
         toks = toks[2:]
     if not toks:
         raise child.error("expected a line after the date")
@@ -393,9 +416,9 @@ def fill_cover(cover: Cover, children: list[Line], product: Product, deferred: l
         elif toks[:3] == ["in", "force", "until"]:
             cover.until, rest = expression(child, toks[3:], product)
         elif toks[:2] == ["waiting", "period"] and toks[3:] == ["days"]:
-            cover.waiting_days, rest = int(toks[2]), []
+            cover.waiting_days, rest = whole(child, toks[2]), []
         elif toks[:2] == ["reinstatement", "at"] and toks[3:] == ["%", "of", "premium", "pro", "rata"]:
-            cover.reinstatement, rest = Decimal(toks[2]) / 100, []
+            cover.reinstatement, rest = number(child, toks[2]) / 100, []
             reinstatement_line = child
         else:
             raise child.error(f"unknown cover setting {child.text!r}")
@@ -665,7 +688,7 @@ def parse_lifecycle(line: Line, product: Product) -> None:
             lc.cooling_off, rest = expression(child, toks[2:], product, stop={","})
             if rest != ["days", ",", "full", "refund"]:
                 raise child.error("expected 'cooling off <days> days, full refund'")
-        elif toks[:2] == ["cancellation", "by"] and toks[2] in ("customer", "insurer") and toks[3] == ":":
+        elif toks[:2] == ["cancellation", "by"] and toks[2:3] in (["customer"], ["insurer"]) and toks[3:4] == [":"]:
             lc.cancellation[toks[2]] = parse_cancellation(child, toks[4:], product)
         elif toks[:2] == ["adjustment", ":"]:
             if toks[2:] == ["not", "allowed"]:
@@ -679,7 +702,7 @@ def parse_lifecycle(line: Line, product: Product) -> None:
             else:
                 raise child.error("expected 'adjustment: reprice[ on the current version], charge pro rata difference[, fee N]' or 'adjustment: not allowed'")
         elif toks[:4] == ["lapse", "when", "unpaid", "after"] and toks[5:] == ["days"]:
-            lc.lapse_days = int(toks[4])
+            lc.lapse_days = whole(child, toks[4])
         elif toks == ["renewal"]:
             parse_renewal(child, product)
         elif toks == ["renewal", ":", "none"]:
@@ -688,9 +711,9 @@ def parse_lifecycle(line: Line, product: Product) -> None:
             well_formed = len(toks) > 2 and toks[1].isdigit() and toks[2] == "monthly" and (not toks[3:] or toks[3:5] == [",", "charge"] and toks[6:] == ["%"])
             if not well_formed:
                 raise child.error("expected 'instalments N monthly' optionally ', charge P%'")
-            lc.instalments = int(toks[1])
+            lc.instalments = whole(child, toks[1])
             if toks[3:]:
-                lc.instalment_charge = Decimal(toks[5]) / 100
+                lc.instalment_charge = number(child, toks[5]) / 100
         else:
             raise child.error(f"unknown lifecycle setting {words!r}")
 
@@ -699,7 +722,7 @@ def parse_fee(line: Line, toks: list[str]) -> Decimal:
     if not toks:
         return Decimal(0)
     if len(toks) == 3 and toks[:2] == [",", "fee"]:
-        return Decimal(toks[2])
+        return number(line, toks[2])
     raise line.error(f"expected ', fee N' not {' '.join(toks)!r}")
 
 
@@ -721,11 +744,11 @@ def parse_renewal(line: Line, product: Product) -> None:
     for child in line.children:
         toks = tokens(child)
         if toks[:1] == ["invite"] and toks[2:] == ["days", "before", "expiry"]:
-            lc.renewal_invite_days = int(toks[1])
+            lc.renewal_invite_days = whole(child, toks[1])
         elif toks[:3] == ["increase", "capped", "at"] and toks[4:] == ["%"]:
-            lc.renewal_cap = Decimal(toks[3]) / 100
+            lc.renewal_cap = number(child, toks[3]) / 100
         elif toks[:3] == ["decrease", "collared", "at"] and toks[4:] == ["%"]:
-            lc.renewal_collar = Decimal(toks[3]) / 100
+            lc.renewal_collar = number(child, toks[3]) / 100
         elif toks[:1] == ["decline"]:
             lc.renewal_decline.append(rule(child, "decline", toks[1:], product))
         elif toks[:1] == ["index"] and "by" in toks:
@@ -753,7 +776,7 @@ def parse_index(line: Line, toks: list[str], product: Product) -> tuple:
         how, amount = "%", amount[1]
     bounds = {"least": None, "most": None}
     while rest[:2] == [",", "at"] and rest[2:3] and rest[2] in bounds and len(rest) >= 4:
-        bounds[rest[2]], rest = Decimal(rest[3]), rest[4:]
+        bounds[rest[2]], rest = number(line, rest[3]), rest[4:]
     if rest:
         raise line.error(f"unexpected {' '.join(rest)!r}; use ', at least N' or ', at most N'")
     return (".".join(target), how, amount, bounds["least"], bounds["most"])
@@ -767,16 +790,16 @@ def parse_claims(line: Line, product: Product) -> None:
             if product.cover(name) is None:
                 raise child.error(f"unknown cover {name!r}")
             product.claims[name] = parse_claim(child, name, product)
-        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:9] == ["in", "term", ":", "renewal", "load", "x"] and len(toks) >= 10:
-            product.claims_loading.append((int(toks[1]), Decimal(toks[9]), parse_unless(child, toks[10:], product)))
-        elif toks[:1] == ["after"] and toks[2] in ("claim", "claims") and toks[3:5] == ["in", "term"] and child.children:
+        elif toks[:1] == ["after"] and toks[2:3] in (["claim"], ["claims"]) and toks[3:9] == ["in", "term", ":", "renewal", "load", "x"] and len(toks) >= 10:
+            product.claims_loading.append((whole(child, toks[1]), number(child, toks[9]), parse_unless(child, toks[10:], product)))
+        elif toks[:1] == ["after"] and toks[2:3] in (["claim"], ["claims"]) and toks[3:5] == ["in", "term"] and child.children:
             # Terms imposed once that many claims have been paid: lifecycle lines that override the product's own.
             unless = parse_unless(child, toks[5:], product)
             forbid_dates(child.children)
             original, product.lifecycle = product.lifecycle, copy.deepcopy(product.lifecycle)
             try:
                 parse_lifecycle(child, product)
-                product.claims_terms.append((int(toks[1]), product.lifecycle, unless))
+                product.claims_terms.append((whole(child, toks[1]), product.lifecycle, unless))
             finally:
                 product.lifecycle = original
         else:
@@ -893,7 +916,7 @@ def parse_pays(line: Line, toks: list[str], product: Product, facts: set[str]) -
 
 def given_value(line: Line, inp: Input, tok: str):
     if inp.kind in ("money", "integer", "number") and tok[0].isdigit():
-        return Decimal(tok)
+        return number(line, tok)
     if inp.kind == "yes/no" and tok in ("yes", "no"):
         return tok == "yes"
     if inp.kind == "choice" and unquote(tok) in inp.choices:
@@ -901,7 +924,7 @@ def given_value(line: Line, inp: Input, tok: str):
     if inp.kind == "text":
         return unquote(tok)
     if inp.kind == "date" and DATE_TOKEN.fullmatch(tok):
-        return date.fromisoformat(tok)
+        return iso_date(line, tok)
     raise line.error(f"{inp.name} is {inp.kind}, cannot be {tok!r}")
 
 
@@ -979,6 +1002,9 @@ def parse_scenario(line: Line, product: Product) -> None:
                     raise child.error(f"unknown cover {unquote(name)!r}")
                 sc.selected.add(unquote(name))
         elif toks[0] in ("when", "expect"):
+            for tok in toks:
+                if DATE_TOKEN.fullmatch(tok):
+                    iso_date(child, tok)  # so the run, which reads these dates, never meets an impossible one
             sc.steps.append(Step(child.number, toks))
         else:
             raise child.error("expected given, select, when or expect")

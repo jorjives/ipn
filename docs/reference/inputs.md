@@ -127,5 +127,7 @@ Amounts and conditions are expressions: `+ - * /`, `N% of x`, `a ^ b` (power, so
 | `min ( a, b, ... )`, `max ( a, b, ... )` | the smallest or largest |
 | `round ( x, 0.0001 )` | x to that unit, half up; use it so a curve's value reads sensibly in the trail and can be expected in a scenario |
 
-Give a long formula a name as a `calculated` input rather than writing it in one line.
+Give a long formula a name as a `calculated` input rather than writing it in one line. A
+formula may nest at most 32 deep, counting each bracket and each operator in a chain such as
+`a + b + c`; deeper is an error on its line.
 See [rating](rating.md) for how a calculated field is used in the premium.
