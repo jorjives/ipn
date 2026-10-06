@@ -57,7 +57,7 @@ def quote(path: str, args: list[str]) -> int:
         print(f"unknown input {unknown[0]!r}; expected one of {', '.join(product.inputs)}")
         return 2
     inputs, selected = risk_inputs(product, pairs, Line(0, 0, ""))
-    problems = check_inputs(product, inputs)
+    problems = check_inputs(product, inputs, selected)
     if problems:
         print(problems[0])
         return 2
@@ -186,7 +186,7 @@ def batch(path: str, risks: str, *bindings: str, out=None) -> int:
             inputs, selected = risk_inputs(product, pairs, line)
             for name, groups in grouped.items():
                 inputs[name] = [given_item(line, product.inputs[name], fields) for fields in groups.get(rid, [])]
-            problems = check_inputs(product, inputs)
+            problems = check_inputs(product, inputs, selected)
             if problems:
                 raise ParseError(problems[0])
             e = check_eligibility(product, inputs, selected)

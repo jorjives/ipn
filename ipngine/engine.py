@@ -61,11 +61,16 @@ class Eligibility:
     reasons: list[str] = field(default_factory=list)
 
 
-def check_inputs(product: Product, inputs: dict) -> list[str]:
-    """Why a risk's answers cannot be priced: inputs left out, and keyed choices not listed under their keys.
-    None is not an answer: it is missing, even where the field has a default."""
+def check_inputs(product: Product, inputs: dict, selected: set[str]) -> list[str]:
+    """Why a risk's answers cannot be priced: inputs left out, keyed choices not listed under their keys, and
+    covers chosen that the product does not offer as optional. None is not an answer: it is missing, even
+    where the field has a default."""
+    optional = [c.name for c in product.covers if c.optional]
+    chosen = [f"{name} is always included; only optional covers are chosen" if product.cover(name) else
+              f"unknown cover {name!r}; " + (f"the optional covers are {', '.join(optional)}" if optional else "this product has no optional covers")
+              for name in sorted(selected) if name not in optional]
     missing = [n for n, i in product.inputs.items() if inputs.get(n) is None and i.kind not in ("text", "calculated", "collection") and not i.provided]
-    problems = [f"missing {', '.join(missing)}"] if missing else []
+    problems = ([f"missing {', '.join(missing)}"] if missing else []) + chosen
     problems += keyed_choice_problems(product, product.inputs, inputs, inputs)
     for coll in product.collections:
         for n, item in enumerate(inputs.get(coll.name) or [], start=1):

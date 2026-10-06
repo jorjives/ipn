@@ -6,7 +6,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from ipngine.cli import main
-from tests.test_parser import DEFAULTS, FLEET, LIFECYCLE, RATING, occupations
+from tests.test_parser import DEFAULTS, FLEET, FULL, LIFECYCLE, RATING, occupations
 
 
 def run(*argv) -> tuple[int, str]:
@@ -95,6 +95,20 @@ class BatchCommand(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual([r[0] for r in rows[1:]], ["1", "2", "3"])
         self.assertEqual(rows[2][1:], ["", "", "", "", "", "", "", "missing rider_age"])
+
+    def test_a_cover_the_product_does_not_offer_is_that_risks_error(self):
+        code, rows = self.batch("bike_value,rider_age,security,racing,select\n2000,22,gold,yes,racing\n2000,22,gold,yes,Racing\n")
+        self.assertEqual(code, 0)
+        self.assertEqual(rows[1][-1], "unknown cover 'racing'; the optional covers are Racing")
+        self.assertEqual(rows[2][-1], "")
+
+    def test_quote_refuses_a_cover_the_product_does_not_offer(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "cycle.ipn")
+            with open(path, "w") as f:
+                f.write(FULL)
+            code, out = run("quote", path, "bike_value=2000", "rider_age=22", "security=gold", "racing=yes", "select=racing")
+        self.assertEqual((code, out), (2, "unknown cover 'racing'; the optional covers are Racing\n"))
 
     def test_unknown_column_is_an_error_before_any_row_runs(self):
         code, rows = self.batch("bike_value,rider_age,security,racing,colour\n2000,22,gold,no,red\n")

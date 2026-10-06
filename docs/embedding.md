@@ -49,8 +49,10 @@ for result in run_all(product, history):
 is `Decimal`, never float.
 
 An answer of `None` is no answer: `parser.with_defaults` leaves it out, so a
-default applies, and `engine.check_inputs` reports it as missing. Call
-`check_inputs` before pricing; `rate` does not repeat its checks.
+default applies, and `engine.check_inputs` reports it as missing.
+`check_inputs(product, inputs, selected)` also reports a chosen cover the
+product does not offer as optional. Call it before pricing; `rate` does not
+repeat its checks.
 
 Failures are `ParseError`, `ExprError`, `TableError`, or scenario failure
 strings. Each parse error names a line.

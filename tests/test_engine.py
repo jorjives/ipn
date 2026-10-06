@@ -1520,40 +1520,53 @@ class LifecycleSplit(unittest.TestCase):
 class CheckInputs(unittest.TestCase):
     def test_missing_inputs_are_reported(self):
         p = parse(occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: text\n  age: integer\n'))
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {})), ["missing industry, age"])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {}), set()), ["missing industry, age"])
 
     def test_keyed_choice_must_be_listed_under_its_keys(self):
         p = parse(occupations('inputs\n  industry: choice of industry from "Occupations"\n  occupation: choice of occupation from "Occupations" for industry\n'))
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"industry": "construction", "occupation": "Nurse"})),
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"industry": "construction", "occupation": "Nurse"}), set()),
                          ['occupation "Nurse" is not an occupation for industry "construction"'])
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"industry": "construction", "occupation": "Labourer"})), [])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"industry": "construction", "occupation": "Labourer"}), set()), [])
 
     def test_items_are_checked_with_their_position(self):
         p = parse(occupations('inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n'))
         items = [{"industry": "construction", "occupation": "Labourer"}, {"industry": "construction", "occupation": "Nurse"}]
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})),
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items}), set()),
                          ['people item 2: occupation "Nurse" is not an occupation for industry "construction"'])
 
     def test_a_missing_field_in_a_collection_item_is_reported(self):
         p = parse(occupations('inputs\n  people: collection of person\n    industry: choice of industry from "Occupations"\n    occupation: choice of occupation from "Occupations" for industry\n    age: integer\n'))
         items = [{"industry": "construction", "occupation": "Labourer"}]
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})), ["people item 1: missing age"])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items}), set()), ["people item 1: missing age"])
+
+    def test_only_an_optional_cover_can_be_chosen(self):
+        p = parse(FULL)
+        answers = with_defaults(p.inputs, risk())
+        optional = [c.name for c in p.covers if c.optional]
+        mandatory = next(c.name for c in p.covers if not c.optional)
+        self.assertEqual(check_inputs(p, answers, set(optional)), [])
+        self.assertEqual(check_inputs(p, answers, {"nonsense"}), [f"unknown cover 'nonsense'; the optional covers are {', '.join(optional)}"])
+        self.assertEqual(check_inputs(p, answers, {mandatory}), [f"{mandatory} is always included; only optional covers are chosen"])
+
+    def test_a_product_with_no_optional_covers_says_so(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  value: money\ncover "Main"\nrating\n  base 1\n')
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"value": Decimal(1)}), {"Extra"}), ["unknown cover 'Extra'; this product has no optional covers"])
 
     def test_none_is_not_an_answer(self):
         p = parse('product "X"\n  territory UK\ninputs\n  industry: choice of retail, trade\n  age: integer\n  indoors: yes/no\n  plan: choice of basic, plus, default basic\n')
         answers = with_defaults(p.inputs, {"industry": None, "age": None, "indoors": None, "plan": None})
         self.assertEqual(answers["plan"], "basic")  # a None leaves the default in place
-        self.assertEqual(check_inputs(p, answers), ["missing industry, age, indoors"])
+        self.assertEqual(check_inputs(p, answers, set()), ["missing industry, age, indoors"])
 
     def test_none_is_not_an_answer_in_an_item(self):
         p = parse('product "X"\n  territory UK\ninputs\n  people: collection of person\n    age: integer\n    smoker: yes/no, default no\n')
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": [{"age": None, "smoker": None}]})), ["people item 1: missing age, smoker"])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": [{"age": None, "smoker": None}]}), set()), ["people item 1: missing age, smoker"])
 
     def test_none_for_a_collection_is_no_items(self):
         p = parse('product "X"\n  territory UK\ninputs\n  people: collection of person\n    age: integer\n')
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": None})), [])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": None}), set()), [])
 
     def test_a_number_key_reads_plainly(self):
         p = parse('product "X"\n  territory UK\n\ninputs\n  band: integer\n  plan: choice of plan from "Plans" for band\n\ntable "Plans" keyed on band, plan\n  band, plan\n  1, basic\n  2, basic\n  2, plus\n')
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(1), "plan": "plus"})), ['plan "plus" is not a plan for band 1'])
-        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(2), "plan": "plus"})), [])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(1), "plan": "plus"}), set()), ['plan "plus" is not a plan for band 1'])
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(2), "plan": "plus"}), set()), [])
