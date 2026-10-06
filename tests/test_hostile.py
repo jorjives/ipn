@@ -1,5 +1,6 @@
 """parse() raises only ParseError, located on a line, whatever text it is given."""
 import random
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -57,6 +58,16 @@ class Hostile(unittest.TestCase):
         for deep in ("(" * 500 + "1" + ")" * 500, "not " * 2000 + "yes", "- " * 2000 + "1", "2 ^ " * 2000 + "1"):
             with self.subTest(deep=deep[:12]):
                 attempt(self, "examples/cycle.ipn", text.replace("rider_age < 16", deep, 1))
+
+    def test_a_file_that_is_not_utf8_is_a_located_parse_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "bad.csv").write_bytes(b"band,rate\nCaf\xe9,1\n")
+            for text in ('product "X"\ninputs\n  band: text\ntable "Rates" from "bad.csv" keyed on band\n',
+                         'product "X"\ninputs\n  bikes: collection of bike\n    value: money\nrating\n  base 1\n'
+                         'scenario "s"\n  given bikes from "bad.csv"\n  expect premium 1.00\n'):
+                with self.subTest(text=text[:40]):
+                    with self.assertRaisesRegex(ParseError, r"^line \d+: cannot read 'bad.csv': not UTF-8 text$"):
+                        parse(text, base=d)
 
     def test_random_mutations_raise_only_parse_errors(self):
         """A fixed-seed fuzz: truncate, drop, repeat or replace one word on one line of each product."""

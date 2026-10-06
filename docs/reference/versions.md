@@ -12,6 +12,9 @@ are no version numbers. The other versions of a product are the `.ipn` files in 
 directory that declare the same product name. `check` finds them itself, and a file sees
 only the versions published on or before its own date, so a scenario written in an old
 version still holds when new ones are published. See [`examples/versioned/`](../examples/bike-versioned.md).
+A product without a `published` date is a single version: a history that holds it beside
+any other version is refused with "a version of X has no published date; a product with
+more than one version must say when each went on sale".
 
 - The version **live** on a date is the one with the latest `published` on or before it.
   `when bound on DATE` binds under that version; binding before the first version is
