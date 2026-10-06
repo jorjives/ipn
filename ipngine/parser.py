@@ -193,8 +193,8 @@ def parse_input_lines(lines: list[Line], product: Product, nested: bool = False)
 
 
 def with_defaults(inputs: dict[str, Input], given: dict) -> dict:
-    """What was given, plus the default of anything with one that was left out."""
-    return {**{n: i.default for n, i in inputs.items() if i.default is not None}, **given}
+    """What was given, plus the default of anything with one that was left out; None is left out."""
+    return {**{n: i.default for n, i in inputs.items() if i.default is not None}, **{n: v for n, v in given.items() if v is not None}}
 
 
 def parse_collection(line: Line, name: str, toks: list[str], product: Product) -> Input:

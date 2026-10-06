@@ -1539,6 +1539,20 @@ class CheckInputs(unittest.TestCase):
         items = [{"industry": "construction", "occupation": "Labourer"}]
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": items})), ["people item 1: missing age"])
 
+    def test_none_is_not_an_answer(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  industry: choice of retail, trade\n  age: integer\n  indoors: yes/no\n  plan: choice of basic, plus, default basic\n')
+        answers = with_defaults(p.inputs, {"industry": None, "age": None, "indoors": None, "plan": None})
+        self.assertEqual(answers["plan"], "basic")  # a None leaves the default in place
+        self.assertEqual(check_inputs(p, answers), ["missing industry, age, indoors"])
+
+    def test_none_is_not_an_answer_in_an_item(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  people: collection of person\n    age: integer\n    smoker: yes/no, default no\n')
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": [{"age": None, "smoker": None}]})), ["people item 1: missing age, smoker"])
+
+    def test_none_for_a_collection_is_no_items(self):
+        p = parse('product "X"\n  territory UK\ninputs\n  people: collection of person\n    age: integer\n')
+        self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"people": None})), [])
+
     def test_a_number_key_reads_plainly(self):
         p = parse('product "X"\n  territory UK\n\ninputs\n  band: integer\n  plan: choice of plan from "Plans" for band\n\ntable "Plans" keyed on band, plan\n  band, plan\n  1, basic\n  2, basic\n  2, plus\n')
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(1), "plan": "plus"})), ['plan "plus" is not a plan for band 1'])
