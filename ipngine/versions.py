@@ -19,6 +19,9 @@ from .parser import ParseError, known_words, parse, read_text, unquote
 
 class History:
     def __init__(self, products: list[Product]):
+        if len(products) > 1 and any(p.published is None for p in products):
+            raise ParseError(f"a version of {products[0].name} has no published date; "
+                             "a product with more than one version must say when each went on sale")
         self.versions = sorted(products, key=lambda p: p.published or date.min)
         self._wordings: dict = {}  # (version index, kind, name) -> a Cover or ClaimRule carrying every version's dated lines
         for earlier, later in zip(self.versions, self.versions[1:]):
