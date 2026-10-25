@@ -1,0 +1,25 @@
+{
+  "domain": "IPN (Insurance Product Notation): a declarative language for defining insurance products, with a reference engine, the Python 3.12 standard-library-only package ipngine. Tests run with python3 -m unittest. The audience is insurance professionals, so the language reads like English.",
+  "gate": { "type": "command", "command": "python3 -m unittest", "parseMode": "exitcode" },
+  "closer": { "type": "open-pr" },
+  "sources": [{ "type": "github", "label": "delivery", "workflow": "resolve-issue" }],
+  "workflows": {
+    "resolve-issue": {
+      "steps": [
+        {
+          "name": "reproduce",
+          "prompt": "Write a failing test that captures the issue, and commit it. Do not fix the issue in this step.",
+          "gate": { "type": "commits-ahead" }
+        },
+        {
+          "name": "fix",
+          "prompt": "Make the failing test pass with the smallest good change, and tidy the code you touch. Keep docs/reference/ in step with any language change. All arithmetic is Decimal, never float.",
+          "continue": true
+        }
+      ]
+    }
+  },
+  "agent": {
+    "append": "Follow CLAUDE.md. Use British English. Make small atomic commits: a one-line summary of what changed, then a paragraph on why."
+  }
+}
