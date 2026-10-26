@@ -1601,3 +1601,21 @@ class CheckInputs(unittest.TestCase):
         p = parse('product "X"\n  territory UK\n\ninputs\n  band: integer\n  plan: choice of plan from "Plans" for band\n\ntable "Plans" keyed on band, plan\n  band, plan\n  1, basic\n  2, basic\n  2, plus\n')
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(1), "plan": "plus"}), set()), ['plan "plus" is not a plan for band 1'])
         self.assertEqual(check_inputs(p, with_defaults(p.inputs, {"band": Decimal(2), "plan": "plus"}), set()), [])
+
+
+class ChoiceValuesShareReservedWords(unittest.TestCase):
+    """A choice value named like a word the rating injects (`premium`, `net`) still compares as itself in a step condition."""
+
+    def price(self, tier, value="premium"):
+        src = ('product "X"\ninputs\n  tier: choice of basic, ' + value + '\ncover Main\n  limit 100\n'
+               'rating\n  base 100\n  factor "Loading" x 1.5 when tier is ' + value + '\n  tax IPT 12%\n')
+        return rate(parse(src), {"tier": tier}, set()).net
+
+    def test_premium_choice_value_fires_the_step(self):
+        self.assertEqual(self.price("premium"), Decimal("150.00"))
+
+    def test_premium_choice_value_not_chosen_skips_the_step(self):
+        self.assertEqual(self.price("basic"), Decimal("100.00"))
+
+    def test_net_choice_value_fires_the_step(self):
+        self.assertEqual(self.price("net", "net"), Decimal("150.00"))

@@ -300,8 +300,12 @@ def run_steps(product: Product, steps, ctx: dict, trail: list, lines: list, pref
         above = sum((line_shares(l) for l in lines if l[0] != "commission"), Decimal(0))
         return {**{l[1]: line_shares(l) for l in lines if l[0] == "tax"}, **covers, "net": net, "premium": net + above}
 
+    choice_values = {c for i in [*product.inputs.values(), *(f for i in product.inputs.values() for f in i.fields.values())] for c in i.choices}
+
     def line_words() -> dict:
-        return words_for(total(shares).quantize(quantum, ROUNDING), attributed(product, shares, quantum, strict=False), lambda l: l[2])
+        """The words a line may read, less any a choice value is spelt the same as: `tier is premium` compares with "premium"."""
+        words = words_for(total(shares).quantize(quantum, ROUNDING), attributed(product, shares, quantum, strict=False), lambda l: l[2])
+        return {k: v for k, v in words.items() if k not in choice_values}
 
     for step in steps:
         if step.kind == "round":
