@@ -178,6 +178,17 @@ class PolicyLifecycle(unittest.TestCase):
         pol.pay(date(2026, 3, 25))
         self.assertEqual(pol.status(date(2026, 4, 1)), "live")
 
+    def test_instalment_schedule_and_payment(self):
+        pol = Policy(parse(LIFECYCLE + "  instalments 3 monthly, charge 10%\n"), risk(), set())
+        pol.bind(date(2026, 3, 31), paid=False)
+        charge, amounts = instalments(pol.premium, 3, Decimal("0.10"), pol.quantum)
+        self.assertEqual([(i.number, i.due, i.amount) for i in pol.instalment_schedule],
+                         [(1, date(2026, 3, 31), amounts[0]), (2, date(2026, 4, 30), amounts[1]),
+                          (3, date(2026, 5, 31), amounts[2])])
+        self.assertEqual(sum(i.amount for i in pol.instalment_schedule), pol.premium + charge)
+        pol.pay_instalment(1, date(2026, 3, 31))
+        self.assertEqual([i.paid_on for i in pol.instalment_schedule], [date(2026, 3, 31), None, None])
+
     def test_cooling_off_full_refund(self):
         pol = self.policy
         pol.bind(date(2026, 1, 1))
