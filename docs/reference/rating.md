@@ -92,7 +92,9 @@ it, and a step written after a tax is not taxed. The amount or `when` may read `
 (the running net so far, rounded as the customer sees it), `premium` (the net plus every
 tax, fee or commission above), and any tax above it that was named with a word rather than a quoted label
 (`tax IPT 12%` makes `IPT` a word; a quoted label is read as `of "Government levy"`), and
-any cover's name (its share of the net, see below). A bare rate, `12%` or `ipt from "Territory"`, is that rate of `net`; with `of`, the expression is
+any cover's name (its share of the net, see below). A choice value spelt the same as one of these
+words stays a choice value: `tier is premium` compares with "premium", so that product cannot read the
+running `premium` in a step. A bare rate, `12%` or `ipt from "Territory"`, is that rate of `net`; with `of`, the expression is
 the amount, so a levy charged on another tax, on the running total, on a deemed proportion,
 only above a threshold or only when a cover is taken, reads as the law does:
 
