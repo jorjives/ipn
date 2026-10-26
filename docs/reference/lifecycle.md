@@ -57,7 +57,10 @@ Policy status on any date is one of *quoted*, *bound* (before inception), *live*
 - **Instalments**: `instalments N monthly`, optionally `, charge P%`. The credit charge is
   that percentage of the premium, rounded; premium plus charge is split into N equal
   instalments to the penny, with the first taking any rounding so the schedule sums
-  exactly. The `quote` command shows the schedule.
+  exactly. The `quote` command shows the schedule. A bound policy carries the schedule
+  (`Policy.instalment_schedule`): instalment N falls due N-1 months after inception, and
+  `Policy.pay_instalment` records it paid. Consequences of a missed instalment are not yet
+  modelled.
 - **Renewal**: `index` lines first move the answers on: `by N%` for inflation of a sum
   insured, `by N` to add a fixed amount, such as a year of age, `by -N` to take one away.
   `, at least 0` and `, at most 9` keep the result within bounds, so a no claims discount

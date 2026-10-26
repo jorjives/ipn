@@ -451,6 +451,14 @@ def instalments(premium: Decimal, count: int, charge: Decimal, quantum: Decimal)
 
 
 @dataclass
+class Instalment:
+    number: int  # from 1
+    due: date
+    amount: Decimal
+    paid_on: date | None = None
+
+
+@dataclass
 class RenewalOffer:
     invite_date: date
     premium: Decimal
@@ -508,6 +516,7 @@ class Policy:
         self.inception: date | None = None
         self.first_inception: date | None = None  # the original start, kept across renewals for waiting periods
         self.paid_on: date | None = None
+        self.instalments_paid: dict[int, date] = {}  # instalment number -> the day it was paid, this term
         self.cancelled_on: date | None = None
         self.charged = Decimal(0)  # the total charged for the current term: capped or loaded at renewal, repriced on adjustment
         self.claims: list = []  # this term's
@@ -626,10 +635,26 @@ class Policy:
         term_end(self.product, self.inputs, self.selected, on)
         self.inception = self.first_inception = on
         self.paid_on = on if paid else None
+        self.instalments_paid = {}
         self.charged = self.quote.total
 
     def pay(self, on: date) -> None:
         self.paid_on = on
+
+    @property
+    def instalment_schedule(self) -> list[Instalment]:
+        """Each instalment of the term: monthly from inception, with what has been paid. Empty if the product has none."""
+        count = self.terms.instalments
+        if not count or self.inception is None:
+            return []
+        _, amounts = instalments(self.premium, count, self.terms.instalment_charge, self.quantum)
+        return [Instalment(n, add_months(self.inception, n - 1), a, self.instalments_paid.get(n))
+                for n, a in enumerate(amounts, 1)]
+
+    def pay_instalment(self, number: int, on: date) -> None:
+        if not 1 <= number <= len(self.instalment_schedule):
+            raise ValueError(f"there is no instalment {number}")
+        self.instalments_paid[number] = on
 
     def round(self, v: Decimal) -> Decimal:
         return round_money(v, self.quantum)
@@ -872,6 +897,7 @@ class Policy:
         self.previous_terms.append((self.inception, self.expiry))
         self.inputs, self.product = offer.inputs, offer.version
         self.inception = self.paid_on = self.expiry
+        self.instalments_paid = {}
         self.charged = offer.premium
         self.claims = []
         self.reinstated = {}
